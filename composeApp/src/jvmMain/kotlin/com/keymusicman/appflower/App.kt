@@ -3,20 +3,19 @@ package com.keymusicman.appflower
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
 import com.keymusicman.appflower.ui.GraphVisualizer
 import com.keymusicman.appflower.utils.GraphLoader
-import java.io.File
 
 @Composable
 fun App() {
-    var projectPath by remember { mutableStateOf("") }
+    var projectPath by remember { mutableStateOf("/Users/keymusicman/example/android/app") }
     var graph by remember { mutableStateOf<Graph?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+    val zoomState = remember { mutableStateOf(1f) }
 
     MaterialTheme {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -49,7 +48,8 @@ fun App() {
                                 val appGraph = GraphLoader.loadGraphFromProject(projectPath)
                                 if (appGraph != null) {
                                     graph = Graph.from(appGraph, projectPath)
-                                    errorMessage = "Graph loaded: ${appGraph.transitions.size} transitions"
+                                    errorMessage =
+                                        "Graph loaded: ${appGraph.transitions.size} transitions"
                                 } else {
                                     errorMessage = "Failed to load graph"
                                 }
@@ -76,6 +76,16 @@ fun App() {
                     }
                 }
 
+                Row {
+                    // zoom controls - simple buttons
+                    androidx.compose.material3.Button(onClick = { zoomState.value *= 1.2f }) {
+                        Text("+")
+                    }
+                    androidx.compose.material3.Button(onClick = { zoomState.value /= 1.2f }) {
+                        Text("-")
+                    }
+                }
+
                 if (errorMessage.isNotEmpty()) {
                     Text(
                         errorMessage,
@@ -84,11 +94,17 @@ fun App() {
                     )
                 }
 
-                Divider()
+                HorizontalDivider()
 
                 if (graph != null) {
-                    Text("Nodes: ${graph!!.nodes.size}", style = MaterialTheme.typography.bodyMedium)
-                    Text("Edges: ${graph!!.edges.size}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Nodes: ${graph!!.nodes.size}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Edges: ${graph!!.edges.size}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
 
                     Text("Nodes List:", style = MaterialTheme.typography.labelMedium)
                     Column(
@@ -107,11 +123,13 @@ fun App() {
                 }
             }
 
-            Divider(modifier = Modifier
-                .fillMaxHeight()
-                .width(1.dp))
+            VerticalDivider()
 
-            GraphVisualizer(graph, modifier = Modifier.weight(1f))
+            GraphVisualizer(
+                graph,
+                modifier = Modifier.weight(1f),
+                zoomState = zoomState
+            )
         }
     }
 }

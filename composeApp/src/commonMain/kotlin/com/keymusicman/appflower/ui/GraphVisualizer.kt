@@ -11,13 +11,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.Canvas as ComposeCanvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
 import java.io.File
 import androidx.compose.ui.graphics.ImageBitmap
@@ -29,9 +26,13 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 @Composable
-fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifier = Modifier) {
+fun GraphVisualizer(
+    graph: Graph?,
+    appBasePath: String? = null,
+    modifier: Modifier = Modifier,
+    zoomState: MutableState<Float>,
+) {
     // stateful zoom and precomputed layout
-    val zoomState = remember { androidx.compose.runtime.mutableStateOf(1f) }
 
     Box(
         modifier = modifier
@@ -60,114 +61,36 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
                 graph
             }
 
-            // zoom controls - simple buttons
-            androidx.compose.material3.Button(onClick = { zoomState.value *= 1.2f }) {
-                Text("+")
-            }
-            androidx.compose.material3.Button(onClick = { zoomState.value /= 1.2f }) {
-                Text("-")
-            }
-
-            // draw edges first so images render on top; apply zoom by scaling coordinates
+            // Single canvas rendering: edges then images on same canvas with zoom
             ComposeCanvas(modifier = Modifier.fillMaxSize()) {
-                with(drawContext.canvas) {
-                    save()
-                    scale(zoomState.value)
-                    drawGraphEdges(prepared)
-                    restore()
-                }
-            }
+                // draw with transform
+                drawContext.canvas.save()
+                drawContext.canvas.scale(zoomState.value)
 
-            Layout(
-                content = {
-                    graph.nodes.forEach { node ->
-                        if (node.imagePath != null) {
-                            val imageBitmap = remember(node.imagePath) {
-                                loadImageBitmap(node.imagePath)
-                            }
-                            if (imageBitmap != null) {
-                                // compute size keeping aspect ratio, default max 120 dp
-                                val maxDp = 120.dp
-                                val ratio = imageBitmap.width.toFloat() / imageBitmap.height.toFloat()
-                                val widthDp = if (ratio >= 1f) maxDp else (maxDp * ratio)
-                                val heightDp = if (ratio >= 1f) (maxDp / ratio) else maxDp
-                                Image(
-                                    bitmap = imageBitmap,
-                                    contentDescription = node.id,
-                                    modifier = Modifier.size(widthDp, heightDp)
-                                )
-                            }
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            ) { measurables, constraints ->
-                layout(constraints.maxWidth, constraints.maxHeight) {
-                    val placeables = mutableListOf<androidx.compose.ui.layout.Placeable>()
-                    measurables.forEachIndexed { mIndex, measurable ->
-                        val placeable = measurable.measure(constraints)
-                        placeables.add(placeable)
-                        // assign measured width/height back to node for edge calculations
-                        if (mIndex < graph.nodes.size) {
-                            val node = graph.nodes.elementAt(mIndex)
-                            // convert measured pixels to layout coords considering zoom
-                            node.width = placeable.width.toFloat() * 1f
-                            node.height = placeable.height.toFloat() * 1f
-                        }
-                    }
+                // draw edges using current node sizes and positions
+                drawGraphEdges(prepared)
 
-                    // if nodes have no positions (e.g., window resized), recompute base circular layout once
-                    if (graph.nodes.none { it.x != 0f || it.y != 0f }) {
-                        val count = graph.nodes.size
-                        val radius = (kotlin.math.min(constraints.maxWidth, constraints.maxHeight) / 3).toFloat()
-                        val centerX = constraints.maxWidth / 2f
-                        val centerY = constraints.maxHeight / 2f
-                        graph.nodes.forEachIndexed { index, node ->
-                            val angle = (2 * Math.PI * index) / count
-                            node.x = (centerX + radius * kotlin.math.cos(angle)).toFloat()
-                            node.y = (centerY + radius * kotlin.math.sin(angle)).toFloat()
-                        }
-                    }
-
-                    // simple iterative collision resolution using measured sizes
-                    val nodesList = graph.nodes.toMutableList()
-                    val iterations = 6
-                    for (it in 0 until iterations) {
-                        for (i in nodesList.indices) {
-                            for (j in i + 1 until nodesList.size) {
-                                val a = nodesList[i]
-                                val b = nodesList[j]
-                                val dx = a.x - b.x
-                                val dy = a.y - b.y
-                                val overlapX = (a.width / 2f + b.width / 2f) - kotlin.math.abs(dx)
-                                val overlapY = (a.height / 2f + b.height / 2f) - kotlin.math.abs(dy)
-                                if (overlapX > 0f && overlapY > 0f) {
-                                    // push apart along the axis of greatest overlap
-                                    val pushX = if (overlapX > overlapY) overlapX else 0f
-                                    val pushY = if (overlapY >= overlapX) overlapY else 0f
-                                    val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-                                    val nx = if (dist == 0f) (if (i % 2 == 0) 1f else -1f) else dx / dist
-                                    val ny = if (dist == 0f) (if (j % 2 == 0) 1f else -1f) else dy / dist
-                                    a.x += (nx * pushX) / 2f
-                                    a.y += (ny * pushY) / 2f
-                                    b.x -= (nx * pushX) / 2f
-                                    b.y -= (ny * pushY) / 2f
-                                }
-                            }
-                        }
-                    }
-
-                    // place after resolving
-                    placeables.forEachIndexed { mIndex, placeable ->
-                        if (mIndex < graph.nodes.size) {
-                            val node = graph.nodes.elementAt(mIndex)
-                            placeable.place(
-                                x = (node.x - placeable.width / 2).toInt(),
-                                y = (node.y - placeable.height / 2).toInt()
-                            )
+                // draw images on top
+                prepared.nodes.forEach { node ->
+                    node.imagePath?.let { path ->
+                        val bmp = loadImageBitmap(path)
+                        if (bmp != null) {
+                            // scale images to max 120 px keeping aspect
+                            val maxPx = 120f
+                            val ratio = bmp.width.toFloat() / bmp.height.toFloat()
+                            val w = if (ratio >= 1f) maxPx else maxPx * ratio
+                            val h = if (ratio >= 1f) maxPx / ratio else maxPx
+                            // Draw image into canvas with explicit src/dst offsets
+                            val dstOffset = androidx.compose.ui.unit.IntOffset((node.x - w / 2f).toInt(), (node.y - h / 2f).toInt())
+                            val dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt())
+                            drawImage(bmp, srcOffset = androidx.compose.ui.unit.IntOffset(0,0), srcSize = androidx.compose.ui.unit.IntSize(bmp.width, bmp.height), dstOffset = dstOffset, dstSize = dstSize)
+                            node.width = w
+                            node.height = h
                         }
                     }
                 }
+
+                drawContext.canvas.restore()
             }
         }
     }

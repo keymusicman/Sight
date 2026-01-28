@@ -1,6 +1,8 @@
 package com.keymusicman.appflower.model
 
 import kotlinx.serialization.Serializable
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Serializable
 data class Transition(
@@ -80,15 +82,15 @@ data class Graph(
 
             val layoutedNodes = nodes.toMutableList()
             val count = layoutedNodes.size
-            val radius = 300f
+            val radius = 200f
             val centerX = 600f
             val centerY = 400f
 
             // simple circular layout but jitter positions to reduce overlap based on expected sizes
             layoutedNodes.forEachIndexed { index, node ->
                 val angle = (2 * Math.PI * index) / count
-                var x = (centerX + radius * Math.cos(angle)).toFloat()
-                var y = (centerY + radius * Math.sin(angle)).toFloat()
+                var x = (centerX + radius * cos(angle)).toFloat()
+                var y = (centerY + radius * sin(angle)).toFloat()
                 // apply small jitter based on index to avoid exact collisions
                 val jitter = (index % 5) * 8f
                 x += jitter
