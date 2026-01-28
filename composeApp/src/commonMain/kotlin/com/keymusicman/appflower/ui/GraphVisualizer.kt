@@ -158,15 +158,28 @@ private fun DrawScope.drawEdgeEllipse(
 
     if (distance == 0f) return
 
-    // compute direction unit vector
-    val ux = dx / distance
-    val uy = dy / distance
+    // prefer connecting horizontally when horizontal separation is larger than vertical
+    val absDx = kotlin.math.abs(dx)
+    val absDy = kotlin.math.abs(dy)
+    val ux: Float
+    val uy: Float
+    val fromIntersect: Offset
+    val toIntersect: Offset
 
-    // approximate intersection with ellipse along direction vector for source and target
-    // parametric point on ellipse centered at origin: (rx*cos(t), ry*sin(t)), find t where vector aligns
-    // approximate by scaling direction by radii
-    val fromIntersect = Offset(from.x + ux * fromRx, from.y + uy * fromRy)
-    val toIntersect = Offset(to.x - ux * toRx, to.y - uy * toRy)
+    if (absDx > absDy) {
+        // horizontal preference: connect east/west sides
+        val dir = if (dx >= 0f) 1f else -1f
+        ux = dir
+        uy = 0f
+        fromIntersect = Offset(from.x + ux * fromRx, from.y)
+        toIntersect = Offset(to.x - ux * toRx, to.y)
+    } else {
+        // default: connect along actual direction vector
+        ux = dx / distance
+        uy = dy / distance
+        fromIntersect = Offset(from.x + ux * fromRx, from.y + uy * fromRy)
+        toIntersect = Offset(to.x - ux * toRx, to.y - uy * toRy)
+    }
 
     drawLine(
         color = Color.Gray,
@@ -175,7 +188,7 @@ private fun DrawScope.drawEdgeEllipse(
         strokeWidth = 2f
     )
 
-    val angle = atan2(dy, dx)
+    val angle = atan2(toIntersect.y - fromIntersect.y, toIntersect.x - fromIntersect.x)
     val arrowTip = toIntersect
     val arrowEnd1 = Offset(
         arrowTip.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
