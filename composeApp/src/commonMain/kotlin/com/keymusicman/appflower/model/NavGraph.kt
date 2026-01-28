@@ -20,7 +20,9 @@ data class Node(
     val id: String,
     val imagePath: String? = null,
     var x: Float = 0f,
-    var y: Float = 0f
+    var y: Float = 0f,
+    var width: Float = 0f,
+    var height: Float = 0f
 )
 
 data class Edge(
@@ -82,10 +84,17 @@ data class Graph(
             val centerX = 600f
             val centerY = 400f
 
+            // simple circular layout but jitter positions to reduce overlap based on expected sizes
             layoutedNodes.forEachIndexed { index, node ->
                 val angle = (2 * Math.PI * index) / count
-                node.x = (centerX + radius * Math.cos(angle)).toFloat()
-                node.y = (centerY + radius * Math.sin(angle)).toFloat()
+                var x = (centerX + radius * Math.cos(angle)).toFloat()
+                var y = (centerY + radius * Math.sin(angle)).toFloat()
+                // apply small jitter based on index to avoid exact collisions
+                val jitter = (index % 5) * 8f
+                x += jitter
+                y += (index % 3) * 6f
+                node.x = x
+                node.y = y
             }
 
             return layoutedNodes

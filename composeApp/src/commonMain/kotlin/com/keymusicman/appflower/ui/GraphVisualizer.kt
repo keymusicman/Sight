@@ -41,6 +41,11 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
         } else if (graph.nodes.isEmpty()) {
             Text("Graph is empty", color = MaterialTheme.colorScheme.onBackground)
         } else {
+            // draw edges first so images render on top
+            ComposeCanvas(modifier = Modifier.fillMaxSize()) {
+                drawGraphEdges(graph)
+            }
+
             Layout(
                 content = {
                     graph.nodes.forEach { node ->
@@ -49,10 +54,15 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
                                 loadImageBitmap(node.imagePath)
                             }
                             if (imageBitmap != null) {
+                                // compute size keeping aspect ratio, default max 120 dp
+                                val maxDp = 120.dp
+                                val ratio = imageBitmap.width.toFloat() / imageBitmap.height.toFloat()
+                                val widthDp = if (ratio >= 1f) maxDp else (maxDp * ratio)
+                                val heightDp = if (ratio >= 1f) (maxDp / ratio) else maxDp
                                 Image(
                                     bitmap = imageBitmap,
                                     contentDescription = node.id,
-                                    modifier = Modifier.size(120.dp)
+                                    modifier = Modifier.size(widthDp, heightDp)
                                 )
                             }
                         }
@@ -61,9 +71,50 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
                 modifier = Modifier.fillMaxSize()
             ) { measurables, constraints ->
                 layout(constraints.maxWidth, constraints.maxHeight) {
-                    graph.nodes.forEachIndexed { index, node ->
-                        if (index < measurables.size) {
-                            val placeable = measurables[index].measure(constraints)
+                    val placeables = mutableListOf<androidx.compose.ui.layout.Placeable>()
+                    measurables.forEachIndexed { mIndex, measurable ->
+                        val placeable = measurable.measure(constraints)
+                        placeables.add(placeable)
+                        // assign measured width/height back to node for edge calculations
+                        if (mIndex < graph.nodes.size) {
+                            val node = graph.nodes.elementAt(mIndex)
+                            node.width = placeable.width.toFloat()
+                            node.height = placeable.height.toFloat()
+                        }
+                    }
+
+                    // simple iterative collision resolution using measured sizes
+                    val nodesList = graph.nodes.toMutableList()
+                    val iterations = 6
+                    for (it in 0 until iterations) {
+                        for (i in nodesList.indices) {
+                            for (j in i + 1 until nodesList.size) {
+                                val a = nodesList[i]
+                                val b = nodesList[j]
+                                val dx = a.x - b.x
+                                val dy = a.y - b.y
+                                val overlapX = (a.width / 2f + b.width / 2f) - kotlin.math.abs(dx)
+                                val overlapY = (a.height / 2f + b.height / 2f) - kotlin.math.abs(dy)
+                                if (overlapX > 0f && overlapY > 0f) {
+                                    // push apart along the axis of greatest overlap
+                                    val pushX = if (overlapX > overlapY) overlapX else 0f
+                                    val pushY = if (overlapY >= overlapX) overlapY else 0f
+                                    val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+                                    val nx = if (dist == 0f) (if (i % 2 == 0) 1f else -1f) else dx / dist
+                                    val ny = if (dist == 0f) (if (j % 2 == 0) 1f else -1f) else dy / dist
+                                    a.x += (nx * pushX) / 2f
+                                    a.y += (ny * pushY) / 2f
+                                    b.x -= (nx * pushX) / 2f
+                                    b.y -= (ny * pushY) / 2f
+                                }
+                            }
+                        }
+                    }
+
+                    // place after resolving
+                    placeables.forEachIndexed { mIndex, placeable ->
+                        if (mIndex < graph.nodes.size) {
+                            val node = graph.nodes.elementAt(mIndex)
                             placeable.place(
                                 x = (node.x - placeable.width / 2).toInt(),
                                 y = (node.y - placeable.height / 2).toInt()
@@ -71,10 +122,6 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
                         }
                     }
                 }
-            }
-            
-            ComposeCanvas(modifier = Modifier.fillMaxSize()) {
-                drawGraphEdges(graph)
             }
         }
     }
@@ -94,23 +141,30 @@ private fun loadImageBitmap(path: String): ImageBitmap? {
 }
 
 private fun DrawScope.drawGraphEdges(graph: Graph) {
-    val imageSize = 60f
-
     graph.edges.forEach { edge ->
         val fromNode = graph.nodes.find { it.id == edge.from } ?: return@forEach
         val toNode = graph.nodes.find { it.id == edge.to } ?: return@forEach
 
+        // compute ellipse radii based on measured image sizes (fallback to 60f)
+        val fromRx = if (fromNode.width > 0f) fromNode.width / 2f else 60f
+        val fromRy = if (fromNode.height > 0f) fromNode.height / 2f else 60f
+        val toRx = if (toNode.width > 0f) toNode.width / 2f else 60f
+        val toRy = if (toNode.height > 0f) toNode.height / 2f else 60f
+
         val fromPoint = Offset(fromNode.x, fromNode.y)
         val toPoint = Offset(toNode.x, toNode.y)
 
-        drawEdge(fromPoint, toPoint, imageSize, 15f)
+        drawEdgeEllipse(fromPoint, toPoint, fromRx, fromRy, toRx, toRy, 15f)
     }
 }
 
-private fun DrawScope.drawEdge(
+private fun DrawScope.drawEdgeEllipse(
     from: Offset,
     to: Offset,
-    nodeRadius: Float,
+    fromRx: Float,
+    fromRy: Float,
+    toRx: Float,
+    toRy: Float,
     arrowSize: Float
 ) {
     val dx = to.x - from.x
@@ -119,29 +173,34 @@ private fun DrawScope.drawEdge(
 
     if (distance == 0f) return
 
-    val ratio = (distance - nodeRadius) / distance
-    val adjustedTo = Offset(
-        from.x + dx * ratio,
-        from.y + dy * ratio
-    )
+    // compute direction unit vector
+    val ux = dx / distance
+    val uy = dy / distance
+
+    // approximate intersection with ellipse along direction vector for source and target
+    // parametric point on ellipse centered at origin: (rx*cos(t), ry*sin(t)), find t where vector aligns
+    // approximate by scaling direction by radii
+    val fromIntersect = Offset(from.x + ux * fromRx, from.y + uy * fromRy)
+    val toIntersect = Offset(to.x - ux * toRx, to.y - uy * toRy)
 
     drawLine(
         color = Color.Gray,
-        start = Offset(from.x + (dx / distance) * nodeRadius, from.y + (dy / distance) * nodeRadius),
-        end = adjustedTo,
+        start = fromIntersect,
+        end = toIntersect,
         strokeWidth = 2f
     )
 
     val angle = atan2(dy, dx)
+    val arrowTip = toIntersect
     val arrowEnd1 = Offset(
-        adjustedTo.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
-        adjustedTo.y - arrowSize * sin(angle - Math.PI / 6).toFloat()
+        arrowTip.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
+        arrowTip.y - arrowSize * sin(angle - Math.PI / 6).toFloat()
     )
     val arrowEnd2 = Offset(
-        adjustedTo.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
-        adjustedTo.y - arrowSize * sin(angle + Math.PI / 6).toFloat()
+        arrowTip.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
+        arrowTip.y - arrowSize * sin(angle + Math.PI / 6).toFloat()
     )
 
-    drawLine(Color.Gray, adjustedTo, arrowEnd1, strokeWidth = 2f)
-    drawLine(Color.Gray, adjustedTo, arrowEnd2, strokeWidth = 2f)
+    drawLine(Color.Gray, arrowTip, arrowEnd1, strokeWidth = 2f)
+    drawLine(Color.Gray, arrowTip, arrowEnd2, strokeWidth = 2f)
 }
