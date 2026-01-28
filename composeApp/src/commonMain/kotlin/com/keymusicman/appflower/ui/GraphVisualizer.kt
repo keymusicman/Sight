@@ -1,29 +1,33 @@
 package com.keymusicman.appflower.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.foundation.Canvas as ComposeCanvas
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.remember
-import androidx.compose.ui.layout.Layout
-import com.keymusicman.appflower.model.Graph
-import java.io.File
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import com.keymusicman.appflower.model.Graph
 import org.jetbrains.skia.Image
+import java.io.File
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import androidx.compose.foundation.Canvas as ComposeCanvas
 
 @Composable
 fun GraphVisualizer(
@@ -61,14 +65,23 @@ fun GraphVisualizer(
                 graph
             }
 
-            // Single canvas rendering: edges then images on same canvas with zoom
-            ComposeCanvas(modifier = Modifier.fillMaxSize()) {
+            // Single canvas rendering: edges then images on same canvas with zoom and drag pan
+            // track pan offset in state
+            val pan = remember { mutableStateOf(Offset(0f, 0f)) }
+
+            ComposeCanvas(modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    // update pan by drag amount (note: dragAmount is in pixels)
+                    pan.value += dragAmount
+                }
+            }) {
                 // draw with transform
                 drawContext.canvas.save()
-                drawContext.canvas.scale(zoomState.value)
 
-                // draw edges using current node sizes and positions
-                drawGraphEdges(prepared)
+                // apply pan before scaling so pan happens in view coordinates
+                drawContext.canvas.translate(pan.value.x, pan.value.y)
+                drawContext.canvas.scale(zoomState.value)
 
                 // draw images on top
                 prepared.nodes.forEach { node ->
@@ -76,19 +89,22 @@ fun GraphVisualizer(
                         val bmp = loadImageBitmap(path)
                         if (bmp != null) {
                             // scale images to max 120 px keeping aspect
-                            val maxPx = 120f
+                            val maxPx = 720f
                             val ratio = bmp.width.toFloat() / bmp.height.toFloat()
-                            val w = if (ratio >= 1f) maxPx else maxPx * ratio
-                            val h = if (ratio >= 1f) maxPx / ratio else maxPx
+                            val w = (if (ratio >= 1f) maxPx else maxPx * ratio)
+                            val h = (if (ratio >= 1f) maxPx / ratio else maxPx)
                             // Draw image into canvas with explicit src/dst offsets
-                            val dstOffset = androidx.compose.ui.unit.IntOffset((node.x - w / 2f).toInt(), (node.y - h / 2f).toInt())
-                            val dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt())
-                            drawImage(bmp, srcOffset = androidx.compose.ui.unit.IntOffset(0,0), srcSize = androidx.compose.ui.unit.IntSize(bmp.width, bmp.height), dstOffset = dstOffset, dstSize = dstSize)
+                            val dstOffset = IntOffset((node.x - w / 2f).toInt(), (node.y - h / 2f).toInt())
+                            val dstSize = IntSize(w.toInt(), h.toInt())
+                            drawImage(bmp, srcOffset = IntOffset(0,0), srcSize = IntSize(bmp.width, bmp.height), dstOffset = dstOffset, dstSize = dstSize)
                             node.width = w
                             node.height = h
                         }
                     }
                 }
+
+                // draw edges using current node sizes and positions
+                drawGraphEdges(prepared)
 
                 drawContext.canvas.restore()
             }

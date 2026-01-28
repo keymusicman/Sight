@@ -82,7 +82,7 @@ data class Graph(
 
             val layoutedNodes = nodes.toMutableList()
             val count = layoutedNodes.size
-            val radius = 200f
+            val radius = 500f
             val centerX = 600f
             val centerY = 400f
 
