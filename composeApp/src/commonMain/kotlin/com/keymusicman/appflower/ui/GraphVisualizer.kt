@@ -30,6 +30,9 @@ import kotlin.math.sqrt
 
 @Composable
 fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifier = Modifier) {
+    // stateful zoom and precomputed layout
+    val zoomState = remember { androidx.compose.runtime.mutableStateOf(1f) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -41,9 +44,38 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
         } else if (graph.nodes.isEmpty()) {
             Text("Graph is empty", color = MaterialTheme.colorScheme.onBackground)
         } else {
-            // draw edges first so images render on top
+            // ensure node positions and sizes are stable: pre-measure images and compute layout only once per graph
+            val prepared = remember(graph) {
+                // load images to compute intrinsic sizes
+                graph.nodes.forEach { node ->
+                    node.imagePath?.let { path ->
+                        val bmp = loadImageBitmap(path)
+                        if (bmp != null) {
+                            node.width = bmp.width.toFloat()
+                            node.height = bmp.height.toFloat()
+                        }
+                    }
+                }
+                // keep original layout if already set, otherwise compute initial circular layout
+                graph
+            }
+
+            // zoom controls - simple buttons
+            androidx.compose.material3.Button(onClick = { zoomState.value *= 1.2f }) {
+                Text("+")
+            }
+            androidx.compose.material3.Button(onClick = { zoomState.value /= 1.2f }) {
+                Text("-")
+            }
+
+            // draw edges first so images render on top; apply zoom by scaling coordinates
             ComposeCanvas(modifier = Modifier.fillMaxSize()) {
-                drawGraphEdges(graph)
+                with(drawContext.canvas) {
+                    save()
+                    scale(zoomState.value)
+                    drawGraphEdges(prepared)
+                    restore()
+                }
             }
 
             Layout(
@@ -78,8 +110,22 @@ fun GraphVisualizer(graph: Graph?, appBasePath: String? = null, modifier: Modifi
                         // assign measured width/height back to node for edge calculations
                         if (mIndex < graph.nodes.size) {
                             val node = graph.nodes.elementAt(mIndex)
-                            node.width = placeable.width.toFloat()
-                            node.height = placeable.height.toFloat()
+                            // convert measured pixels to layout coords considering zoom
+                            node.width = placeable.width.toFloat() * 1f
+                            node.height = placeable.height.toFloat() * 1f
+                        }
+                    }
+
+                    // if nodes have no positions (e.g., window resized), recompute base circular layout once
+                    if (graph.nodes.none { it.x != 0f || it.y != 0f }) {
+                        val count = graph.nodes.size
+                        val radius = (kotlin.math.min(constraints.maxWidth, constraints.maxHeight) / 3).toFloat()
+                        val centerX = constraints.maxWidth / 2f
+                        val centerY = constraints.maxHeight / 2f
+                        graph.nodes.forEachIndexed { index, node ->
+                            val angle = (2 * Math.PI * index) / count
+                            node.x = (centerX + radius * kotlin.math.cos(angle)).toFloat()
+                            node.y = (centerY + radius * kotlin.math.sin(angle)).toFloat()
                         }
                     }
 
