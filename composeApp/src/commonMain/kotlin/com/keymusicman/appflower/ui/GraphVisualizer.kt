@@ -1,9 +1,13 @@
 package com.keymusicman.appflower.ui
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,8 +22,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
 import org.jetbrains.skia.Image
 import java.io.File
@@ -27,7 +33,6 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
-import androidx.compose.foundation.Canvas as ComposeCanvas
 
 @Composable
 fun GraphVisualizer(
@@ -44,6 +49,7 @@ fun GraphVisualizer(
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
+        val density = LocalDensity.current
         if (graph == null) {
             Text("No graph loaded", color = MaterialTheme.colorScheme.onBackground)
         } else if (graph.nodes.isEmpty()) {
@@ -51,15 +57,36 @@ fun GraphVisualizer(
         } else {
             // ensure node positions and sizes are stable: pre-measure images and compute layout only once per graph
             val prepared = remember(graph) {
-                // load images to compute intrinsic sizes
+                // load images to compute intrinsic sizes (use first image if available)
                 graph.nodes.forEach { node ->
-                    node.imagePath?.let { path ->
-                        val bmp = loadImageBitmap(path)
-                        if (bmp != null) {
-                            node.width = bmp.width.toFloat()
-                            node.height = bmp.height.toFloat()
+                    node.imagePaths.firstOrNull()
+                        ?.let { path ->
+                            val bmp = loadImageBitmap(path)
+
+                            if (bmp != null) {
+                                val maxDp = 360.dp
+                                val intrinsicW = with(density) { bmp.width.toDp() }
+                                val intrinsicH = with(density) { bmp.height.toDp() }
+                                val ratio = bmp.width.toFloat() / bmp.height.toFloat()
+                                val wDp: Dp
+                                val hDp: Dp
+                                if (intrinsicW > maxDp || intrinsicH > maxDp) {
+                                    if (ratio >= 1f) {
+                                        wDp = maxDp
+                                        hDp = maxDp / ratio
+                                    } else {
+                                        hDp = maxDp
+                                        wDp = maxDp * ratio
+                                    }
+                                } else {
+                                    wDp = intrinsicW
+                                    hDp = intrinsicH
+                                }
+
+                                node.width = with(density) { wDp.toPx() }
+                                node.height = with(density) { hDp.toPx() }
+                            }
                         }
-                    }
                 }
                 // keep original layout if already set, otherwise compute initial circular layout
                 graph
@@ -69,44 +96,62 @@ fun GraphVisualizer(
             // track pan offset in state
             val pan = remember { mutableStateOf(Offset(0f, 0f)) }
 
-            ComposeCanvas(modifier = Modifier.fillMaxSize().pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    // update pan by drag amount (note: dragAmount is in pixels)
-                    pan.value += dragAmount
-                }
-            }) {
-                // draw with transform
-                drawContext.canvas.save()
+            // Use Layout to place image composables and a Canvas behind them for edges
+            Layout(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            pan.value += dragAmount
+                        }
+                    },
+                content = {
+//                    // background Canvas draws edges and responds to pan/zoom
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        // draw edges using screen-space coordinates computed from node positions, zoom and pan
+                        drawGraphEdges(prepared, pan.value, zoomState.value)
+                    }
 
-                // apply pan before scaling so pan happens in view coordinates
-                drawContext.canvas.translate(pan.value.x, pan.value.y)
-                drawContext.canvas.scale(zoomState.value)
-
-                // draw images on top
-                prepared.nodes.forEach { node ->
-                    node.imagePath?.let { path ->
-                        val bmp = loadImageBitmap(path)
+                    // image children for each node (selected state)
+                    prepared.nodes.forEach { node ->
+                        val path = node.imagePaths.getOrNull(node.selectedState)
+                        val bmp = path?.let { loadImageBitmap(it) }
                         if (bmp != null) {
-                            // scale images to max 120 px keeping aspect
-                            val maxPx = 720f
-                            val ratio = bmp.width.toFloat() / bmp.height.toFloat()
-                            val w = (if (ratio >= 1f) maxPx else maxPx * ratio)
-                            val h = (if (ratio >= 1f) maxPx / ratio else maxPx)
-                            // Draw image into canvas with explicit src/dst offsets
-                            val dstOffset = IntOffset((node.x - w / 2f).toInt(), (node.y - h / 2f).toInt())
-                            val dstSize = IntSize(w.toInt(), h.toInt())
-                            drawImage(bmp, srcOffset = IntOffset(0,0), srcSize = IntSize(bmp.width, bmp.height), dstOffset = dstOffset, dstSize = dstSize)
-                            node.width = w
-                            node.height = h
+                            // cap displayed size to 720 dp while preserving aspect ratio
+                            val wDp = with(density) { node.width.toDp() * zoomState.value }
+                            val hDp = with(density) { node.height.toDp() * zoomState.value }
+                            Image(
+                                bitmap = bmp,
+                                contentDescription = node.id,
+                                modifier = Modifier.requiredSize(wDp, hDp)
+                            )
+                        } else {
+                            // placeholder box when no image
+                            Box(modifier = Modifier.size(48.dp)) { }
                         }
                     }
                 }
-
-                // draw edges using current node sizes and positions
-                drawGraphEdges(prepared)
-
-                drawContext.canvas.restore()
+            ) { measurables, constraints ->
+                // first measurable is the background canvas
+                val placeables = measurables.map { it.measure(constraints) }
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    // place background canvas full size
+                    if (placeables.isNotEmpty()) {
+                        placeables[0].place(0, 0)
+                    }
+                    // place images matching prepared.nodes order; skip first measurable
+                    val nodesList = prepared.nodes.toList()
+                    for (i in 1 until placeables.size) {
+                        val node = nodesList.getOrNull(i - 1) ?: continue
+                        val p = placeables[i]
+                        // compute positioned center taking pan and zoom into account
+                        val x = ((node.x - node.width / 2f) * zoomState.value + pan.value.x).toInt()
+                        val y =
+                            ((node.y - node.height / 2f) * zoomState.value + pan.value.y).toInt()
+                        p.place(x, y)
+                    }
+                }
             }
         }
     }
@@ -116,7 +161,8 @@ private fun loadImageBitmap(path: String): ImageBitmap? {
     return try {
         val file = File(path)
         if (file.exists()) {
-            Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
+            Image.makeFromEncoded(file.readBytes())
+                .toComposeImageBitmap()
         } else {
             null
         }
@@ -125,21 +171,22 @@ private fun loadImageBitmap(path: String): ImageBitmap? {
     }
 }
 
-private fun DrawScope.drawGraphEdges(graph: Graph) {
+private fun DrawScope.drawGraphEdges(graph: Graph, pan: Offset, zoom: Float) {
     graph.edges.forEach { edge ->
         val fromNode = graph.nodes.find { it.id == edge.from } ?: return@forEach
         val toNode = graph.nodes.find { it.id == edge.to } ?: return@forEach
 
-        // compute ellipse radii based on measured image sizes (fallback to 60f)
-        val fromRx = if (fromNode.width > 0f) fromNode.width / 2f else 60f
-        val fromRy = if (fromNode.height > 0f) fromNode.height / 2f else 60f
-        val toRx = if (toNode.width > 0f) toNode.width / 2f else 60f
-        val toRy = if (toNode.height > 0f) toNode.height / 2f else 60f
+        // compute ellipse radii based on measured image sizes (fallback to 60f), scaled by zoom
+        val fromRx = if (fromNode.width > 0f) (fromNode.width / 2f) * zoom else 60f * zoom
+        val fromRy = if (fromNode.height > 0f) (fromNode.height / 2f) * zoom else 60f * zoom
+        val toRx = if (toNode.width > 0f) (toNode.width / 2f) * zoom else 60f * zoom
+        val toRy = if (toNode.height > 0f) (toNode.height / 2f) * zoom else 60f * zoom
 
-        val fromPoint = Offset(fromNode.x, fromNode.y)
-        val toPoint = Offset(toNode.x, toNode.y)
+        // compute screen-space positions of node centers after applying zoom and pan
+        val fromPoint = Offset(fromNode.x * zoom + pan.x, fromNode.y * zoom + pan.y)
+        val toPoint = Offset(toNode.x * zoom + pan.x, toNode.y * zoom + pan.y)
 
-        drawEdgeEllipse(fromPoint, toPoint, fromRx, fromRy, toRx, toRy, 15f)
+        drawEdgeEllipse(fromPoint, toPoint, fromRx, fromRy, toRx, toRy, 15f * zoom)
     }
 }
 

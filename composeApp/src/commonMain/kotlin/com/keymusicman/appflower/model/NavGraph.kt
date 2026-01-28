@@ -20,7 +20,9 @@ data class AppGraph(
 
 data class Node(
     val id: String,
-    val imagePath: String? = null,
+    // list of available state images for the node (ordered by index)
+    val imagePaths: List<String> = emptyList(),
+    var selectedState: Int = 0,
     var x: Float = 0f,
     var y: Float = 0f,
     var width: Float = 0f,
@@ -45,12 +47,12 @@ data class Graph(
 
             appGraph.transitions.forEach { transition ->
                 if (!nodesMap.containsKey(transition.from)) {
-                    val fromImage = transition.from_path?.let { findImage(it, transition.from, projectPath) }
-                    nodesMap[transition.from] = Node(transition.from, fromImage)
+                    val fromImages = transition.from_path?.let { findImages(it, transition.from, projectPath) } ?: emptyList()
+                    nodesMap[transition.from] = Node(transition.from, fromImages)
                 }
                 if (!nodesMap.containsKey(transition.to)) {
-                    val toImage = transition.to_path?.let { findImage(it, transition.to, projectPath) }
-                    nodesMap[transition.to] = Node(transition.to, toImage)
+                    val toImages = transition.to_path?.let { findImages(it, transition.to, projectPath) } ?: emptyList()
+                    nodesMap[transition.to] = Node(transition.to, toImages)
                 }
                 edges.add(Edge(transition.from, transition.to, transition.trigger))
             }
@@ -59,8 +61,8 @@ data class Graph(
             return Graph(nodes.toSet(), edges)
         }
 
-        private fun findImage(basePath: String, nodeName: String, projectPath: String?): String? {
-            val regex = Regex("${nodeName}_.+?_0\\.png")
+        private fun findImages(basePath: String, nodeName: String, projectPath: String?): List<String> {
+            val regex = Regex("${nodeName}_.+?_(\\d+)\\.png")
             return try {
                 val fullPath = if (projectPath != null) {
                     java.io.File(projectPath, basePath)
@@ -68,12 +70,18 @@ data class Graph(
                     java.io.File(basePath)
                 }
                 if (fullPath.exists() && fullPath.isDirectory) {
-                    fullPath.listFiles()?.find { regex.matches(it.name) }?.absolutePath
+                    fullPath.listFiles()
+                        ?.filter { regex.matches(it.name) }
+                        ?.sortedBy { file ->
+                            val match = regex.find(file.name)
+                            match?.groups?.get(1)?.value?.toIntOrNull() ?: 0
+                        }
+                        ?.map { it.absolutePath } ?: emptyList()
                 } else {
-                    null
+                    emptyList()
                 }
             } catch (e: Exception) {
-                null
+                emptyList()
             }
         }
 
