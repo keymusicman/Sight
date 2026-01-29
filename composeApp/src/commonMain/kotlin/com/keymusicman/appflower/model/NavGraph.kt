@@ -62,7 +62,7 @@ data class Graph(
         }
 
         private fun findImages(basePath: String, nodeName: String, projectPath: String?): List<String> {
-            val regex = Regex("${nodeName}_.+?_(\\d+)\\.png")
+            val regex = Regex("${nodeName}(?:_.+?)?_(\\d+)\\.png")
             return try {
                 val fullPath = if (projectPath != null) {
                     java.io.File(projectPath, basePath)
