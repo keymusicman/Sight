@@ -57,7 +57,7 @@ data class Graph(
                 edges.add(Edge(transition.from, transition.to, transition.trigger))
             }
 
-            val nodes = layoutNodes(nodesMap.values.toList())
+            val nodes = layoutNodes(nodesMap.values.toList(), edges)
             return Graph(nodes.toSet(), edges)
         }
 
@@ -85,29 +85,76 @@ data class Graph(
             }
         }
 
-        private fun layoutNodes(nodes: List<Node>): List<Node> {
+        // Left-to-right flow layout. Pure function: does not mutate input nodes and returns new node instances
+        private fun layoutNodes(nodes: List<Node>, edges: List<Edge>): List<Node> {
             if (nodes.isEmpty()) return nodes
 
-            val layoutedNodes = nodes.toMutableList()
-            val count = layoutedNodes.size
-            val radius = 500f
-            val centerX = 600f
-            val centerY = 400f
-
-            // simple circular layout but jitter positions to reduce overlap based on expected sizes
-            layoutedNodes.forEachIndexed { index, node ->
-                val angle = (2 * Math.PI * index) / count
-                var x = (centerX + radius * cos(angle)).toFloat()
-                var y = (centerY + radius * sin(angle)).toFloat()
-                // apply small jitter based on index to avoid exact collisions
-                val jitter = (index % 5) * 8f
-                x += jitter
-                y += (index % 3) * 6f
-                node.x = x
-                node.y = y
+            // build adjacency and incoming count maps
+            val adjacency: MutableMap<String, MutableList<String>> = nodes.associate { it.id to mutableListOf<String>() }.toMutableMap()
+            val incomingCount: MutableMap<String, Int> = nodes.associate { it.id to 0 }.toMutableMap()
+            edges.forEach { e ->
+                if (adjacency.containsKey(e.from)) {
+                    adjacency[e.from]?.add(e.to)
+                }
+                incomingCount[e.to] = (incomingCount[e.to] ?: 0) + 1
             }
 
-            return layoutedNodes
+            // find entry nodes (no incoming edges).
+            val entryIds = nodes.map { it.id }.filter { incomingCount[it] == 0 }
+            val startIds = entryIds.ifEmpty { nodes.map { it.id } }
+
+            // depth map: node id -> depth (max depth found)
+            val depthMap = mutableMapOf<String, Int>()
+
+            // DFS explore from each start id, avoid following edges that close a cycle on the current path
+            fun explore(id: String, curDepth: Int, stack: MutableSet<String>) {
+                val prev = depthMap[id]
+                if (prev != null && curDepth <= prev) return // no improvement
+                depthMap[id] = curDepth
+                if (!stack.add(id)) return // cycle detected - do not follow further to avoid increasing depth
+                val neighbors = adjacency[id] ?: emptyList()
+                for (n in neighbors) {
+                    explore(n, curDepth + 1, stack)
+                }
+                stack.remove(id)
+            }
+
+            for (s in startIds) {
+                explore(s, 0, mutableSetOf())
+            }
+
+            // ensure every node has a depth (unreachable nodes get depth 0)
+            nodes.forEach { if (!depthMap.containsKey(it.id)) depthMap[it.id] = 0 }
+
+            // group nodes by depth, deterministic order by id
+            val nodesByDepth: Map<Int, List<String>> = depthMap.entries
+                .groupBy({ it.value }, { it.key })
+                .mapValues { it.value.sorted() }
+
+            val maxDepth = nodesByDepth.keys.maxOrNull() ?: 0
+
+            // layout parameters (pixels)
+            val horizontalGap = 400f
+            val verticalGap = 240f
+            val leftMargin = 100f
+            val topMargin = 100f
+
+            // precompute index for each node within its depth column
+            val indexByDepthAndId = mutableMapOf<Int, Map<String, Int>>()
+            for ((depth, ids) in nodesByDepth) {
+                val indexMap = ids.withIndex().associate { it.value to it.index }
+                indexByDepthAndId[depth] = indexMap
+            }
+
+            // produce new node instances with assigned x/y
+            return nodes.map { original ->
+                val d = depthMap[original.id] ?: 0
+                val x = leftMargin + d * horizontalGap
+                val idsAtDepth = nodesByDepth[d] ?: listOf(original.id)
+                val index = indexByDepthAndId[d]?.get(original.id) ?: 0
+                val y = topMargin + index * verticalGap
+                original.copy(x = x, y = y)
+            }
         }
     }
 }
