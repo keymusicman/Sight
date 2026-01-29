@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
@@ -47,7 +48,7 @@ fun GraphVisualizer(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopStart,
     ) {
         val density = LocalDensity.current
         if (graph == null) {
@@ -134,7 +135,14 @@ fun GraphVisualizer(
                 }
             ) { measurables, constraints ->
                 // first measurable is the background canvas
-                val placeables = measurables.map { it.measure(constraints) }
+                val placeables = buildList {
+                    if (measurables.isNotEmpty()) {
+                        add(measurables[0].measure(constraints))
+                    }
+                    for (i in 1 until measurables.size) {
+                        add(measurables[i].measure(Constraints()))
+                    }
+                }
                 layout(constraints.maxWidth, constraints.maxHeight) {
                     // place background canvas full size
                     if (placeables.isNotEmpty()) {
@@ -149,6 +157,10 @@ fun GraphVisualizer(
                         val x = ((node.x - node.width / 2f) * zoomState.value + pan.value.x).toInt()
                         val y =
                             ((node.y - node.height / 2f) * zoomState.value + pan.value.y).toInt()
+
+                        println("Place: placeable at ${x}, ${y}")
+                        println("Place: node ${node.x}, ${node.y}")
+
                         p.place(x, y)
                     }
                 }
@@ -185,6 +197,7 @@ private fun DrawScope.drawGraphEdges(graph: Graph, pan: Offset, zoom: Float) {
         // compute screen-space positions of node centers after applying zoom and pan
         val fromPoint = Offset(fromNode.x * zoom + pan.x, fromNode.y * zoom + pan.y)
         val toPoint = Offset(toNode.x * zoom + pan.x, toNode.y * zoom + pan.y)
+        println("Draw edges: from ${fromPoint.x}, ${fromPoint.y}, to ${toPoint.x}, ${toPoint.y}")
 
         drawEdgeEllipse(fromPoint, toPoint, fromRx, fromRy, toRx, toRy, 15f * zoom)
     }
