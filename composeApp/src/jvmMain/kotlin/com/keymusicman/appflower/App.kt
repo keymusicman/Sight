@@ -25,14 +25,18 @@ import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
 import com.keymusicman.appflower.ui.GraphVisualizer
 import com.keymusicman.appflower.utils.GraphLoader
+import com.keymusicman.appflower.viewmodel.GraphViewModel
 
 @Composable
 fun App() {
     var projectPath by remember { mutableStateOf("/Users/keymusicman/example/android/app") }
-    var graph by remember { mutableStateOf<Graph?>(null) }
+    // use ViewModel to build and hold graph
+    val viewModel = remember { GraphViewModel() }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    val zoomState = remember { mutableStateOf(1f) }
+    val zoomState = viewModel.zoomState
+    // keep a local reference for backwards compatibility
+    var graph by remember { mutableStateOf<Graph?>(null) }
 
     MaterialTheme {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -64,7 +68,9 @@ fun App() {
                                 errorMessage = ""
                                 val appGraph = GraphLoader.loadGraphFromProject(projectPath)
                                 if (appGraph != null) {
-                                    graph = Graph.from(appGraph, projectPath)
+                                    // delegate to ViewModel to build the Graph and expose it
+                                    viewModel.buildFromAppGraph(appGraph, projectPath)
+                                    graph = viewModel.graphState.value
                                     errorMessage =
                                         "Graph loaded: ${appGraph.transitions.size} transitions"
                                 } else {
