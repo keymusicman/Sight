@@ -158,9 +158,6 @@ fun GraphVisualizer(
                         val y =
                             ((node.y - node.height / 2f) * zoomState.value + pan.value.y).toInt()
 
-                        println("Place: placeable at ${x}, ${y}")
-                        println("Place: node ${node.x}, ${node.y}")
-
                         p.place(x, y)
                     }
                 }
@@ -197,7 +194,6 @@ private fun DrawScope.drawGraphEdges(graph: Graph, pan: Offset, zoom: Float) {
         // compute screen-space positions of node centers after applying zoom and pan
         val fromPoint = Offset(fromNode.x * zoom + pan.x, fromNode.y * zoom + pan.y)
         val toPoint = Offset(toNode.x * zoom + pan.x, toNode.y * zoom + pan.y)
-        println("Draw edges: from ${fromPoint.x}, ${fromPoint.y}, to ${toPoint.x}, ${toPoint.y}")
 
         drawEdgeEllipse(fromPoint, toPoint, fromRx, fromRy, toRx, toRy, 15f * zoom)
     }

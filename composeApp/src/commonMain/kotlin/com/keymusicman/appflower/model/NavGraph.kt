@@ -135,7 +135,7 @@ data class Graph(
 
             // layout parameters (pixels)
             val horizontalGap = 400f
-            val verticalGap = 240f
+            val verticalGap = 1000f
             val leftMargin = 100f
             val topMargin = 100f
 
