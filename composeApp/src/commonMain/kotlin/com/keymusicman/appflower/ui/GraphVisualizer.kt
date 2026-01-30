@@ -27,12 +27,16 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
+import com.keymusicman.appflower.model.GraphEdge
+import com.keymusicman.appflower.model.GraphNode
+import com.keymusicman.appflower.model.LayoutGraph
+import com.keymusicman.appflower.model.LayoutNode
+import com.keymusicman.appflower.model.buildLayoutGraph
 import org.jetbrains.skia.Image
 import java.io.File
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 @Composable
 fun GraphVisualizer(
@@ -41,8 +45,6 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     zoomState: MutableState<Float>,
 ) {
-    // stateful zoom and precomputed layout
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -50,112 +52,100 @@ fun GraphVisualizer(
         contentAlignment = Alignment.TopStart,
     ) {
         val density = LocalDensity.current
+
         if (graph == null) {
             Text("No graph loaded", color = MaterialTheme.colorScheme.onBackground)
-        } else if (graph.nodes.isEmpty()) {
-            Text("Graph is empty", color = MaterialTheme.colorScheme.onBackground)
-        } else {
-            // ensure node positions and sizes are stable: pre-measure images and compute layout only once per graph
-            val prepared = remember(graph) {
-                // load images to compute intrinsic sizes (use first image if available)
-                graph.nodes.forEach { node ->
-                    node.imagePaths.firstOrNull()
-                        ?.let { path ->
-                            val bmp = loadImageBitmap(path)
+            return@Box
+        }
 
-                            if (bmp != null) {
-                                node.width = bmp.width / 3f
-                                node.height = bmp.height / 3f
-                            }
-                        }
+        if (graph.nodes.isEmpty()) {
+            Text("Graph is empty", color = MaterialTheme.colorScheme.onBackground)
+            return@Box
+        }
+
+        // Build immutable domain and layout once per graph
+        val domainNodes = graph.nodes.map { n -> GraphNode(n.id, n.imagePaths, n.selectedState) }
+        val domainEdges = graph.edges.map { e -> GraphEdge(e.from, e.to, e.trigger) }
+
+        // pre-load bitmaps and create map by node id
+        val bitmaps: Map<String, ImageBitmap?> = remember(graph, appBasePath) {
+            domainNodes.associate { node ->
+                val path = node.imagePaths.firstOrNull()
+                val bmp = path?.let { loadImageBitmap(it) }
+                node.id to bmp
+            }
+        }
+
+        val bitmapMap: Map<String, ImageBitmap> = remember(bitmaps) {
+            bitmaps.filterValues { it != null }.mapValues { it.value!! }
+        }
+
+        // build layout graph once and reuse across recompositions
+        val layoutGraph: LayoutGraph = remember(graph, appBasePath) {
+            buildLayoutGraph(domainNodes, domainEdges, bitmapMap)
+        }
+
+        // deterministic ordered list of layout nodes for composing children
+        val nodeList: List<LayoutNode> = remember(layoutGraph) {
+            layoutGraph.nodes.values.sortedWith(compareBy({ it.x }, { it.y }, { it.id }))
+        }
+
+        // Single canvas rendering: edges then images on same canvas with zoom and drag pan
+        val pan = remember { mutableStateOf(Offset(0f, 0f)) }
+
+        Layout(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        pan.value += dragAmount
+                    }
+                },
+            content = {
+                // background Canvas draws edges and responds to pan/zoom using precomputed layout
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawGraphEdgesLayout(layoutGraph, pan.value, zoomState.value)
                 }
-                // keep original layout if already set, otherwise compute initial circular layout
-                graph
+
+                // image children for each node (selected state) measured using precomputed sizes only
+                nodeList.forEach { ln ->
+                    val bmp = bitmaps[ln.id]
+                    if (bmp != null) {
+                        val wDp = with(density) { ln.width.toDp() * zoomState.value }
+                        val hDp = with(density) { ln.height.toDp() * zoomState.value }
+                        Image(
+                            bitmap = bmp,
+                            contentDescription = ln.id,
+                            modifier = Modifier.requiredSize(wDp, hDp)
+                        )
+                    } else {
+                        Box(modifier = Modifier.size(48.dp)) { }
+                    }
+                }
+            }
+        ) { measurables, constraints ->
+            // measure children using precomputed sizes only
+            val placeables = buildList {
+                if (measurables.isNotEmpty()) add(measurables[0].measure(constraints))
+                // remaining measurables correspond to nodes in nodeList order
+                for (i in nodeList.indices) {
+                    val ln = nodeList[i]
+                    val w = with(density) { ln.width.toDp().roundToPx() }
+                    val h = with(density) { ln.height.toDp().roundToPx() }
+                    add(measurables[i + 1].measure(Constraints.fixed(w, h)))
+                }
             }
 
-            // Single canvas rendering: edges then images on same canvas with zoom and drag pan
-            // track pan offset in state
-            val pan = remember { mutableStateOf(Offset(0f, 0f)) }
-
-            // Use Layout to place image composables and a Canvas behind them for edges
-            Layout(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            pan.value += dragAmount
-                        }
-                    },
-                content = {
-//                    // background Canvas draws edges and responds to pan/zoom
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        // draw edges using screen-space coordinates computed from node positions, zoom and pan
-                        drawGraphEdges(prepared, pan.value, zoomState.value)
-                    }
-
-                    // image children for each node (selected state)
-                    prepared.nodes.forEach { node ->
-                        val path = node.imagePaths.getOrNull(node.selectedState)
-                        val bmp = path?.let { loadImageBitmap(it) }
-                        if (bmp != null) {
-                            // cap displayed size to 720 dp while preserving aspect ratio
-                            val wDp = with(density) { node.width.toDp() * zoomState.value }
-                            val hDp = with(density) { node.height.toDp() * zoomState.value }
-                            Image(
-                                bitmap = bmp,
-                                contentDescription = node.id,
-                                modifier = Modifier.requiredSize(wDp, hDp)
-                            )
-                        } else {
-                            // placeholder box when no image
-                            Box(modifier = Modifier.size(48.dp)) { }
-                        }
-                    }
-                }
-            ) { measurables, constraints ->
-                // first measurable is the background canvas
-                val placeables = buildList {
-                    if (measurables.isNotEmpty()) {
-                        add(measurables[0].measure(constraints))
-                    }
-                    for (i in 1 until measurables.size) {
-                        add(measurables[i].measure(Constraints()))
-                    }
-                }
-                layout(constraints.maxWidth, constraints.maxHeight) {
-                    // place background canvas full size
-                    if (placeables.isNotEmpty()) {
-                        placeables[0].place(0, 0)
-                    }
-                    // compute dynamic layout positions now that we know container size
-                    val containerW = constraints.maxWidth.toFloat()
-                    val containerH = constraints.maxHeight.toFloat()
-
-                    // compute layout using NavGraph helper
-                    // compute layout using NavGraph helper
-                    val layoutPositions = Graph.computeLayoutNodes(prepared.nodes.toList(), prepared.edges, containerW, containerH)
-
-                    // layoutPositions is List<Pair<String, Offset>>; build map from id -> Offset
-                    val posById = layoutPositions.associate { it.first to it.second }
-
-                    // place children in same order as nodes
-                    val nodesList = prepared.nodes.toList()
-                    for (i in 1 until placeables.size) {
-                        val node = nodesList.getOrNull(i - 1) ?: continue
-                        val p = placeables[i]
-
-                        val center = posById[node.id] ?: Offset(100f, 100f)
-
-                        val x = ((center.x - node.width / 2f) * zoomState.value + pan.value.x).toInt()
-                        val y = ((center.y - node.height / 2f) * zoomState.value + pan.value.y).toInt()
-
-                        // update logical positions for edge drawing
-                        node.x = center.x
-                        node.y = center.y
-
-                        p.place(x, y)
-                    }
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                if (placeables.isNotEmpty()) placeables[0].place(0, 0)
+                // place nodes by immutable coordinates
+                for (i in nodeList.indices) {
+                    val ln = nodeList[i]
+                    val p = placeables[i + 1]
+                    val x = (ln.x * zoomState.value + pan.value.x - ln.width / 2f * zoomState.value).toInt()
+                    val y = (ln.y * zoomState.value + pan.value.y - ln.height / 2f * zoomState.value).toInt()
+                    p.place(x, y)
                 }
             }
         }
@@ -176,81 +166,29 @@ private fun loadImageBitmap(path: String): ImageBitmap? {
     }
 }
 
-private fun DrawScope.drawGraphEdges(graph: Graph, pan: Offset, zoom: Float) {
-    graph.edges.forEach { edge ->
-        val fromNode = graph.nodes.find { it.id == edge.from } ?: return@forEach
-        val toNode = graph.nodes.find { it.id == edge.to } ?: return@forEach
-
-        // compute ellipse radii based on measured image sizes (fallback to 60f), scaled by zoom
-        val fromRx = if (fromNode.width > 0f) (fromNode.width / 2f) * zoom else 60f * zoom
-        val fromRy = if (fromNode.height > 0f) (fromNode.height / 2f) * zoom else 60f * zoom
-        val toRx = if (toNode.width > 0f) (toNode.width / 2f) * zoom else 60f * zoom
-        val toRy = if (toNode.height > 0f) (toNode.height / 2f) * zoom else 60f * zoom
-
-        // compute screen-space positions of node centers after applying zoom and pan
-        val fromPoint = Offset(fromNode.x * zoom + pan.x, fromNode.y * zoom + pan.y)
-        val toPoint = Offset(toNode.x * zoom + pan.x, toNode.y * zoom + pan.y)
-
-        drawEdgeEllipse(fromPoint, toPoint, fromRx, fromRy, toRx, toRy, 15f * zoom)
+private fun DrawScope.drawGraphEdgesLayout(layoutGraph: LayoutGraph, pan: Offset, zoom: Float) {
+    layoutGraph.edges.forEach { edge ->
+        val points = edge.points.map { Offset(it.x * zoom + pan.x, it.y * zoom + pan.y) }
+        if (points.size >= 2) {
+            for (i in 0 until points.size - 1) {
+                drawLine(Color.Gray, points[i], points[i + 1], strokeWidth = 2f)
+            }
+            // arrow at end
+            val last = points.last()
+            val prev = points[points.size - 2]
+            val angle = atan2(last.y - prev.y, last.x - prev.x)
+            val arrowSize = 12f * zoom
+            val arrowEnd1 = Offset(
+                last.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
+                last.y - arrowSize * sin(angle - Math.PI / 6).toFloat()
+            )
+            val arrowEnd2 = Offset(
+                last.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
+                last.y - arrowSize * sin(angle + Math.PI / 6).toFloat()
+            )
+            drawLine(Color.Gray, last, arrowEnd1, strokeWidth = 2f)
+            drawLine(Color.Gray, last, arrowEnd2, strokeWidth = 2f)
+        }
     }
 }
 
-private fun DrawScope.drawEdgeEllipse(
-    from: Offset,
-    to: Offset,
-    fromRx: Float,
-    fromRy: Float,
-    toRx: Float,
-    toRy: Float,
-    arrowSize: Float
-) {
-    val dx = to.x - from.x
-    val dy = to.y - from.y
-    val distance = sqrt(dx * dx + dy * dy)
-
-    if (distance == 0f) return
-
-    // prefer connecting horizontally when horizontal separation is larger than vertical
-    val absDx = kotlin.math.abs(dx)
-    val absDy = kotlin.math.abs(dy)
-    val ux: Float
-    val uy: Float
-    val fromIntersect: Offset
-    val toIntersect: Offset
-
-    if (absDx > absDy) {
-        // horizontal preference: connect east/west sides
-        val dir = if (dx >= 0f) 1f else -1f
-        ux = dir
-        uy = 0f
-        fromIntersect = Offset(from.x + ux * fromRx, from.y)
-        toIntersect = Offset(to.x - ux * toRx, to.y)
-    } else {
-        // default: connect along actual direction vector
-        ux = dx / distance
-        uy = dy / distance
-        fromIntersect = Offset(from.x + ux * fromRx, from.y + uy * fromRy)
-        toIntersect = Offset(to.x - ux * toRx, to.y - uy * toRy)
-    }
-
-    drawLine(
-        color = Color.Gray,
-        start = fromIntersect,
-        end = toIntersect,
-        strokeWidth = 2f
-    )
-
-    val angle = atan2(toIntersect.y - fromIntersect.y, toIntersect.x - fromIntersect.x)
-    val arrowTip = toIntersect
-    val arrowEnd1 = Offset(
-        arrowTip.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
-        arrowTip.y - arrowSize * sin(angle - Math.PI / 6).toFloat()
-    )
-    val arrowEnd2 = Offset(
-        arrowTip.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
-        arrowTip.y - arrowSize * sin(angle + Math.PI / 6).toFloat()
-    )
-
-    drawLine(Color.Gray, arrowTip, arrowEnd1, strokeWidth = 2f)
-    drawLine(Color.Gray, arrowTip, arrowEnd2, strokeWidth = 2f)
-}
