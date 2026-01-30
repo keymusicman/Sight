@@ -25,7 +25,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
 import org.jetbrains.skia.Image
@@ -65,27 +64,8 @@ fun GraphVisualizer(
                             val bmp = loadImageBitmap(path)
 
                             if (bmp != null) {
-                                val maxDp = 360.dp
-                                val intrinsicW = with(density) { bmp.width.toDp() }
-                                val intrinsicH = with(density) { bmp.height.toDp() }
-                                val ratio = bmp.width.toFloat() / bmp.height.toFloat()
-                                val wDp: Dp
-                                val hDp: Dp
-                                if (intrinsicW > maxDp || intrinsicH > maxDp) {
-                                    if (ratio >= 1f) {
-                                        wDp = maxDp
-                                        hDp = maxDp / ratio
-                                    } else {
-                                        hDp = maxDp
-                                        wDp = maxDp * ratio
-                                    }
-                                } else {
-                                    wDp = intrinsicW
-                                    hDp = intrinsicH
-                                }
-
-                                node.width = with(density) { wDp.toPx() }
-                                node.height = with(density) { hDp.toPx() }
+                                node.width = bmp.width / 3f
+                                node.height = bmp.height / 3f
                             }
                         }
                 }
