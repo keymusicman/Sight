@@ -128,15 +128,31 @@ fun GraphVisualizer(
                     if (placeables.isNotEmpty()) {
                         placeables[0].place(0, 0)
                     }
-                    // place images matching prepared.nodes order; skip first measurable
+                    // compute dynamic layout positions now that we know container size
+                    val containerW = constraints.maxWidth.toFloat()
+                    val containerH = constraints.maxHeight.toFloat()
+
+                    // compute layout using NavGraph helper
+                    // compute layout using NavGraph helper
+                    val layoutPositions = Graph.computeLayoutNodes(prepared.nodes.toList(), prepared.edges, containerW, containerH)
+
+                    // layoutPositions is List<Pair<String, Offset>>; build map from id -> Offset
+                    val posById = layoutPositions.associate { it.first to it.second }
+
+                    // place children in same order as nodes
                     val nodesList = prepared.nodes.toList()
                     for (i in 1 until placeables.size) {
                         val node = nodesList.getOrNull(i - 1) ?: continue
                         val p = placeables[i]
-                        // compute positioned center taking pan and zoom into account
-                        val x = ((node.x - node.width / 2f) * zoomState.value + pan.value.x).toInt()
-                        val y =
-                            ((node.y - node.height / 2f) * zoomState.value + pan.value.y).toInt()
+
+                        val center = posById[node.id] ?: Offset(100f, 100f)
+
+                        val x = ((center.x - node.width / 2f) * zoomState.value + pan.value.x).toInt()
+                        val y = ((center.y - node.height / 2f) * zoomState.value + pan.value.y).toInt()
+
+                        // update logical positions for edge drawing
+                        node.x = center.x
+                        node.y = center.y
 
                         p.place(x, y)
                     }
