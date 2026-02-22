@@ -29,7 +29,7 @@ import com.keymusicman.appflower.viewmodel.GraphViewModel
 
 @Composable
 fun App() {
-    var projectPath by remember { mutableStateOf("/Users/keymusicman/example/android/app") }
+    var projectPath by remember { mutableStateOf("/Users/keymusicman/example/android") }
     // use ViewModel to build and hold graph
     val viewModel = remember { GraphViewModel() }
     var isLoading by remember { mutableStateOf(false) }
@@ -66,13 +66,16 @@ fun App() {
                             if (projectPath.isNotEmpty()) {
                                 isLoading = true
                                 errorMessage = ""
-                                val appGraph = GraphLoader.loadGraphFromProject(projectPath)
-                                if (appGraph != null) {
+                                val appGraphV2 = GraphLoader.loadGraphFromProject(projectPath)
+                                if (appGraphV2 != null) {
                                     // delegate to ViewModel to build the Graph and expose it
-                                    viewModel.buildFromAppGraph(appGraph, projectPath)
+                                    viewModel.buildFromAppGraphV2(appGraphV2, projectPath)
                                     graph = viewModel.graphState.value
+                                    val subgraphCount = appGraphV2.subgraphs.size
+                                    val totalScreens = appGraphV2.subgraphs.values.sumOf { it.screens.size }
+                                    val totalConnections = appGraphV2.subgraphs.values.sumOf { it.connections.size }
                                     errorMessage =
-                                        "Graph loaded: ${appGraph.transitions.size} transitions"
+                                        "Graph loaded: $subgraphCount subgraphs, $totalScreens screens, $totalConnections connections"
                                 } else {
                                     errorMessage = "Failed to load graph"
                                 }

@@ -3,6 +3,7 @@ package com.keymusicman.appflower.model
 import kotlinx.serialization.Serializable
 import androidx.compose.ui.graphics.ImageBitmap
 
+// Legacy v1.0 format (kept for reference, not used)
 @Serializable
 data class Transition(
     val from: String,
@@ -15,6 +16,50 @@ data class Transition(
 @Serializable
 data class AppGraph(
     val transitions: List<Transition>
+)
+
+// v2.0 format
+@Serializable
+data class GraphMetadata(
+    val version: String,
+    val generated_at: String
+)
+
+@Serializable
+data class Screen(
+    val id: String,
+    val function: String,
+    val location: String,
+    val screenshot_location: String
+)
+
+@Serializable
+data class ConnectionEndpoint(
+    val type: String,
+    val subgraph: String,
+    val screen_id: String? = null
+)
+
+@Serializable
+data class Connection(
+    val from: ConnectionEndpoint,
+    val to: ConnectionEndpoint
+)
+
+@Serializable
+data class Subgraph(
+    val key: String,
+    val qualified_name: String,
+    val location: String,
+    val root_screen: String,
+    val screens: List<Screen>,
+    val connections: List<Connection>
+)
+
+@Serializable
+data class AppGraphV2(
+    val metadata: GraphMetadata,
+    val subgraphs: Map<String, Subgraph>
 )
 
 data class Node(
@@ -56,6 +101,53 @@ data class Graph(
             return Graph(nodes.toSet(), edges)
         }
 
+        fun fromV2(appGraphV2: AppGraphV2, projectPath: String? = null): Graph {
+            val projectPath = projectPath?.trim()
+            val nodesMap = mutableMapOf<String, Node>()
+            val edges = mutableListOf<Edge>()
+            
+            // Build map of subgraph key to root_screen for resolving subgraph targets
+            val subgraphRoots = appGraphV2.subgraphs.mapValues { (_, subgraph) ->
+                "${subgraph.key}:${subgraph.root_screen}"
+            }
+
+            // Extract all screens from all subgraphs
+            appGraphV2.subgraphs.forEach { (subgraphKey, subgraph) ->
+                subgraph.screens.forEach { screen ->
+                    val nodeId = "$subgraphKey:${screen.id}"
+                    val imagePaths = findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
+                    nodesMap[nodeId] = Node(nodeId, imagePaths)
+                }
+            }
+
+            // Collect connections from all subgraphs
+            appGraphV2.subgraphs.forEach { (_, subgraph) ->
+                subgraph.connections.forEach { connection ->
+                    val fromId = if (connection.from.type == "screen") {
+                        "${connection.from.subgraph}:${connection.from.screen_id}"
+                    } else {
+                        // Should not happen for "from", but handle gracefully
+                        subgraphRoots[connection.from.subgraph]
+                    }
+
+                    val toId = if (connection.to.type == "screen") {
+                        "${connection.to.subgraph}:${connection.to.screen_id}"
+                    } else if (connection.to.type == "subgraph") {
+                        // Resolve to root screen of target subgraph
+                        subgraphRoots[connection.to.subgraph]
+                    } else {
+                        null
+                    }
+
+                    if (fromId != null && toId != null) {
+                        edges.add(Edge(fromId, toId, null))
+                    }
+                }
+            }
+
+            return Graph(nodesMap.values.toSet(), edges)
+        }
+
         private fun findImages(basePath: String, nodeName: String, projectPath: String?): List<String> {
             val regex = Regex("${nodeName}(?:_.+?)?_(\\d+)\\.png")
             return try {
@@ -63,6 +155,31 @@ data class Graph(
                     java.io.File(projectPath, basePath)
                 } else {
                     java.io.File(basePath)
+                }
+                if (fullPath.exists() && fullPath.isDirectory) {
+                    fullPath.listFiles()
+                        ?.filter { regex.matches(it.name) }
+                        ?.sortedBy { file ->
+                            val match = regex.find(file.name)
+                            match?.groups?.get(1)?.value?.toIntOrNull() ?: 0
+                        }
+                        ?.map { it.absolutePath } ?: emptyList()
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+        private fun findImagesInLocation(screenshotLocation: String, screenId: String, projectPath: String?): List<String> {
+            // Screenshot location pattern: {screenId}_{variant}_{index}.png
+            val regex = Regex("${screenId}(?:_.+?)?_(\\d+)\\.png")
+            return try {
+                val fullPath = if (projectPath != null) {
+                    java.io.File(projectPath, screenshotLocation)
+                } else {
+                    java.io.File(screenshotLocation)
                 }
                 if (fullPath.exists() && fullPath.isDirectory) {
                     fullPath.listFiles()
@@ -145,7 +262,7 @@ fun buildLayoutGraph(
 
     // find entry node (no incoming). If multiple, pick deterministic first by id.
     val entries = nodeIds.filter { incomingCount[it] == 0 }
-    val entryId = if (entries.isNotEmpty()) entries.sorted().first() else nodeIds.sorted().first()
+    val entryId = if (entries.isNotEmpty()) entries.first() else nodeIds.first()
 
     // compute depth via BFS (shortest distance from entry)
     val depthMap = mutableMapOf<String, Int>()
