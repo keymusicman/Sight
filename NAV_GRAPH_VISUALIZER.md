@@ -74,48 +74,125 @@ composeApp/
 
 ## Data Models
 
-### Transition
+### v2.0 Format (Current)
+
+#### GraphMetadata
 ```kotlin
 @Serializable
-data class Transition(
-    val from: String,
-    val to: String,
-    val trigger: String? = null
+data class GraphMetadata(
+    val version: String,
+    val generated_at: String
 )
 ```
 
-### AppGraph
+#### Screen
 ```kotlin
 @Serializable
-data class AppGraph(
-    val transitions: List<Transition>
+data class Screen(
+    val id: String,
+    val function: String,
+    val location: String,
+    val screenshot_location: String
 )
 ```
 
-### Node
-Represents a screen/destination in the navigation graph with position coordinates.
+#### ConnectionEndpoint
+```kotlin
+@Serializable
+data class ConnectionEndpoint(
+    val type: String,  // "screen" or "subgraph"
+    val subgraph: String,
+    val screen_id: String? = null  // Only for "screen" type
+)
+```
 
-### Edge
-Represents a transition from one node to another with an optional trigger label.
+#### Connection
+```kotlin
+@Serializable
+data class Connection(
+    val from: ConnectionEndpoint,
+    val to: ConnectionEndpoint
+)
+```
+
+#### Subgraph
+```kotlin
+@Serializable
+data class Subgraph(
+    val key: String,
+    val qualified_name: String,
+    val location: String,
+    val root_screen: String,
+    val screens: List<Screen>,
+    val connections: List<Connection>
+)
+```
+
+#### AppGraphV2
+```kotlin
+@Serializable
+data class AppGraphV2(
+    val metadata: GraphMetadata,
+    val subgraphs: Map<String, Subgraph>
+)
+```
+
+### Internal Models (Unchanged)
+
+#### Node
+Represents a screen/destination in the navigation graph with image paths.
+
+#### Edge
+Represents a transition from one node to another.
+
+#### Graph
+Internal graph representation built from AppGraphV2:
+- Nodes use qualified IDs: `"subgraph_key:screen_id"`
+- Screen-to-subgraph connections resolve to target's root_screen
+- Screenshot paths loaded from screen.screenshot_location
 
 ## Expected Graph JSON Format
 
+The visualizer supports **v2.0 format** with subgraphs and nested connections:
+
 ```json
 {
-  "transitions": [
-    {
-      "from": "AddressScreenshots#SetPostcode",
-      "to": "AddressScreenshots#SelectAddressFromList",
-      "trigger": "tap_item"
-    },
-    {
-      "from": "AddressScreenshots#SelectAddressFromList",
-      "to": "AddressScreenshots#SetPostcode",
-      "trigger": "back"
+  "metadata": {
+    "version": "2.0",
+    "generated_at": "1771775333367"
+  },
+  "subgraphs": {
+    "main": {
+      "key": "main",
+      "qualified_name": "com.example.screenshottest.mainGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/NewGraph.kt",
+      "root_screen": "MainScreen",
+      "screens": [
+        {
+          "id": "MainScreen",
+          "function": "MainScreenScreenshots::MainScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/MainScreenScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/MainScreenScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "RemittanceChooseCountry"}
+        }
+      ]
     }
-  ]
+  }
 }
 ```
+
+### Key Features of v2.0 Format:
+- **Metadata**: Version and generation timestamp
+- **Subgraphs**: Screens organized into logical navigation subgraphs
+- **Nested Connections**: Each subgraph has its own connections array
+- **Screenshot Locations**: Direct paths to screenshot directories for each screen
+- **Screen-to-Subgraph Links**: Connections can target entire subgraphs (resolved to root_screen)
+- **Node IDs**: Automatically prefixed with subgraph key (e.g., "main:MainScreen", "kyc:EmploymentStatus")
 
 ## Technical Details
 
@@ -152,9 +229,11 @@ Key dependencies (managed in `gradle/libs.versions.toml`):
 ## Known Limitations
 
 - Graph file must be located at `build/graph/app-graph.json` within the project
+- Only v2.0 format is supported (legacy v1.0 format deprecated)
 - Text rendering in the canvas is minimal (node IDs in sidebar instead)
 - Circular layout may overlap labels for large graphs (can be extended with better layout algorithms)
 - No zoom/pan controls (can be added as enhancement)
+- Subgraph visual grouping not yet implemented (planned enhancement)
 
 ## Future Enhancements
 

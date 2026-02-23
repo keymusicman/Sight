@@ -99,22 +99,49 @@ UI Layer (App.kt)
 
 Location: `{projectPath}/build/graph/app-graph.json`
 
+**v2.0 Format (Current)**:
 ```json
 {
-  "transitions": [
-    {
-      "from": "ScreenA",
-      "to": "ScreenB",
-      "trigger": "button_click"
-    },
-    {
-      "from": "ScreenB",
-      "to": "ScreenA",
-      "trigger": "back"
+  "metadata": {
+    "version": "2.0",
+    "generated_at": "1771775333367"
+  },
+  "subgraphs": {
+    "main": {
+      "key": "main",
+      "qualified_name": "...",
+      "location": "...",
+      "root_screen": "MainScreen",
+      "screens": [
+        {
+          "id": "MainScreen",
+          "function": "MainScreenScreenshots::MainScreen",
+          "location": "...",
+          "screenshot_location": "..."
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "NextScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "LastScreen"},
+          "to": {"type": "subgraph", "subgraph": "other_graph"}
+        }
+      ]
     }
-  ]
+  }
 }
 ```
+
+**Key Differences from v1.0**:
+- Metadata section with version info
+- Subgraphs organize screens into logical groups
+- Connections nested within each subgraph
+- Screenshot locations provided per screen
+- Support for screen-to-subgraph navigation
+- Node IDs automatically qualified with subgraph prefix
 
 ## 🎨 Visualization Features
 
