@@ -51,8 +51,6 @@ fun GraphVisualizer(
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.TopStart,
     ) {
-        val density = LocalDensity.current
-
         if (graph == null) {
             Text("No graph loaded", color = MaterialTheme.colorScheme.onBackground)
             return@Box
@@ -108,31 +106,28 @@ fun GraphVisualizer(
                     drawGraphEdgesLayout(layoutGraph, pan.value, zoomState.value)
                 }
 
-                // image children for each node (selected state) measured using precomputed sizes only
+                // image children for each node (selected state) — sized by parent Layout constraints
                 nodeList.forEach { ln ->
                     val bmp = bitmaps[ln.id]
                     if (bmp != null) {
-                        val wDp = with(density) { ln.width.toDp() * zoomState.value }
-                        val hDp = with(density) { ln.height.toDp() * zoomState.value }
                         Image(
                             bitmap = bmp,
                             contentDescription = ln.id,
-                            modifier = Modifier.requiredSize(wDp, hDp)
+                            modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        Box(modifier = Modifier.size(48.dp)) { }
+                        Box(modifier = Modifier.fillMaxSize()) { }
                     }
                 }
             }
         ) { measurables, constraints ->
-            // measure children using precomputed sizes only
+            // measure children: Canvas fills all, images measured at zoomed pixel size
             val placeables = buildList {
                 if (measurables.isNotEmpty()) add(measurables[0].measure(constraints))
-                // remaining measurables correspond to nodes in nodeList order
                 for (i in nodeList.indices) {
                     val ln = nodeList[i]
-                    val w = with(density) { ln.width.toDp().roundToPx() }
-                    val h = with(density) { ln.height.toDp().roundToPx() }
+                    val w = (ln.width * zoomState.value).toInt().coerceAtLeast(1)
+                    val h = (ln.height * zoomState.value).toInt().coerceAtLeast(1)
                     add(measurables[i + 1].measure(Constraints.fixed(w, h)))
                 }
             }
