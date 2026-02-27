@@ -236,6 +236,13 @@ data class LayoutGraph(
     val edges: List<LayoutEdge>
 )
 
+// Intermediate result of a contour-based subtree layout (all Y values relative to topY = 0).
+private data class SubtreeResult(
+    val nodeY: Map<String, Float>,        // node id -> center Y
+    val topContour: Map<Int, Float>,      // depth -> min top-Y  (y - h/2) of any node at that depth
+    val bottomContour: Map<Int, Float>    // depth -> max bottom-Y (y + h/2) of any node at that depth
+)
+
 /**
  * Build a fully immutable, render-ready layout graph.
  * - sizes are taken from provided bitmaps (width/3, height/3)
@@ -332,52 +339,76 @@ fun buildLayoutGraph(
         (adjacency[id] ?: emptyList()).sorted()
     }
 
-    // compute subtree height bottom-up (memoized): vertical space a node + its descendants need
-    val subtreeHCache = mutableMapOf<String, Float>()
-    fun subtreeH(id: String, visiting: Set<String> = emptySet()): Float {
-        subtreeHCache[id]?.let { return it }
+    // Contour-based subtree layout.
+    // Siblings are packed using per-depth column contours: two sibling subtrees are only pushed
+    // apart enough to avoid conflicts in the depth columns they actually share.
+    // Nodes that are in different depth columns can occupy the same Y range without conflict.
+    fun layoutSubtree(id: String, visiting: Set<String>): SubtreeResult {
+        val depth = depthMap[id] ?: 0
         val (_, h) = sizeById[id] ?: (180f to 120f)
         val kids = (childrenMap[id] ?: emptyList()).filter { it !in visiting }
-        val result = if (kids.isEmpty()) {
-            h
-        } else {
-            val inner = visiting + id
-            val kidsH = kids.sumOf { subtreeH(it, inner).toDouble() }.toFloat() +
-                (kids.size - 1) * minVerticalGap
-            maxOf(h, kidsH)
+
+        if (kids.isEmpty()) {
+            return SubtreeResult(mapOf(id to h / 2f), mapOf(depth to 0f), mapOf(depth to h))
         }
-        subtreeHCache[id] = result
-        return result
+
+        val inner = visiting + id
+        val kidResults = kids.map { layoutSubtree(it, inner) }
+
+        val kidTopYs = FloatArray(kids.size)
+        val combTop = mutableMapOf<Int, Float>()
+        val combBottom = mutableMapOf<Int, Float>()
+
+        for (i in kidResults.indices) {
+            val kr = kidResults[i]
+            // Push this kid so its top-contour clears the combined bottom-contour of all
+            // previously placed siblings — only at depths they actually share.
+            // Allow negative values: when no shared depth conflicts exist the subtree can
+            // slide upward so the parent lands immediately after the previous sibling.
+            val minTopY = combBottom.keys.intersect(kr.topContour.keys)
+                .maxOfOrNull { d -> (combBottom[d] ?: 0f) + minVerticalGap - (kr.topContour[d] ?: 0f) }
+                ?: 0f
+
+            kidTopYs[i] = minTopY
+
+            kr.topContour.forEach { (d, t) ->
+                combTop[d] = minOf(combTop[d] ?: Float.MAX_VALUE, minTopY + t)
+            }
+            kr.bottomContour.forEach { (d, b) ->
+                combBottom[d] = maxOf(combBottom[d] ?: 0f, minTopY + b)
+            }
+        }
+
+        // Center parent on midpoint of first and last direct child — not on the full extent
+        // of all descendants, which can be skewed by deep chains in one branch.
+        val firstChildY = kidTopYs[0] + (kidResults[0].nodeY[kids[0]] ?: (h / 2f))
+        val lastChildY = kidTopYs[kids.size - 1] + (kidResults[kids.size - 1].nodeY[kids[kids.size - 1]] ?: (h / 2f))
+        val nodeYLocal = (firstChildY + lastChildY) / 2f
+
+        val nodeYMap = mutableMapOf(id to nodeYLocal)
+        for (i in kids.indices) {
+            kidResults[i].nodeY.forEach { (nid, relY) -> nodeYMap[nid] = kidTopYs[i] + relY }
+        }
+
+        // Include own node in the contours
+        combTop[depth] = minOf(combTop[depth] ?: Float.MAX_VALUE, nodeYLocal - h / 2f)
+        combBottom[depth] = maxOf(combBottom[depth] ?: 0f, nodeYLocal + h / 2f)
+
+        return SubtreeResult(nodeYMap, combTop, combBottom)
     }
-    nodeIds.forEach { subtreeH(it) }
 
     val layoutNodeMap = mutableMapOf<String, LayoutNode>()
-    val visited = mutableSetOf<String>()
 
-    // DFS top-down: assign center-Y so each parent is centered on its children's span
-    fun assignY(id: String, topY: Float) {
-        if (id in visited) return
-        visited.add(id)
+    // Run contour layout from the entry node
+    val rootResult = layoutSubtree(entryId, emptySet())
+    val visited = rootResult.nodeY.keys.toMutableSet()
+
+    rootResult.nodeY.forEach { (id, relY) ->
         val (w, h) = sizeById[id] ?: (180f to 120f)
         val d = depthMap[id] ?: 0
         val x = columnX[d] ?: leftMargin
-        val kids = (childrenMap[id] ?: emptyList()).filter { it !in visited }
-        if (kids.isEmpty()) {
-            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = topY + h / 2f, width = w, height = h)
-        } else {
-            val kidsH = kids.sumOf { subtreeH(it).toDouble() }.toFloat() + (kids.size - 1) * minVerticalGap
-            val span = maxOf(h, kidsH)
-            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = topY + span / 2f, width = w, height = h)
-            var kidTop = topY + (span - kidsH) / 2f
-            for (kid in kids) {
-                assignY(kid, kidTop)
-                kidTop += subtreeH(kid) + minVerticalGap
-            }
-        }
+        layoutNodeMap[id] = LayoutNode(id = id, x = x, y = relY, width = w, height = h)
     }
-
-    // start DFS from the entry node
-    assignY(entryId, 0f)
 
     // stack any nodes unreachable from entry below the main layout
     val mainBottom = layoutNodeMap.values.maxOfOrNull { it.y + it.height / 2f } ?: 0f
