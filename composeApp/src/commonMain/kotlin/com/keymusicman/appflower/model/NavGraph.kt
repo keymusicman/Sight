@@ -327,21 +327,75 @@ fun buildLayoutGraph(
         }
     }
 
+    // build children map (parent → ordered list of direct children)
+    val childrenMap: Map<String, List<String>> = nodeIds.associateWith { id ->
+        (adjacency[id] ?: emptyList()).sorted()
+    }
+
+    // compute subtree height bottom-up (memoized): vertical space a node + its descendants need
+    val subtreeHCache = mutableMapOf<String, Float>()
+    fun subtreeH(id: String, visiting: Set<String> = emptySet()): Float {
+        subtreeHCache[id]?.let { return it }
+        val (_, h) = sizeById[id] ?: (180f to 120f)
+        val kids = (childrenMap[id] ?: emptyList()).filter { it !in visiting }
+        val result = if (kids.isEmpty()) {
+            h
+        } else {
+            val inner = visiting + id
+            val kidsH = kids.sumOf { subtreeH(it, inner).toDouble() }.toFloat() +
+                (kids.size - 1) * minVerticalGap
+            maxOf(h, kidsH)
+        }
+        subtreeHCache[id] = result
+        return result
+    }
+    nodeIds.forEach { subtreeH(it) }
+
     val layoutNodeMap = mutableMapOf<String, LayoutNode>()
+    val visited = mutableSetOf<String>()
 
-    // iterate depths left-to-right and assign center-Y positions
-    for (d in sortedDepths) {
-        val ids = nodesByDepth[d] ?: continue
-        var nextTopEdge = 0f  // tracks the top edge of the next node to place
-        for (id in ids) {
-            val (w, h) = sizeById[id] ?: (180f to 120f)
-            val x = columnX[d] ?: leftMargin
-            val y = topMargin + nextTopEdge + h / 2f   // center Y
-            nextTopEdge += h + minVerticalGap
-
-            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = y, width = w, height = h)
+    // DFS top-down: assign center-Y so each parent is centered on its children's span
+    fun assignY(id: String, topY: Float) {
+        if (id in visited) return
+        visited.add(id)
+        val (w, h) = sizeById[id] ?: (180f to 120f)
+        val d = depthMap[id] ?: 0
+        val x = columnX[d] ?: leftMargin
+        val kids = (childrenMap[id] ?: emptyList()).filter { it !in visited }
+        if (kids.isEmpty()) {
+            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = topY + h / 2f, width = w, height = h)
+        } else {
+            val kidsH = kids.sumOf { subtreeH(it).toDouble() }.toFloat() + (kids.size - 1) * minVerticalGap
+            val span = maxOf(h, kidsH)
+            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = topY + span / 2f, width = w, height = h)
+            var kidTop = topY + (span - kidsH) / 2f
+            for (kid in kids) {
+                assignY(kid, kidTop)
+                kidTop += subtreeH(kid) + minVerticalGap
+            }
         }
     }
+
+    // start DFS from the entry node
+    assignY(entryId, 0f)
+
+    // stack any nodes unreachable from entry below the main layout
+    val mainBottom = layoutNodeMap.values.maxOfOrNull { it.y + it.height / 2f } ?: 0f
+    var extraTop = mainBottom + minVerticalGap
+    for (id in nodeIds) {
+        if (id !in visited) {
+            val (w, h) = sizeById[id] ?: (180f to 120f)
+            val d = depthMap[id] ?: 0
+            val x = columnX[d] ?: leftMargin
+            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = extraTop + h / 2f, width = w, height = h)
+            extraTop += h + minVerticalGap
+        }
+    }
+
+    // shift all nodes so the topmost edge lands at topMargin
+    val minY = layoutNodeMap.values.minOfOrNull { it.y - it.height / 2f } ?: 0f
+    val yShift = topMargin - minY
+    layoutNodeMap.replaceAll { _, ln -> ln.copy(y = ln.y + yShift) }
 
     // produce layout node list in deterministic order (by depth then id)
     val layoutNodesList = sortedDepths.flatMap { d ->
