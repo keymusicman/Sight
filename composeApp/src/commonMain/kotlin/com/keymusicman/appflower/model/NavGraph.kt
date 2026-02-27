@@ -1,7 +1,7 @@
 package com.keymusicman.appflower.model
 
-import kotlinx.serialization.Serializable
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.serialization.Serializable
 
 // Legacy v1.0 format (kept for reference, not used)
 @Serializable
@@ -87,11 +87,15 @@ data class Graph(
 
             appGraph.transitions.forEach { transition ->
                 if (!nodesMap.containsKey(transition.from)) {
-                    val fromImages = transition.from_path?.let { findImages(it, transition.from, projectPath) } ?: emptyList()
+                    val fromImages =
+                        transition.from_path?.let { findImages(it, transition.from, projectPath) }
+                            ?: emptyList()
                     nodesMap[transition.from] = Node(transition.from, fromImages)
                 }
                 if (!nodesMap.containsKey(transition.to)) {
-                    val toImages = transition.to_path?.let { findImages(it, transition.to, projectPath) } ?: emptyList()
+                    val toImages =
+                        transition.to_path?.let { findImages(it, transition.to, projectPath) }
+                            ?: emptyList()
                     nodesMap[transition.to] = Node(transition.to, toImages)
                 }
                 edges.add(Edge(transition.from, transition.to, transition.trigger))
@@ -105,7 +109,7 @@ data class Graph(
             val projectPath = projectPath?.trim()
             val nodesMap = mutableMapOf<String, Node>()
             val edges = mutableListOf<Edge>()
-            
+
             // Build map of subgraph key to root_screen for resolving subgraph targets
             val subgraphRoots = appGraphV2.subgraphs.mapValues { (_, subgraph) ->
                 "${subgraph.key}:${subgraph.root_screen}"
@@ -115,7 +119,8 @@ data class Graph(
             appGraphV2.subgraphs.forEach { (subgraphKey, subgraph) ->
                 subgraph.screens.forEach { screen ->
                     val nodeId = "$subgraphKey:${screen.id}"
-                    val imagePaths = findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
+                    val imagePaths =
+                        findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
                     nodesMap[nodeId] = Node(nodeId, imagePaths)
                 }
             }
@@ -148,7 +153,11 @@ data class Graph(
             return Graph(nodesMap.values.toSet(), edges)
         }
 
-        private fun findImages(basePath: String, nodeName: String, projectPath: String?): List<String> {
+        private fun findImages(
+            basePath: String,
+            nodeName: String,
+            projectPath: String?
+        ): List<String> {
             val regex = Regex("${nodeName}(?:_.+?)?_(\\d+)\\.png")
             return try {
                 val fullPath = if (projectPath != null) {
@@ -172,7 +181,11 @@ data class Graph(
             }
         }
 
-        private fun findImagesInLocation(screenshotLocation: String, screenId: String, projectPath: String?): List<String> {
+        private fun findImagesInLocation(
+            screenshotLocation: String,
+            screenId: String,
+            projectPath: String?
+        ): List<String> {
             // Screenshot location pattern: {screenId}_{variant}_{index}.png
             val regex = Regex("${screenId}(?:_.+?)?_(\\d+)\\.png")
             return try {
@@ -259,8 +272,11 @@ fun buildLayoutGraph(
 
     // maps for quick lookup
     val nodeIds = nodes.map { it.id }
-    val adjacency: MutableMap<String, MutableList<String>> = nodeIds.associateWith { mutableListOf<String>() }.toMutableMap()
-    val incomingCount: MutableMap<String, Int> = nodeIds.associateWith { 0 }.toMutableMap()
+    val adjacency: MutableMap<String, MutableList<String>> =
+        nodeIds.associateWith { mutableListOf<String>() }
+            .toMutableMap()
+    val incomingCount: MutableMap<String, Int> = nodeIds.associateWith { 0 }
+        .toMutableMap()
 
     edges.forEach { e ->
         if (adjacency.containsKey(e.from)) adjacency[e.from]?.add(e.to)
@@ -302,10 +318,13 @@ fun buildLayoutGraph(
     // compute sizes from bitmaps
     val sizeById: Map<String, Pair<Float, Float>> = nodes.associate { n ->
         val bmp = bitmaps[n.id]
-        val w = bmp?.width?.toFloat()?.div(3f) ?: 180f
-        val h = bmp?.height?.toFloat()?.div(3f) ?: 120f
+        val w = bmp?.width?.toFloat()
+            ?.div(3f) ?: 180f
+        val h = bmp?.height?.toFloat()
+            ?.div(3f) ?: 120f
         n.id to (w to h)
-    }.toMap()
+    }
+        .toMap()
 
     // minimum edge-to-edge gaps (pixels)
     val leftMargin = 100f
@@ -328,9 +347,9 @@ fun buildLayoutGraph(
         } else {
             val prevD = sortedDepths[sortedDepths.indexOf(d) - 1]
             (columnX[prevD] ?: leftMargin) +
-                (maxWidthByDepth[prevD] ?: 180f) / 2f +
-                minHorizontalGap +
-                (maxWidthByDepth[d] ?: 180f) / 2f
+                    (maxWidthByDepth[prevD] ?: 180f) / 2f +
+                    minHorizontalGap +
+                    (maxWidthByDepth[d] ?: 180f) / 2f
         }
     }
 
@@ -343,7 +362,11 @@ fun buildLayoutGraph(
     // Siblings are packed using per-depth column contours: two sibling subtrees are only pushed
     // apart enough to avoid conflicts in the depth columns they actually share.
     // Nodes that are in different depth columns can occupy the same Y range without conflict.
+    // globallyVisited prevents shared children from contributing their subtree contours twice,
+    // which would otherwise push sibling parents too far apart.
+    val globallyVisited = mutableSetOf<String>()
     fun layoutSubtree(id: String, visiting: Set<String>): SubtreeResult {
+        globallyVisited.add(id)
         val depth = depthMap[id] ?: 0
         val (_, h) = sizeById[id] ?: (180f to 120f)
         val kids = (childrenMap[id] ?: emptyList()).filter { it !in visiting }
@@ -353,7 +376,17 @@ fun buildLayoutGraph(
         }
 
         val inner = visiting + id
-        val kidResults = kids.map { layoutSubtree(it, inner) }
+        val kidResults = kids.map { kid ->
+            if (kid in globallyVisited) {
+                // Shared child already laid out by a sibling: return its position as a leaf with
+                // empty contours so its depth columns don't double-count in sibling packing.
+                // The actual Y will be re-centred by the post-pass.
+                val (_, kh) = sizeById[kid] ?: (180f to 120f)
+                SubtreeResult(mapOf(kid to kh / 2f), emptyMap(), emptyMap())
+            } else {
+                layoutSubtree(kid, inner)
+            }
+        }
 
         val kidTopYs = FloatArray(kids.size)
         val combTop = mutableMapOf<Int, Float>()
@@ -366,7 +399,9 @@ fun buildLayoutGraph(
             // Allow negative values: when no shared depth conflicts exist the subtree can
             // slide upward so the parent lands immediately after the previous sibling.
             val minTopY = combBottom.keys.intersect(kr.topContour.keys)
-                .maxOfOrNull { d -> (combBottom[d] ?: 0f) + minVerticalGap - (kr.topContour[d] ?: 0f) }
+                .maxOfOrNull { d ->
+                    (combBottom[d] ?: 0f) + minVerticalGap - (kr.topContour[d] ?: 0f)
+                }
                 ?: 0f
 
             kidTopYs[i] = minTopY
@@ -382,12 +417,20 @@ fun buildLayoutGraph(
         // Center parent on midpoint of first and last direct child — not on the full extent
         // of all descendants, which can be skewed by deep chains in one branch.
         val firstChildY = kidTopYs[0] + (kidResults[0].nodeY[kids[0]] ?: (h / 2f))
-        val lastChildY = kidTopYs[kids.size - 1] + (kidResults[kids.size - 1].nodeY[kids[kids.size - 1]] ?: (h / 2f))
+        val lastChildY =
+            kidTopYs[kids.size - 1] + (kidResults[kids.size - 1].nodeY[kids[kids.size - 1]]
+                ?: (h / 2f))
         val nodeYLocal = (firstChildY + lastChildY) / 2f
 
         val nodeYMap = mutableMapOf(id to nodeYLocal)
+        val handled = mutableSetOf<String>()
         for (i in kids.indices) {
-            kidResults[i].nodeY.forEach { (nid, relY) -> nodeYMap[nid] = kidTopYs[i] + relY }
+            kidResults[i].nodeY.forEach { (nid, relY) ->
+                if (!handled.contains(nid)) {
+                    nodeYMap[nid] = kidTopYs[i] + relY
+                    handled.add(nid)
+                }
+            }
         }
 
         // Include own node in the contours
