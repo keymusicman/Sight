@@ -300,23 +300,44 @@ fun buildLayoutGraph(
         n.id to (w to h)
     }.toMap()
 
-    // layout parameters (pixels)
+    // minimum edge-to-edge gaps (pixels)
     val leftMargin = 100f
     val topMargin = 100f
-    val horizontalGap = 400f
-    val verticalGap = 100f
+    val minHorizontalGap = 80f   // min gap between right edge of one column and left edge of next
+    val minVerticalGap = 40f     // min gap between bottom edge of one node and top edge of the next
+
+    // pre-compute max width and max height per depth column
+    val maxWidthByDepth: Map<Int, Float> = sortedDepths.associateWith { d ->
+        (nodesByDepth[d] ?: emptyList()).maxOfOrNull { id ->
+            sizeById[id]?.first ?: 180f
+        } ?: 180f
+    }
+
+    // compute center-X for each column: accounts for both neighboring columns' widths
+    val columnX = mutableMapOf<Int, Float>()
+    for (d in sortedDepths) {
+        columnX[d] = if (d == sortedDepths.first()) {
+            leftMargin + (maxWidthByDepth[d] ?: 180f) / 2f
+        } else {
+            val prevD = sortedDepths[sortedDepths.indexOf(d) - 1]
+            (columnX[prevD] ?: leftMargin) +
+                (maxWidthByDepth[prevD] ?: 180f) / 2f +
+                minHorizontalGap +
+                (maxWidthByDepth[d] ?: 180f) / 2f
+        }
+    }
 
     val layoutNodeMap = mutableMapOf<String, LayoutNode>()
 
-    // iterate depths left-to-right and assign positions
+    // iterate depths left-to-right and assign center-Y positions
     for (d in sortedDepths) {
         val ids = nodesByDepth[d] ?: continue
-        var gapHeight = 0f
+        var nextTopEdge = 0f  // tracks the top edge of the next node to place
         for (id in ids) {
             val (w, h) = sizeById[id] ?: (180f to 120f)
-            val x = leftMargin + d * horizontalGap
-            val y = topMargin + gapHeight
-            gapHeight += h + verticalGap
+            val x = columnX[d] ?: leftMargin
+            val y = topMargin + nextTopEdge + h / 2f   // center Y
+            nextTopEdge += h + minVerticalGap
 
             layoutNodeMap[id] = LayoutNode(id = id, x = x, y = y, width = w, height = h)
         }
