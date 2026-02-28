@@ -99,7 +99,9 @@ private fun buildDrawioXml(
         val safeFrom = le.from.sanitizeXmlId()
         val safeTo = le.to.sanitizeXmlId()
         sb.appendLine(
-            """        <mxCell id="edge_$idx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" """ +
+            """        <mxCell id="edge_$idx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;""" +
+                    """exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;""" +
+                    """strokeWidth=7;endSize=10;" """ +
                     """edge="1" source="$safeFrom" target="$safeTo" parent="1">"""
         )
         sb.appendLine("""          <mxGeometry relative="1" as="geometry"/>""")
