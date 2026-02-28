@@ -1,6 +1,5 @@
 package com.keymusicman.appflower.model
 
-import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.serialization.Serializable
 
 // Legacy v1.0 format (kept for reference, not used)
@@ -266,7 +265,7 @@ private data class SubtreeResult(
 fun buildLayoutGraph(
     nodes: List<GraphNode>,
     edges: List<GraphEdge>,
-    bitmaps: Map<String, ImageBitmap>
+    imageDimensions: Map<String, Pair<Int, Int>>
 ): LayoutGraph {
     if (nodes.isEmpty()) return LayoutGraph(emptyMap(), emptyList())
 
@@ -315,16 +314,13 @@ fun buildLayoutGraph(
 
     val sortedDepths = nodesByDepth.keys.sorted()
 
-    // compute sizes from bitmaps
+    // compute sizes from image dimensions (scaled down by 3 for display)
     val sizeById: Map<String, Pair<Float, Float>> = nodes.associate { n ->
-        val bmp = bitmaps[n.id]
-        val w = bmp?.width?.toFloat()
-            ?.div(3f) ?: 180f
-        val h = bmp?.height?.toFloat()
-            ?.div(3f) ?: 120f
+        val dim = imageDimensions[n.id]
+        val w = dim?.first?.toFloat()?.div(3f) ?: 180f
+        val h = dim?.second?.toFloat()?.div(3f) ?: 120f
         n.id to (w to h)
     }
-        .toMap()
 
     // minimum edge-to-edge gaps (pixels)
     val leftMargin = 100f

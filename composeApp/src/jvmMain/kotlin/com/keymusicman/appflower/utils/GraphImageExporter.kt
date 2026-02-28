@@ -1,6 +1,5 @@
 package com.keymusicman.appflower.utils
 
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.keymusicman.appflower.model.Graph
 import com.keymusicman.appflower.model.GraphEdge
 import com.keymusicman.appflower.model.GraphNode
@@ -37,15 +36,16 @@ fun exportGraphAsImage(graph: Graph, projectPath: String?) {
     val domainNodes = graph.nodes.map { n -> GraphNode(n.id, n.imagePaths, n.selectedState) }
     val domainEdges = graph.edges.map { e -> GraphEdge(e.from, e.to, e.trigger) }
 
-    // Load Skia images and build a Compose ImageBitmap map for layout sizing
+    // Load Skia images for rendering; derive dimensions from them for layout sizing
     val skiaImages: Map<String, SkiaImage?> = domainNodes.associate { node ->
         node.id to node.imagePaths.firstOrNull()?.let { loadSkiaImage(it) }
     }
-    val composeBitmapMap = skiaImages.mapNotNull { (id, img) ->
-        img?.let { id to it.toComposeImageBitmap() }
+    // Build dimensions map from already-loaded Skia images (no extra loading needed)
+    val imageDimensions: Map<String, Pair<Int, Int>> = skiaImages.mapNotNull { (id, img) ->
+        img?.let { id to (it.width to it.height) }
     }.toMap()
 
-    val layoutGraph: LayoutGraph = buildLayoutGraph(domainNodes, domainEdges, composeBitmapMap)
+    val layoutGraph: LayoutGraph = buildLayoutGraph(domainNodes, domainEdges, imageDimensions)
     if (layoutGraph.nodes.isEmpty()) return
 
     // Compute canvas size from layout bounds
