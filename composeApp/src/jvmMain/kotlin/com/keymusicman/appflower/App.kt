@@ -35,8 +35,6 @@ fun App() {
     val viewModel = remember { GraphViewModel() }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    val zoomState = viewModel.zoomState
-    // keep a local reference for backwards compatibility
     var graph by remember { mutableStateOf<Graph?>(null) }
 
     MaterialTheme {
@@ -105,10 +103,10 @@ fun App() {
 
                 Row {
                     // zoom controls - simple buttons
-                    androidx.compose.material3.Button(onClick = { zoomState.value *= 1.2f }) {
+                    androidx.compose.material3.Button(onClick = { viewModel.zoom(1.2f) }) {
                         Text("+")
                     }
-                    androidx.compose.material3.Button(onClick = { zoomState.value /= 1.2f }) {
+                    androidx.compose.material3.Button(onClick = { viewModel.zoom(1f / 1.2f) }) {
                         Text("-")
                     }
                 }
@@ -165,7 +163,7 @@ fun App() {
                 modifier = Modifier
                     .clipToBounds()
                     .weight(1f),
-                zoomState = zoomState
+                viewModel = viewModel
             )
         }
     }

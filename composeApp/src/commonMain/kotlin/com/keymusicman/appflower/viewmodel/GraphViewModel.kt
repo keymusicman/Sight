@@ -2,6 +2,7 @@ package com.keymusicman.appflower.viewmodel
 
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.AppGraphV2
 import com.keymusicman.appflower.model.Graph
@@ -20,6 +21,20 @@ import java.io.File
 class GraphViewModel {
     val graphState: MutableState<Graph?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(1f)
+    val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
+    var viewportWidth: Float = 0f
+    var viewportHeight: Float = 0f
+
+    fun zoom(factor: Float) {
+        val cx = viewportWidth / 2f
+        val cy = viewportHeight / 2f
+        val pan = panState.value
+        panState.value = Offset(
+            cx * (1f - factor) + pan.x * factor,
+            cy * (1f - factor) + pan.y * factor
+        )
+        zoomState.value *= factor
+    }
 
     fun buildFromAppGraph(appGraph: AppGraph, projectPath: String? = null) {
         graphState.value = Graph.from(appGraph, projectPath)

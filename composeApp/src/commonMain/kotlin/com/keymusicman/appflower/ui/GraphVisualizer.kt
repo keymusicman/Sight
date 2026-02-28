@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import com.keymusicman.appflower.model.GraphNode
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.LayoutNode
 import com.keymusicman.appflower.model.buildLayoutGraph
+import com.keymusicman.appflower.viewmodel.GraphViewModel
 import java.io.File
 import javax.imageio.ImageIO
 import javax.imageio.stream.FileImageInputStream
@@ -39,7 +41,7 @@ fun GraphVisualizer(
     graph: Graph?,
     appBasePath: String? = null,
     modifier: Modifier = Modifier,
-    zoomState: MutableState<Float>,
+    viewModel: GraphViewModel,
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -59,6 +61,10 @@ fun GraphVisualizer(
 
         val viewportWidth = constraints.maxWidth.toFloat()
         val viewportHeight = constraints.maxHeight.toFloat()
+
+        // Store viewport size in ViewModel so zoom() can compute pan adjustment
+        viewModel.viewportWidth = viewportWidth
+        viewModel.viewportHeight = viewportHeight
 
         // Build immutable domain and layout once per graph
         val domainNodes = graph.nodes.map { n -> GraphNode(n.id, n.imagePaths, n.selectedState) }
@@ -93,17 +99,19 @@ fun GraphVisualizer(
             layoutGraph.nodes.values.minByOrNull { it.x }
         }
 
-        // Single canvas rendering: edges then images on same canvas with zoom and drag pan
-        val pan = remember(graph) {
-            val initialPan = if (entryNode != null) {
+        val zoomState = viewModel.zoomState
+        val pan = viewModel.panState
+
+        // Reset pan to center the entry node whenever the graph changes
+        LaunchedEffect(graph) {
+            pan.value = if (entryNode != null) {
                 Offset(
                     viewportWidth / 2f - entryNode.x * zoomState.value,
                     viewportHeight / 2f - entryNode.y * zoomState.value
                 )
             } else {
-                Offset(0f, 0f)
+                Offset.Zero
             }
-            mutableStateOf(initialPan)
         }
 
         Layout(
