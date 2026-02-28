@@ -317,16 +317,16 @@ fun buildLayoutGraph(
     // compute sizes from image dimensions (scaled down by 3 for display)
     val sizeById: Map<String, Pair<Float, Float>> = nodes.associate { n ->
         val dim = imageDimensions[n.id]
-        val w = dim?.first?.toFloat()?.div(3f) ?: 180f
-        val h = dim?.second?.toFloat()?.div(3f) ?: 120f
+        val w = dim?.first?.toFloat()?.div(1f) ?: 180f
+        val h = dim?.second?.toFloat()?.div(1f) ?: 120f
         n.id to (w to h)
     }
 
     // minimum edge-to-edge gaps (pixels)
     val leftMargin = 100f
     val topMargin = 100f
-    val minHorizontalGap = 80f   // min gap between right edge of one column and left edge of next
-    val minVerticalGap = 40f     // min gap between bottom edge of one node and top edge of the next
+    val minHorizontalGap = 200f   // min gap between right edge of one column and left edge of next
+    val minVerticalGap = 160f     // min gap between bottom edge of one node and top edge of the next
 
     // pre-compute max width and max height per depth column
     val maxWidthByDepth: Map<Int, Float> = sortedDepths.associateWith { d ->

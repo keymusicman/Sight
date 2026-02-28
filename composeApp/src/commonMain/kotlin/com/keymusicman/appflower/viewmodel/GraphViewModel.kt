@@ -20,7 +20,7 @@ import java.io.File
  */
 class GraphViewModel {
     val graphState: MutableState<Graph?> = mutableStateOf(null)
-    val zoomState: MutableState<Float> = mutableStateOf(1f)
+    val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
     var viewportWidth: Float = 0f
     var viewportHeight: Float = 0f
