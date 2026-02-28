@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,7 +41,7 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     zoomState: MutableState<Float>,
 ) {
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
@@ -48,13 +49,16 @@ fun GraphVisualizer(
     ) {
         if (graph == null) {
             Text("No graph loaded", color = MaterialTheme.colorScheme.onBackground)
-            return@Box
+            return@BoxWithConstraints
         }
 
         if (graph.nodes.isEmpty()) {
             Text("Graph is empty", color = MaterialTheme.colorScheme.onBackground)
-            return@Box
+            return@BoxWithConstraints
         }
+
+        val viewportWidth = constraints.maxWidth.toFloat()
+        val viewportHeight = constraints.maxHeight.toFloat()
 
         // Build immutable domain and layout once per graph
         val domainNodes = graph.nodes.map { n -> GraphNode(n.id, n.imagePaths, n.selectedState) }
@@ -84,8 +88,23 @@ fun GraphVisualizer(
             layoutGraph.nodes.values.sortedWith(compareBy({ it.x }, { it.y }, { it.id }))
         }
 
+        // entry node is the leftmost node (smallest x = depth-0 root)
+        val entryNode: LayoutNode? = remember(layoutGraph) {
+            layoutGraph.nodes.values.minByOrNull { it.x }
+        }
+
         // Single canvas rendering: edges then images on same canvas with zoom and drag pan
-        val pan = remember { mutableStateOf(Offset(0f, 0f)) }
+        val pan = remember(graph) {
+            val initialPan = if (entryNode != null) {
+                Offset(
+                    viewportWidth / 2f - entryNode.x * zoomState.value,
+                    viewportHeight / 2f - entryNode.y * zoomState.value
+                )
+            } else {
+                Offset(0f, 0f)
+            }
+            mutableStateOf(initialPan)
+        }
 
         Layout(
             modifier = Modifier
