@@ -38,7 +38,7 @@ fun exportGraphAsDrawio(graph: Graph, projectPath: String?) {
         v?.let { id to it.second }
     }.toMap()
 
-    val layoutGraph: LayoutGraph = buildLayoutGraph(domainNodes, domainEdges, imageDimensions)
+    val layoutGraph: LayoutGraph = buildLayoutGraph(domainNodes, domainEdges, imageDimensions, scale = 0.25f)
     if (layoutGraph.nodes.isEmpty()) return
 
     val xml = buildDrawioXml(layoutGraph, imageDataMap)
@@ -101,7 +101,7 @@ private fun buildDrawioXml(
         sb.appendLine(
             """        <mxCell id="edge_$idx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;""" +
                     """exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;""" +
-                    """strokeWidth=7;endSize=10;" """ +
+                    """strokeWidth=4;endSize=5;" """ +
                     """edge="1" source="$safeFrom" target="$safeTo" parent="1">"""
         )
         sb.appendLine("""          <mxGeometry relative="1" as="geometry"/>""")

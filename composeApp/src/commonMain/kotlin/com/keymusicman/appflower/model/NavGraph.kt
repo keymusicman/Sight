@@ -265,7 +265,8 @@ private data class SubtreeResult(
 fun buildLayoutGraph(
     nodes: List<GraphNode>,
     edges: List<GraphEdge>,
-    imageDimensions: Map<String, Pair<Int, Int>>
+    imageDimensions: Map<String, Pair<Int, Int>>,
+    scale: Float = 1f
 ): LayoutGraph {
     if (nodes.isEmpty()) return LayoutGraph(emptyMap(), emptyList())
 
@@ -317,16 +318,16 @@ fun buildLayoutGraph(
     // compute sizes from image dimensions (scaled down by 3 for display)
     val sizeById: Map<String, Pair<Float, Float>> = nodes.associate { n ->
         val dim = imageDimensions[n.id]
-        val w = dim?.first?.toFloat()?.div(1f) ?: 180f
-        val h = dim?.second?.toFloat()?.div(1f) ?: 120f
+        val w = dim?.first?.toFloat()?.times(scale) ?: 180f
+        val h = dim?.second?.toFloat()?.times(scale) ?: 120f
         n.id to (w to h)
     }
 
     // minimum edge-to-edge gaps (pixels)
-    val leftMargin = 100f
-    val topMargin = 100f
-    val minHorizontalGap = 200f   // min gap between right edge of one column and left edge of next
-    val minVerticalGap = 160f     // min gap between bottom edge of one node and top edge of the next
+    val leftMargin = 100f * scale
+    val topMargin = 100f * scale
+    val minHorizontalGap = 250f * scale   // min gap between right edge of one column and left edge of next
+    val minVerticalGap = 250f * scale     // min gap between bottom edge of one node and top edge of the next
 
     // pre-compute max width and max height per depth column
     val maxWidthByDepth: Map<Int, Float> = sortedDepths.associateWith { d ->
