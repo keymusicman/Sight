@@ -102,16 +102,6 @@ fun App() {
                     }
                 }
 
-                Row {
-                    // zoom controls - simple buttons
-                    androidx.compose.material3.Button(onClick = { viewModel.zoom(1.2f) }) {
-                        Text("+")
-                    }
-                    androidx.compose.material3.Button(onClick = { viewModel.zoom(1f / 1.2f) }) {
-                        Text("-")
-                    }
-                }
-
                 Button(
                     onClick = { exportGraphAsImage(graph!!, projectPath) },
                     modifier = Modifier.fillMaxWidth(),
@@ -168,7 +158,6 @@ fun App() {
             VerticalDivider()
 
             GraphVisualizer(
-                graph,
                 modifier = Modifier
                     .clipToBounds()
                     .weight(1f),

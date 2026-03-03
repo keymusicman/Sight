@@ -25,15 +25,36 @@ class GraphViewModel {
     var viewportWidth: Float = 0f
     var viewportHeight: Float = 0f
 
+    companion object {
+        const val ZOOM_MIN = 0.1f
+        const val ZOOM_MAX = 3.0f
+    }
+
     fun zoom(factor: Float) {
         val cx = viewportWidth / 2f
         val cy = viewportHeight / 2f
         val pan = panState.value
+        val newZoom = (zoomState.value * factor).coerceIn(ZOOM_MIN, ZOOM_MAX)
+        val actualFactor = newZoom / zoomState.value
+        panState.value = Offset(
+            cx * (1f - actualFactor) + pan.x * actualFactor,
+            cy * (1f - actualFactor) + pan.y * actualFactor
+        )
+        zoomState.value = newZoom
+    }
+
+    /** Set zoom to an absolute value, keeping the viewport center fixed. */
+    fun setZoom(newZoom: Float) {
+        val clamped = newZoom.coerceIn(ZOOM_MIN, ZOOM_MAX)
+        val cx = viewportWidth / 2f
+        val cy = viewportHeight / 2f
+        val pan = panState.value
+        val factor = clamped / zoomState.value
         panState.value = Offset(
             cx * (1f - factor) + pan.x * factor,
             cy * (1f - factor) + pan.y * factor
         )
-        zoomState.value *= factor
+        zoomState.value = clamped
     }
 
     fun buildFromAppGraph(appGraph: AppGraph, projectPath: String? = null) {
