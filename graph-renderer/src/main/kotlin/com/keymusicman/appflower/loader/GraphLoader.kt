@@ -25,6 +25,16 @@ object GraphLoader {
         }
     }
 
+    fun loadFromFile(file: File): AppGraphV2? {
+        return if (file.exists()) {
+            try {
+                json.decodeFromString<AppGraphV2>(file.readText())
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+    }
+
     fun findGraphFile(startPath: String): File? {
         var current = File(startPath)
         val maxDepth = 5
