@@ -1,4 +1,4 @@
-package com.keymusicman.appflower.utils
+package com.keymusicman.appflower.loader
 
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.AppGraphV2

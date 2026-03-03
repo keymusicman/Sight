@@ -1,52 +1,48 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.ComposePanel
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
+import com.keymusicman.appflower.loader.GraphLoader
+import com.keymusicman.appflower.model.Graph
+import com.keymusicman.appflower.renderer.renderGraphToImage
+import java.awt.BorderLayout
+import java.awt.image.BufferedImage
+import javax.swing.ImageIcon
+import javax.swing.JLabel
+import javax.swing.JPanel
+import javax.swing.JScrollPane
+import javax.swing.SwingUtilities
 
 class FlowToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = ComposePanel()
-        panel.setContent {
-            FlowPreviewContent()
-        }
+        val panel = JPanel(BorderLayout())
+        val imageLabel = JLabel("Loading graph...", JLabel.CENTER)
+        panel.add(JScrollPane(imageLabel), BorderLayout.CENTER)
+
         val content = ContentFactory.getInstance().createContent(panel, "", false)
         toolWindow.contentManager.addContent(content)
-    }
-}
 
-@Composable
-private fun FlowPreviewContent() {
-    var text by remember { mutableStateOf("Flow Preview Works") }
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        BasicText(text)
-        Box(
-            modifier = Modifier
-                .border(1.dp, Color.Gray)
-                .clickable { text = "Button Clicked!" }
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            BasicText("Click Me")
-        }
+        // Load and render graph in background
+        val projectPath = project.basePath
+        Thread {
+            val rendered = loadAndRenderGraph(projectPath)
+            SwingUtilities.invokeLater {
+                if (rendered != null) {
+                    imageLabel.icon = ImageIcon(rendered)
+                    imageLabel.text = null
+                } else {
+                    imageLabel.text = "No graph found. Run the graph generator first."
+                }
+            }
+        }.start()
+    }
+
+    private fun loadAndRenderGraph(projectPath: String?): BufferedImage? {
+        if (projectPath == null) return null
+        val appGraphV2 = GraphLoader.loadGraphFromProject(projectPath) ?: return null
+        val graph = Graph.fromV2(appGraphV2, projectPath)
+        return renderGraphToImage(graph, projectPath)
     }
 }

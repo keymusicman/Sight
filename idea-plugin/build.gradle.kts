@@ -1,8 +1,7 @@
 plugins {
-    id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.1.20"
-    id("org.jetbrains.intellij.platform") version "2.10.2"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.20"
+    alias(libs.plugins.kotlinJvm)
+    alias(libs.plugins.intellijPlatform)
+    alias(libs.plugins.composeCompiler)
 }
 
 group = "com.keymusicman.appflowerplugin"
@@ -15,41 +14,27 @@ repositories {
     }
 }
 
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
+    implementation(project(":graph-renderer"))
+
     intellijPlatform {
-        intellijIdea("2025.2.4")
+        intellijIdeaCommunity("2025.1")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-
-        // Add plugin dependencies for compilation here:
-
         composeUI()
-
     }
 }
 
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "252.25557"
+            sinceBuild = "251"
         }
-
         changeNotes = """
             Initial version
         """.trimIndent()
     }
 }
 
-tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
-    }
-}
-
 kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-    }
+    jvmToolchain(21)
 }

@@ -16,6 +16,7 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google {
             mavenContent {
@@ -33,3 +34,5 @@ plugins {
 }
 
 include(":composeApp")
+include(":graph-renderer")
+include(":idea-plugin")

@@ -24,7 +24,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.model.Graph
 import com.keymusicman.appflower.ui.GraphVisualizer
-import com.keymusicman.appflower.utils.GraphLoader
+import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.utils.exportGraphAsDrawio
 import com.keymusicman.appflower.utils.exportGraphAsImage
 import com.keymusicman.appflower.viewmodel.GraphViewModel
