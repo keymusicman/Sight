@@ -1,6 +1,7 @@
 package com.keymusicman.appflower.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -24,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,15 +36,19 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.GraphEdge
 import com.keymusicman.appflower.model.GraphNode
@@ -52,6 +58,7 @@ import com.keymusicman.appflower.model.Transition
 import com.keymusicman.appflower.model.buildLayoutGraph
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import java.io.File
+import java.io.IOException
 import javax.imageio.ImageIO
 import javax.imageio.stream.FileImageInputStream
 import kotlin.math.atan2
@@ -159,13 +166,15 @@ fun GraphVisualizer(
                         drawGraphEdgesLayout(layoutGraph, pan.value, zoomState.value)
                     }
 
-                    // image children for each node — loaded lazily by Coil
+                    // image children for each node — loaded asynchronously via loadImageBitmap
                     nodeList.forEach { ln ->
                         val path = pathById[ln.id]
                         if (path != null) {
                             AsyncImage(
-                                model = File(path),
+                                load = { File(path).inputStream().buffered().use(::loadImageBitmap) },
+                                painterFor = { remember { BitmapPainter(it) } },
                                 contentDescription = ln.id,
+                                contentScale = ContentScale.FillBounds,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -286,6 +295,35 @@ private fun ZoomControls(
     }
 }
 
+
+/**
+ * Generic async image loader from the JetBrains Compose Multiplatform tutorial.
+ * Loads [T] on [kotlinx.coroutines.Dispatchers.IO] and renders via [painterFor].
+ */
+@Composable
+private fun <T> AsyncImage(
+    load: suspend () -> T,
+    painterFor: @Composable (T) -> Painter,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Fit,
+) {
+    val image: T? by produceState<T?>(null) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try { load() } catch (_: IOException) { null }
+        }
+    }
+    if (image != null) {
+        Image(
+            painter = painterFor(image!!),
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier,
+        )
+    } else {
+        Box(modifier = modifier)
+    }
+}
 
 /**
  * Gets image dimensions for a given file by reading only the image header — no pixel data loaded.

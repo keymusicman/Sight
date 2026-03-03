@@ -185,24 +185,28 @@ data class Graph(
             screenId: String,
             projectPath: String?
         ): List<String> {
-            // Screenshot location pattern: {screenId}_{variant}_{index}.png
-            val regex = Regex("${screenId}(?:_.+?)?_(\\d+)\\.png")
             return try {
                 val fullPath = if (projectPath != null) {
                     java.io.File(projectPath, screenshotLocation)
                 } else {
                     java.io.File(screenshotLocation)
                 }
-                if (fullPath.exists() && fullPath.isDirectory) {
-                    fullPath.listFiles()
-                        ?.filter { regex.matches(it.name) }
-                        ?.sortedBy { file ->
-                            val match = regex.find(file.name)
-                            match?.groups?.get(1)?.value?.toIntOrNull() ?: 0
-                        }
-                        ?.map { it.absolutePath } ?: emptyList()
-                } else {
-                    emptyList()
+                when {
+                    fullPath.isFile -> listOf(fullPath.absolutePath)
+                    fullPath.isDirectory -> {
+                        // Match {screenId}[_variant]_{index}.{ext} case-insensitively
+                        val regex = Regex(
+                            "${Regex.escape(screenId)}(?:_.+?)?_(\\d+)\\.(?:png|jpg|jpeg|webp)",
+                            RegexOption.IGNORE_CASE
+                        )
+                        fullPath.listFiles()
+                            ?.filter { regex.matches(it.name) }
+                            ?.sortedBy { file ->
+                                regex.find(file.name)?.groups?.get(1)?.value?.toIntOrNull() ?: 0
+                            }
+                            ?.map { it.absolutePath } ?: emptyList()
+                    }
+                    else -> emptyList()
                 }
             } catch (e: Exception) {
                 emptyList()

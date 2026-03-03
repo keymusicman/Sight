@@ -26,10 +26,10 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(project(":graph-renderer"))
+            implementation(project(":graph-ui"))
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.kotlinx.serialization)
-            implementation(libs.coil3.compose)
         }
     }
 }

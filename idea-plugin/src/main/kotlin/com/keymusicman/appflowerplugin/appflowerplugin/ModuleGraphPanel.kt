@@ -1,5 +1,6 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
+import androidx.compose.ui.awt.ComposePanel
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings
 import com.intellij.openapi.externalSystem.task.TaskCallback
@@ -7,27 +8,24 @@ import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMo
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.keymusicman.appflower.loader.GraphLoader
-import com.keymusicman.appflower.model.Graph
-import com.keymusicman.appflower.renderer.renderGraphToImage
+import com.keymusicman.appflower.ui.GraphVisualizer
+import com.keymusicman.appflower.viewmodel.GraphViewModel
 import org.jetbrains.plugins.gradle.util.GradleConstants
 import java.awt.BorderLayout
-import java.awt.Dimension
 import java.awt.FlowLayout
 import java.io.File
-import javax.swing.ImageIcon
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JScrollPane
 import javax.swing.SwingUtilities
 
 /**
- * Per-module Swing panel that renders the navigation graph image and provides
- * a "Build graph" button to run the exportGraph Gradle task.
+ * Per-module Swing panel that embeds [GraphVisualizer] (Compose) for the navigation graph
+ * and provides a "Build graph" button to run the exportGraph Gradle task.
  *
  * States:
  *  - No graph JSON present → centered "Build graph" button
- *  - Graph present         → toolbar with "Build graph" + scrollable graph image
+ *  - Graph present         → toolbar with "Build graph" + Compose graph visualizer (zoom/pan)
  *  - Building              → button disabled + "Building…" label
  *  - Error                 → error label + "Build graph" button
  */
@@ -42,8 +40,17 @@ class ModuleGraphPanel(
         addActionListener { runExportGraph() }
     }
     private val statusLabel = JLabel()
-    private val imageLabel = JLabel().apply { horizontalAlignment = JLabel.LEFT }
-    private val scrollPane = JScrollPane(imageLabel)
+    private val viewModel = GraphViewModel()
+
+    /** Compose panel hosting GraphVisualizer; created once and reused across refreshes. */
+    private val composePanel = ComposePanel().apply {
+        setContent {
+            GraphVisualizer(
+                appBasePath = moduleInfo.modulePath,
+                viewModel = viewModel
+            )
+        }
+    }
 
     init {
         refreshState()
@@ -54,18 +61,12 @@ class ModuleGraphPanel(
     /** Re-checks the graph file and updates the view. Called after successful build. */
     fun refreshState() {
         Thread {
-            val image = if (graphFile.exists()) {
-                val appGraphV2 = GraphLoader.loadFromFile(graphFile)
-                if (appGraphV2 != null) {
-                    val graph = Graph.fromV2(appGraphV2, moduleInfo.modulePath)
-                    renderGraphToImage(graph, moduleInfo.modulePath)
-                } else null
-            } else null
+            val appGraphV2 = if (graphFile.exists()) GraphLoader.loadFromFile(graphFile) else null
 
             SwingUtilities.invokeLater {
                 removeAll()
-                if (image != null) {
-                    imageLabel.icon = ImageIcon(image)
+                if (appGraphV2 != null) {
+                    viewModel.buildFromAppGraphV2(appGraphV2, moduleInfo.modulePath)
                     val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
                         add(buildButton)
                         add(statusLabel)
@@ -73,7 +74,7 @@ class ModuleGraphPanel(
                     buildButton.isEnabled = true
                     statusLabel.text = ""
                     add(toolbar, BorderLayout.NORTH)
-                    add(scrollPane, BorderLayout.CENTER)
+                    add(composePanel, BorderLayout.CENTER)
                 } else {
                     // No graph yet — show centered build button
                     val center = JPanel(FlowLayout(FlowLayout.CENTER)).apply {
@@ -126,6 +127,5 @@ class ModuleGraphPanel(
         buildButton.isEnabled = false
         statusLabel.text = "Building…"
     }
-
-    override fun getPreferredSize(): Dimension = Dimension(800, 600)
 }
+

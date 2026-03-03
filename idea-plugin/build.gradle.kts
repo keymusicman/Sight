@@ -16,6 +16,7 @@ repositories {
 
 dependencies {
     implementation(project(":graph-renderer"))
+    implementation(project(":graph-ui"))
 
     intellijPlatform {
         intellijIdeaCommunity("2025.1")
