@@ -4,6 +4,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,13 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +31,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -46,9 +44,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.GraphEdge
 import com.keymusicman.appflower.model.GraphNode
@@ -66,6 +66,11 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+private val ColorBackground = Color(0xFFF5F5F5)
+private val ColorOnBackground = Color(0xFF212121)
+private val ColorSurface = Color(0xFFFFFFFF)
+private val ColorPrimary = Color(0xFF2196F3)
+
 @Composable
 fun GraphVisualizer(
     appBasePath: String? = null,
@@ -76,16 +81,16 @@ fun GraphVisualizer(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(ColorBackground),
         contentAlignment = Alignment.TopStart,
     ) {
         if (graph == null) {
-            Text("No graph loaded", color = MaterialTheme.colorScheme.onBackground)
+            BasicText("No graph loaded", style = TextStyle(color = ColorOnBackground))
             return@BoxWithConstraints
         }
 
         if (graph.nodes.isEmpty()) {
-            Text("Graph is empty", color = MaterialTheme.colorScheme.onBackground)
+            BasicText("Graph is empty", style = TextStyle(color = ColorOnBackground))
             return@BoxWithConstraints
         }
 
@@ -243,54 +248,81 @@ private fun ZoomControls(
     val alpha by animateFloatAsState(targetValue = if (hovered) 0.8f else 0.4f)
     val percent = (zoom * 100).roundToInt()
 
-    Surface(
+    Box(
         modifier = modifier
             .alpha(alpha)
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
-            .onPointerEvent(PointerEventType.Exit) { hovered = false },
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+            .onPointerEvent(PointerEventType.Exit) { hovered = false }
+            .clip(CircleShape)
+            .background(ColorSurface),
     ) {
         Row(
             modifier = Modifier,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onZoomOut) { Text("-") }
-            @OptIn(ExperimentalMaterial3Api::class)
-            Slider(
+            Box(
+                modifier = Modifier
+                    .clickable { onZoomOut() }
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center,
+            ) { BasicText("-") }
+            ZoomSlider(
                 value = zoom,
                 onValueChange = onZoomChange,
                 valueRange = GraphViewModel.ZOOM_MIN..GraphViewModel.ZOOM_MAX,
-                modifier = Modifier.width(140.dp),
-                thumb = {
-                    // Circle thumb sized to sit inside the track
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
-                },
-                track = { sliderState ->
-                    SliderDefaults.Track(
-                        colors = SliderDefaults.colors(
-                            activeTrackColor = MaterialTheme.colorScheme.primary
-                        ),
-                        sliderState = sliderState,
-                        modifier = Modifier.height(2.dp),
-                        thumbTrackGapSize = 0.dp,
-                        drawStopIndicator = null,
-                    )
-                },
+                modifier = Modifier.width(140.dp).height(24.dp),
             )
-            IconButton(onClick = onZoomIn) { Text("+") }
-            Text(
+            Box(
+                modifier = Modifier
+                    .clickable { onZoomIn() }
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center,
+            ) { BasicText("+") }
+            BasicText(
                 text = "$percent%",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(start = 4.dp, end = 16.dp),
+                style = TextStyle(fontSize = 12.sp),
+                modifier = Modifier.padding(start = 4.dp, end = 16.dp).width(40.dp),
             )
+        }
+    }
+}
+
+/** Simple Foundation-only horizontal slider using Canvas + pointer input. */
+@Composable
+private fun ZoomSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    modifier: Modifier = Modifier,
+) {
+    val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start))
+        .coerceIn(0f, 1f)
+    Box(
+        modifier = modifier
+            .pointerInput(valueRange) {
+                detectHorizontalDragGestures { change, _ ->
+                    change.consume()
+                    val newFraction = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
+                    onValueChange(valueRange.start + newFraction * (valueRange.endInclusive - valueRange.start))
+                }
+            }
+            .pointerInput(valueRange) {
+                detectTapGestures { offset ->
+                    val newFraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
+                    onValueChange(valueRange.start + newFraction * (valueRange.endInclusive - valueRange.start))
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val trackH = 2.dp.toPx()
+            val thumbR = 6.dp.toPx()
+            val trackY = size.height / 2f
+            val trackStart = thumbR
+            val trackEnd = size.width - thumbR
+            val thumbX = trackStart + (trackEnd - trackStart) * fraction
+            drawLine(Color.LightGray, Offset(trackStart, trackY), Offset(trackEnd, trackY), strokeWidth = trackH)
+            drawLine(ColorPrimary, Offset(trackStart, trackY), Offset(thumbX, trackY), strokeWidth = trackH)
+            drawCircle(ColorPrimary, radius = thumbR, center = Offset(thumbX, trackY))
         }
     }
 }

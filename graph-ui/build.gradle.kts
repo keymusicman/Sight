@@ -17,7 +17,6 @@ kotlin {
             //   - composeApp via compose.desktop.currentOs
             //   - idea-plugin via composeUI() bundled with IntelliJ
             compileOnly(compose.desktop.currentOs)
-            compileOnly(libs.compose.material3)
             compileOnly(libs.androidx.lifecycle.viewmodelCompose)
             compileOnly(libs.androidx.lifecycle.runtimeCompose)
             // These have no Android/Compose transitive deps; safe to bundle.
