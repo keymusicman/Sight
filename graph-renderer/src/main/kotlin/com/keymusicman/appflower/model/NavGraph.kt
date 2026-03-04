@@ -2,21 +2,6 @@ package com.keymusicman.appflower.model
 
 import kotlinx.serialization.Serializable
 
-// Legacy v1.0 format (kept for reference, not used)
-@Serializable
-data class Transition(
-    val from: String,
-    val from_path: String? = null,
-    val to: String,
-    val to_path: String? = null,
-    val trigger: String? = null
-)
-
-@Serializable
-data class AppGraph(
-    val transitions: List<Transition>
-)
-
 // v2.0 format
 @Serializable
 data class GraphMetadata(
@@ -56,7 +41,7 @@ data class Subgraph(
 )
 
 @Serializable
-data class AppGraphV2(
+data class AppGraph(
     val metadata: GraphMetadata,
     val subgraphs: Map<String, Subgraph>
 )
@@ -79,43 +64,18 @@ data class Graph(
     val edges: List<Edge>
 ) {
     companion object {
-        fun from(appGraph: AppGraph, projectPath: String? = null): Graph {
-            val projectPath = projectPath?.trim()
-            val nodesMap = mutableMapOf<String, Node>()
-            val edges = mutableListOf<Edge>()
-
-            appGraph.transitions.forEach { transition ->
-                if (!nodesMap.containsKey(transition.from)) {
-                    val fromImages =
-                        transition.from_path?.let { findImages(it, transition.from, projectPath) }
-                            ?: emptyList()
-                    nodesMap[transition.from] = Node(transition.from, fromImages)
-                }
-                if (!nodesMap.containsKey(transition.to)) {
-                    val toImages =
-                        transition.to_path?.let { findImages(it, transition.to, projectPath) }
-                            ?: emptyList()
-                    nodesMap[transition.to] = Node(transition.to, toImages)
-                }
-                edges.add(Edge(transition.from, transition.to, transition.trigger))
-            }
-
-            val nodes = nodesMap.values.toList()
-            return Graph(nodes.toSet(), edges)
-        }
-
-        fun fromV2(appGraphV2: AppGraphV2, projectPath: String? = null): Graph {
+        fun fromV2(appGraph: AppGraph, projectPath: String? = null): Graph {
             val projectPath = projectPath?.trim()
             val nodesMap = mutableMapOf<String, Node>()
             val edges = mutableListOf<Edge>()
 
             // Build map of subgraph key to root_screen for resolving subgraph targets
-            val subgraphRoots = appGraphV2.subgraphs.mapValues { (_, subgraph) ->
+            val subgraphRoots = appGraph.subgraphs.mapValues { (_, subgraph) ->
                 "${subgraph.key}:${subgraph.root_screen}"
             }
 
             // Extract all screens from all subgraphs
-            appGraphV2.subgraphs.forEach { (subgraphKey, subgraph) ->
+            appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
                 subgraph.screens.forEach { screen ->
                     val nodeId = "$subgraphKey:${screen.id}"
                     val imagePaths =
@@ -125,7 +85,7 @@ data class Graph(
             }
 
             // Collect connections from all subgraphs
-            appGraphV2.subgraphs.forEach { (_, subgraph) ->
+            appGraph.subgraphs.forEach { (_, subgraph) ->
                 subgraph.connections.forEach { connection ->
                     val fromId = if (connection.from.type == "screen") {
                         "${connection.from.subgraph}:${connection.from.screen_id}"
@@ -134,13 +94,17 @@ data class Graph(
                         subgraphRoots[connection.from.subgraph]
                     }
 
-                    val toId = if (connection.to.type == "screen") {
-                        "${connection.to.subgraph}:${connection.to.screen_id}"
-                    } else if (connection.to.type == "subgraph") {
-                        // Resolve to root screen of target subgraph
-                        subgraphRoots[connection.to.subgraph]
-                    } else {
-                        null
+                    val toId = when (connection.to.type) {
+                        "screen" -> {
+                            "${connection.to.subgraph}:${connection.to.screen_id}"
+                        }
+                        "subgraph" -> {
+                            // Resolve to root screen of target subgraph
+                            subgraphRoots[connection.to.subgraph]
+                        }
+                        else -> {
+                            null
+                        }
                     }
 
                     if (fromId != null && toId != null) {
@@ -150,34 +114,6 @@ data class Graph(
             }
 
             return Graph(nodesMap.values.toSet(), edges)
-        }
-
-        private fun findImages(
-            basePath: String,
-            nodeName: String,
-            projectPath: String?
-        ): List<String> {
-            val regex = Regex("${nodeName}(?:_.+?)?_(\\d+)\\.png")
-            return try {
-                val fullPath = if (projectPath != null) {
-                    java.io.File(projectPath, basePath)
-                } else {
-                    java.io.File(basePath)
-                }
-                if (fullPath.exists() && fullPath.isDirectory) {
-                    fullPath.listFiles()
-                        ?.filter { regex.matches(it.name) }
-                        ?.sortedBy { file ->
-                            val match = regex.find(file.name)
-                            match?.groups?.get(1)?.value?.toIntOrNull() ?: 0
-                        }
-                        ?.map { it.absolutePath } ?: emptyList()
-                } else {
-                    emptyList()
-                }
-            } catch (e: Exception) {
-                emptyList()
-            }
         }
 
         private fun findImagesInLocation(

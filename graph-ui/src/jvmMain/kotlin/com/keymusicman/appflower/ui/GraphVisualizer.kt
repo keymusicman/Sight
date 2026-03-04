@@ -45,16 +45,19 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.keymusicman.appflower.model.AppGraph
+import com.keymusicman.appflower.model.Connection
+import com.keymusicman.appflower.model.ConnectionEndpoint
 import com.keymusicman.appflower.model.GraphEdge
+import com.keymusicman.appflower.model.GraphMetadata
 import com.keymusicman.appflower.model.GraphNode
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.LayoutNode
-import com.keymusicman.appflower.model.Transition
+import com.keymusicman.appflower.model.Screen
+import com.keymusicman.appflower.model.Subgraph
 import com.keymusicman.appflower.model.buildLayoutGraph
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 import javax.imageio.ImageIO
 import javax.imageio.stream.FileImageInputStream
 import kotlin.math.atan2
@@ -184,11 +187,11 @@ fun GraphVisualizer(
                             )
                         } else {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                    BasicText(
-                                        "No image",
-                                        style = TextStyle(color = Color.Red, fontSize = 12.sp),
-                                        modifier = Modifier.align(Alignment.Center)
-                                    )
+                                BasicText(
+                                    "No image",
+                                    style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
                             }
                         }
                     }
@@ -451,11 +454,38 @@ private fun DrawScope.drawGraphEdgesLayout(layoutGraph: LayoutGraph, pan: Offset
 @Preview
 @Composable
 private fun PreviewGraphVisualizer() {
-    val transitions = listOf(
-        Transition("Screen1", "Screen2", "onClick"),
-        Transition("Screen2", "Screen3", "onClick"),
+    val appGraph = AppGraph(
+        GraphMetadata(
+            version = "", generated_at = "",
+        ),
+        subgraphs = mapOf(
+            "root" to Subgraph(
+                key = "root",
+                qualified_name = "root",
+                location = "com.example.app.MainActivity",
+                root_screen = "Screen1",
+                screens = listOf(
+                    Screen("Screen1", "", "", ""),
+                    Screen("Screen2", "", "", ""),
+                    Screen("Screen3", "", "", ""),
+                ),
+                connections = listOf(
+                    Connection(
+                        ConnectionEndpoint(
+                            type = "screen",
+                            screen_id = "Screen1",
+                            subgraph = "root",
+                        ),
+                        ConnectionEndpoint(
+                            type = "screen",
+                            screen_id = "Screen2",
+                            subgraph = "root",
+                        ),
+                    ),
+                )
+            )
+        )
     )
-    val appGraph = AppGraph(transitions)
-    val viewModel = GraphViewModel().apply { buildFromAppGraph(appGraph) }
+    val viewModel = GraphViewModel().apply { buildFromAppGraphV2(appGraph) }
     GraphVisualizer(viewModel = viewModel)
 }

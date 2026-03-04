@@ -1,19 +1,18 @@
 package com.keymusicman.appflower.loader
 
 import com.keymusicman.appflower.model.AppGraph
-import com.keymusicman.appflower.model.AppGraphV2
 import kotlinx.serialization.json.Json
 import java.io.File
 
 object GraphLoader {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun loadGraphFromProject(projectPath: String): AppGraphV2? {
+    fun loadGraphFromProject(projectPath: String): AppGraph? {
         val graphFile = File(projectPath.trim(), "app/build/graph/app-graph.json")
         return if (graphFile.exists()) {
             try {
                 val content = graphFile.readText()
-                json.decodeFromString<AppGraphV2>(content)
+                json.decodeFromString<AppGraph>(content)
             } catch (e: Exception) {
                 println("Error loading graph: ${e.message}")
                 e.printStackTrace()
@@ -25,10 +24,10 @@ object GraphLoader {
         }
     }
 
-    fun loadFromFile(file: File): AppGraphV2? {
+    fun loadFromFile(file: File): AppGraph? {
         return if (file.exists()) {
             try {
-                json.decodeFromString<AppGraphV2>(file.readText())
+                json.decodeFromString<AppGraph>(file.readText())
             } catch (e: Exception) {
                 null
             }
