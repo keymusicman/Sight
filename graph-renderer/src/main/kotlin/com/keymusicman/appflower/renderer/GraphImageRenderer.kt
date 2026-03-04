@@ -1,11 +1,8 @@
 package com.keymusicman.appflower.renderer
 
 import com.keymusicman.appflower.model.AppGraph
-import com.keymusicman.appflower.model.GraphEdge
-import com.keymusicman.appflower.model.GraphNode
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
-import com.keymusicman.appflower.model.flattenAppGraph
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.awt.BasicStroke
@@ -23,21 +20,17 @@ import kotlin.math.sin
 /**
  * Renders the full navigation graph to a [BufferedImage] using Java2D.
  * No Compose or Skia dependency — works in both Desktop and IntelliJ plugin contexts.
- * Runs graph parsing on Dispatchers.IO for non-blocking operation.
+ * Internally flattens AppGraph and computes layout on Dispatchers.Default.
  */
 suspend fun renderGraphToImage(appGraph: AppGraph, projectPath: String? = null): BufferedImage? =
     withContext(Dispatchers.Default) {
-        val (nodes, edges) = flattenAppGraph(appGraph, projectPath)
-        
-        val loadedImages: Map<String, BufferedImage?> = nodes.associate { node ->
-            node.id to node.imagePaths.firstOrNull()?.let { loadBufferedImage(it) }
-        }
-        val imageDimensions: Map<String, Pair<Int, Int>> = loadedImages.mapNotNull { (id, img) ->
-            img?.let { id to (it.width to it.height) }
-        }.toMap()
-
-        val layoutGraph: LayoutGraph = buildLayoutGraph(nodes, edges, imageDimensions)
+        val layoutGraph: LayoutGraph = buildLayoutGraph(appGraph, projectPath)
         if (layoutGraph.nodes.isEmpty()) return@withContext null
+
+        // Load actual image files for rendering  
+        val loadedImages: Map<String, BufferedImage?> = layoutGraph.nodes.mapNotNull { (id, ln) ->
+            id to ln.imagePaths.firstOrNull()?.let { loadBufferedImage(it) }
+        }.toMap()
 
         val padding = 200f
         val canvasWidth = (layoutGraph.nodes.values.maxOf { it.x + it.width / 2f } + padding)

@@ -56,8 +56,6 @@ import com.keymusicman.appflower.viewmodel.GraphViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.imageio.ImageIO
-import javax.imageio.stream.FileImageInputStream
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -98,10 +96,9 @@ fun GraphVisualizer(
         viewModel.viewportWidth = viewportWidth
         viewModel.viewportHeight = viewportHeight
 
-        // File paths per node for lazy image loading (from stored nodes)
-        val pathById: Map<String, String?> = remember(viewModel.nodesState.value) {
-            val nodes = viewModel.nodesState.value ?: emptyList()
-            nodes.associate { it.id to it.imagePaths.firstOrNull() }
+        // File paths per node for lazy image loading (from layout nodes)
+        val pathById: Map<String, String?> = remember(layoutGraph) {
+            layoutGraph.nodes.values.associate { it.id to it.imagePaths.firstOrNull() }
         }
 
         // deterministic ordered list of layout nodes for composing children
@@ -376,35 +373,6 @@ private fun <T> AsyncImage(
     }
 }
 
-/**
- * Gets image dimensions for a given file by reading only the image header — no pixel data loaded.
- * @return width to height in pixels, or null if the file is not a known image
- */
-private fun getImageDimension(path: String): Pair<Int, Int>? {
-    val file = File(path)
-    if (!file.exists()) return null
-    val pos = file.name.lastIndexOf('.')
-    if (pos == -1) return null
-    val suffix = file.name.substring(pos + 1)
-    val iter = ImageIO.getImageReadersBySuffix(suffix)
-    while (iter.hasNext()) {
-        val reader = iter.next()
-        var stream: FileImageInputStream? = null
-        try {
-            stream = FileImageInputStream(file)
-            reader.setInput(stream)
-            val width = reader.getWidth(reader.minIndex)
-            val height = reader.getHeight(reader.minIndex)
-            return width to height
-        } catch (_: Exception) {
-            // try next reader
-        } finally {
-            stream?.close()
-            reader.dispose()
-        }
-    }
-    return null
-}
 
 private fun DrawScope.drawGraphEdgesLayout(layoutGraph: LayoutGraph, pan: Offset, zoom: Float) {
     layoutGraph.edges.forEach { edge ->

@@ -6,24 +6,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.keymusicman.appflower.model.AppGraph
-import com.keymusicman.appflower.model.GraphNode
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
-import com.keymusicman.appflower.model.flattenAppGraph
-import com.keymusicman.appflower.model.getImageDimension
 import kotlinx.coroutines.launch
 import kotlin.time.measureTime
 
 /**
  * View model to construct and expose the LayoutGraph for the UI.
  * - layoutGraphState: current built LayoutGraph or null
- * - nodesState: nodes with image paths for lazy loading in UI
  * - zoomState: simple zoom holder shared with UI
- * - buildFromAppGraphV2: load and layout from AppGraph asynchronously on IO dispatcher
+ * - buildFromAppGraphV2: load and layout from AppGraph asynchronously
  */
 class GraphViewModel : ViewModel() {
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
-    val nodesState: MutableState<List<GraphNode>?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
     var viewportWidth: Float = 0f
@@ -64,23 +59,7 @@ class GraphViewModel : ViewModel() {
     fun buildFromAppGraphV2(appGraph: AppGraph, projectPath: String? = null) {
         viewModelScope.launch {
             val time = measureTime {
-                val (nodes, edges) = flattenAppGraph(appGraph, projectPath)
-                nodesState.value = nodes
-
-                // Load image dimensions efficiently (just metadata, not full image data)
-                val imageDimensions: Map<String, Pair<Int, Int>> = nodes.associate { node ->
-                    val dim = node.imagePaths.firstOrNull()
-                        ?.let { path ->
-                            getImageDimension(path)
-                        }
-                    node.id to (dim ?: (540 to 360))
-                }
-
-                val layoutGraph = buildLayoutGraph(
-                    nodes,
-                    edges,
-                    imageDimensions = imageDimensions
-                )
+                val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
                 layoutGraphState.value = layoutGraph
             }
 

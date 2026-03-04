@@ -1,7 +1,6 @@
 package com.keymusicman.appflower.utils
 
 import com.keymusicman.appflower.model.AppGraph
-import com.keymusicman.appflower.model.flattenAppGraph
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
 import java.io.File
@@ -17,27 +16,20 @@ import javax.swing.filechooser.FileNameExtensionFilter
  * Opens a file-save dialog so the user can choose the destination.
  */
 suspend fun exportGraphAsDrawio(appGraph: AppGraph, projectPath: String?) {
-    val (domainNodes, domainEdges) = flattenAppGraph(appGraph, projectPath)
-
-    // Load images and derive dimensions for layout
-    val imageDataMap: Map<String, Pair<ByteArray, Pair<Int, Int>>?> = domainNodes.associate { node ->
-        node.id to node.imagePaths.firstOrNull()?.let { path ->
-            try {
-                val file = File(path)
-                if (file.exists()) {
-                    val img = ImageIO.read(file)
-                    if (img != null) file.readBytes() to (img.width to img.height) else null
-                } else null
-            } catch (_: Exception) { null }
-        }
-    }
-
-    val imageDimensions: Map<String, Pair<Int, Int>> = imageDataMap.mapNotNull { (id, v) ->
-        v?.let { id to it.second }
-    }.toMap()
-
-    val layoutGraph: LayoutGraph = buildLayoutGraph(domainNodes, domainEdges, imageDimensions, scale = 0.25f)
+    // Build complete layout graph (includes flattening and image loading internally)
+    val layoutGraph: LayoutGraph = buildLayoutGraph(appGraph, projectPath, scale = 0.25f)
     if (layoutGraph.nodes.isEmpty()) return
+
+    // Load image data for embedding in XML (convert paths to Base64)
+    val imageDataMap: Map<String, ByteArray?> = layoutGraph.nodes.mapNotNull { (id, layoutNode) ->
+        id to layoutNode.imagePaths.firstOrNull()?.let { path ->
+            try {
+                File(path).takeIf { it.exists() }?.readBytes()
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }.toMap()
 
     val xml = buildDrawioXml(layoutGraph, imageDataMap)
 
@@ -55,7 +47,7 @@ suspend fun exportGraphAsDrawio(appGraph: AppGraph, projectPath: String?) {
 
 private fun buildDrawioXml(
     layoutGraph: LayoutGraph,
-    imageDataMap: Map<String, Pair<ByteArray, Pair<Int, Int>>?>
+    imageDataMap: Map<String, ByteArray?>
 ): String {
     val sb = StringBuilder()
     sb.appendLine("""<mxfile host="AppFlower" version="1.0">""")
@@ -76,7 +68,7 @@ private fun buildDrawioXml(
 
         val imgData = imageDataMap[ln.id]
         val style = if (imgData != null) {
-            val b64 = Base64.getEncoder().encodeToString(imgData.first)
+            val b64 = Base64.getEncoder().encodeToString(imgData)
             "shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;" +
                     "aspect=fixed;imageAspect=0;image=data:image/png,$b64;"
         } else {

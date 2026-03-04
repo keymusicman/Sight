@@ -48,62 +48,7 @@ data class AppGraph(
     val subgraphs: Map<String, Subgraph>
 )
 
-/**
- * Flatten AppGraph structure into simple nodes and edges for layout.
- * Runs on Dispatchers.IO to handle disk I/O (screenshot loading).
- */
-suspend fun flattenAppGraph(appGraph: AppGraph, projectPath: String? = null): Pair<List<GraphNode>, List<GraphEdge>> {
-    return withContext(Dispatchers.IO) {
-        val projectPath = projectPath?.trim()
-        val nodesMap = mutableMapOf<String, GraphNode>()
-        val edges = mutableListOf<GraphEdge>()
 
-        // Build map of subgraph key to root_screen for resolving subgraph targets
-        val subgraphRoots = appGraph.subgraphs.mapValues { (_, subgraph) ->
-            "${subgraph.key}:${subgraph.root_screen}"
-        }
-
-        // Extract all screens from all subgraphs
-        appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
-            subgraph.screens.forEach { screen ->
-                val nodeId = "$subgraphKey:${screen.id}"
-                val imagePaths = findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
-                nodesMap[nodeId] = GraphNode(nodeId, imagePaths)
-            }
-        }
-
-        // Collect connections from all subgraphs
-        appGraph.subgraphs.forEach { (_, subgraph) ->
-            subgraph.connections.forEach { connection ->
-                val fromId = if (connection.from.type == "screen") {
-                    "${connection.from.subgraph}:${connection.from.screen_id}"
-                } else {
-                    // Should not happen for "from", but handle gracefully
-                    subgraphRoots[connection.from.subgraph]
-                }
-
-                val toId = when (connection.to.type) {
-                    "screen" -> {
-                        "${connection.to.subgraph}:${connection.to.screen_id}"
-                    }
-                    "subgraph" -> {
-                        // Resolve to root screen of target subgraph
-                        subgraphRoots[connection.to.subgraph]
-                    }
-                    else -> {
-                        null
-                    }
-                }
-
-                if (fromId != null && toId != null) {
-                    edges.add(GraphEdge(fromId, toId, null))
-                }
-            }
-        }
-
-        nodesMap.values.toList() to edges
-    }
-}
 
 private fun findImagesInLocation(
     screenshotLocation: String,
@@ -173,6 +118,7 @@ fun getImageDimension(path: String): Pair<Int, Int>? {
 
 // Immutable layout models and layout builder
 
+// Local data classes only used internally within buildLayoutGraph
 data class GraphNode(
     val id: String,
     val imagePaths: List<String> = emptyList(),
@@ -193,7 +139,8 @@ data class LayoutNode(
     val x: Float, // center x
     val y: Float, // center y
     val width: Float,
-    val height: Float
+    val height: Float,
+    val imagePaths: List<String> = emptyList() // screenshot paths for rendering
 )
 
 data class LayoutEdge(
@@ -215,20 +162,86 @@ private data class SubtreeResult(
 )
 
 /**
- * Build a fully immutable, render-ready layout graph.
- * - sizes are taken from provided bitmaps (width/3, height/3)
+ * Build a fully immutable, render-ready layout graph directly from AppGraph.
+ * - Internally flattens AppGraph to nodes and edges on Dispatchers.IO
+ * - Loads image dimensions efficiently via getImageDimension()
+ * - Computes hierarchical contour-based layout
+ * - sizes are taken from image dimensions (scaled)
  * - columns are assigned by depth from the entry node (left-to-right)
  * - nodes in a column are stacked vertically; merges are centered relative to incoming lanes
  * - edges are routed orthogonally with a simple 3-bend polyline (start -> midX -> end)
  */
-fun buildLayoutGraph(
-    nodes: List<GraphNode>,
-    edges: List<GraphEdge>,
-    imageDimensions: Map<String, Pair<Int, Int>>,
-    scale: Float = 1f
+suspend fun buildLayoutGraph(
+    appGraph: AppGraph,
+    projectPath: String? = null,
+    scale: Float = 0.33f
 ): LayoutGraph {
+    // Flatten AppGraph on IO dispatcher (disk I/O for screenshots)
+    val (nodes, edges) = withContext(Dispatchers.IO) {
+        val projectPath = projectPath?.trim()
+        val nodesMap = mutableMapOf<String, GraphNode>()
+        val edgesList = mutableListOf<GraphEdge>()
+
+        // Build map of subgraph key to root_screen for resolving subgraph targets
+        val subgraphRoots = appGraph.subgraphs.mapValues { (_, subgraph) ->
+            "${subgraph.key}:${subgraph.root_screen}"
+        }
+
+        // Extract all screens from all subgraphs
+        appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
+            subgraph.screens.forEach { screen ->
+                val nodeId = "$subgraphKey:${screen.id}"
+                val imagePaths = findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
+                nodesMap[nodeId] = GraphNode(nodeId, imagePaths)
+            }
+        }
+
+        // Collect connections from all subgraphs
+        appGraph.subgraphs.forEach { (_, subgraph) ->
+            subgraph.connections.forEach { connection ->
+                val fromId = if (connection.from.type == "screen") {
+                    "${connection.from.subgraph}:${connection.from.screen_id}"
+                } else {
+                    // Should not happen for "from", but handle gracefully
+                    subgraphRoots[connection.from.subgraph]
+                }
+
+                val toId = when (connection.to.type) {
+                    "screen" -> {
+                        "${connection.to.subgraph}:${connection.to.screen_id}"
+                    }
+                    "subgraph" -> {
+                        // Resolve to root screen of target subgraph
+                        subgraphRoots[connection.to.subgraph]
+                    }
+                    else -> {
+                        null
+                    }
+                }
+
+                if (fromId != null && toId != null) {
+                    edgesList.add(GraphEdge(fromId, toId, null))
+                }
+            }
+        }
+
+        nodesMap.values.toList() to edgesList
+    }
+
     if (nodes.isEmpty()) return LayoutGraph(emptyMap(), emptyList())
 
+    // Load image dimensions efficiently (header-only, no full image load)
+    val imageDimensions: Map<String, Pair<Int, Int>> = nodes.associate { node ->
+        val dim = node.imagePaths.firstOrNull()?.let { path ->
+            getImageDimension(path)
+        }
+        node.id to (dim ?: (540 to 360))
+    }
+
+    // Create lookup map for node details (id -> GraphNode)
+    val nodeById = nodes.associateBy { it.id }
+
+    // Rest of the layout algorithm (unchanged from original buildLayoutGraph)
     // maps for quick lookup
     val nodeIds = nodes.map { it.id }
     val adjacency: MutableMap<String, MutableList<String>> =
@@ -274,7 +287,7 @@ fun buildLayoutGraph(
 
     val sortedDepths = nodesByDepth.keys.sorted()
 
-    // compute sizes from image dimensions (scaled down by 3 for display)
+    // compute sizes from image dimensions (scaled)
     val sizeById: Map<String, Pair<Float, Float>> = nodes.associate { n ->
         val dim = imageDimensions[n.id]
         val w = dim?.first?.toFloat()?.times(scale) ?: 180f
@@ -406,7 +419,8 @@ fun buildLayoutGraph(
         val (w, h) = sizeById[id] ?: (180f to 120f)
         val d = depthMap[id] ?: 0
         val x = columnX[d] ?: leftMargin
-        layoutNodeMap[id] = LayoutNode(id = id, x = x, y = relY, width = w, height = h)
+        val imagePaths = nodeById[id]?.imagePaths ?: emptyList()
+        layoutNodeMap[id] = LayoutNode(id = id, x = x, y = relY, width = w, height = h, imagePaths = imagePaths)
     }
 
     // stack any nodes unreachable from entry below the main layout
@@ -417,7 +431,8 @@ fun buildLayoutGraph(
             val (w, h) = sizeById[id] ?: (180f to 120f)
             val d = depthMap[id] ?: 0
             val x = columnX[d] ?: leftMargin
-            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = extraTop + h / 2f, width = w, height = h)
+            val imagePaths = nodeById[id]?.imagePaths ?: emptyList()
+            layoutNodeMap[id] = LayoutNode(id = id, x = x, y = extraTop + h / 2f, width = w, height = h, imagePaths = imagePaths)
             extraTop += h + minVerticalGap
         }
     }
