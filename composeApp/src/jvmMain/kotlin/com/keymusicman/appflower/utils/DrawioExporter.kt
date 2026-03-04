@@ -1,8 +1,7 @@
 package com.keymusicman.appflower.utils
 
-import com.keymusicman.appflower.model.Graph
-import com.keymusicman.appflower.model.GraphEdge
-import com.keymusicman.appflower.model.GraphNode
+import com.keymusicman.appflower.model.AppGraph
+import com.keymusicman.appflower.model.flattenAppGraph
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
 import java.io.File
@@ -17,9 +16,8 @@ import javax.swing.filechooser.FileNameExtensionFilter
  * or a plain rounded-rectangle shape otherwise.
  * Opens a file-save dialog so the user can choose the destination.
  */
-fun exportGraphAsDrawio(graph: Graph, projectPath: String?) {
-    val domainNodes = graph.nodes.map { n -> GraphNode(n.id, n.imagePaths, n.selectedState) }
-    val domainEdges = graph.edges.map { e -> GraphEdge(e.from, e.to, e.trigger) }
+suspend fun exportGraphAsDrawio(appGraph: AppGraph, projectPath: String?) {
+    val (domainNodes, domainEdges) = flattenAppGraph(appGraph, projectPath)
 
     // Load images and derive dimensions for layout
     val imageDataMap: Map<String, Pair<ByteArray, Pair<Int, Int>>?> = domainNodes.associate { node ->

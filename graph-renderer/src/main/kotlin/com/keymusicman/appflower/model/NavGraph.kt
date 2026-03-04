@@ -1,5 +1,7 @@
 package com.keymusicman.appflower.model
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
 // v2.0 format
@@ -46,118 +48,128 @@ data class AppGraph(
     val subgraphs: Map<String, Subgraph>
 )
 
-data class Node(
-    val id: String,
-    // list of available state images for the node (ordered by index)
-    val imagePaths: List<String> = emptyList(),
-    var selectedState: Int = 0
-)
+/**
+ * Flatten AppGraph structure into simple nodes and edges for layout.
+ * Runs on Dispatchers.IO to handle disk I/O (screenshot loading).
+ */
+suspend fun flattenAppGraph(appGraph: AppGraph, projectPath: String? = null): Pair<List<GraphNode>, List<GraphEdge>> {
+    return withContext(Dispatchers.IO) {
+        val projectPath = projectPath?.trim()
+        val nodesMap = mutableMapOf<String, GraphNode>()
+        val edges = mutableListOf<GraphEdge>()
 
-data class Edge(
-    val from: String,
-    val to: String,
-    val trigger: String? = null
-)
-
-data class Graph(
-    val nodes: Set<Node>,
-    val edges: List<Edge>
-) {
-    companion object {
-        fun fromV2(appGraph: AppGraph, projectPath: String? = null): Graph {
-            val projectPath = projectPath?.trim()
-            val nodesMap = mutableMapOf<String, Node>()
-            val edges = mutableListOf<Edge>()
-
-            // Build map of subgraph key to root_screen for resolving subgraph targets
-            val subgraphRoots = appGraph.subgraphs.mapValues { (_, subgraph) ->
-                "${subgraph.key}:${subgraph.root_screen}"
-            }
-
-            // Extract all screens from all subgraphs
-            appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
-                subgraph.screens.forEach { screen ->
-                    val nodeId = "$subgraphKey:${screen.id}"
-                    val imagePaths =
-                        findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
-                    nodesMap[nodeId] = Node(nodeId, imagePaths)
-                }
-            }
-
-            // Collect connections from all subgraphs
-            appGraph.subgraphs.forEach { (_, subgraph) ->
-                subgraph.connections.forEach { connection ->
-                    val fromId = if (connection.from.type == "screen") {
-                        "${connection.from.subgraph}:${connection.from.screen_id}"
-                    } else {
-                        // Should not happen for "from", but handle gracefully
-                        subgraphRoots[connection.from.subgraph]
-                    }
-
-                    val toId = when (connection.to.type) {
-                        "screen" -> {
-                            "${connection.to.subgraph}:${connection.to.screen_id}"
-                        }
-                        "subgraph" -> {
-                            // Resolve to root screen of target subgraph
-                            subgraphRoots[connection.to.subgraph]
-                        }
-                        else -> {
-                            null
-                        }
-                    }
-
-                    if (fromId != null && toId != null) {
-                        edges.add(Edge(fromId, toId, null))
-                    }
-                }
-            }
-
-            return Graph(nodesMap.values.toSet(), edges)
+        // Build map of subgraph key to root_screen for resolving subgraph targets
+        val subgraphRoots = appGraph.subgraphs.mapValues { (_, subgraph) ->
+            "${subgraph.key}:${subgraph.root_screen}"
         }
 
-        private fun findImagesInLocation(
-            screenshotLocation: String,
-            screenId: String,
-            projectPath: String?
-        ): List<String> {
-            return try {
-                val fullPath = if (projectPath != null) {
-                    java.io.File(projectPath, screenshotLocation)
+        // Extract all screens from all subgraphs
+        appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
+            subgraph.screens.forEach { screen ->
+                val nodeId = "$subgraphKey:${screen.id}"
+                val imagePaths = findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
+                nodesMap[nodeId] = GraphNode(nodeId, imagePaths)
+            }
+        }
+
+        // Collect connections from all subgraphs
+        appGraph.subgraphs.forEach { (_, subgraph) ->
+            subgraph.connections.forEach { connection ->
+                val fromId = if (connection.from.type == "screen") {
+                    "${connection.from.subgraph}:${connection.from.screen_id}"
                 } else {
-                    java.io.File(screenshotLocation)
+                    // Should not happen for "from", but handle gracefully
+                    subgraphRoots[connection.from.subgraph]
                 }
-                System.err.println("[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}")
-                when {
-                    fullPath.isFile -> listOf(fullPath.absolutePath)
-                    fullPath.isDirectory -> {
-                        // Match {screenId}[_variant]_{index}.{ext} case-insensitively
-                        val regex = Regex(
-                            "${Regex.escape(screenId)}(?:_.+?)?_(\\d+)\\.(?:png|jpg|jpeg|webp)",
-                            RegexOption.IGNORE_CASE
-                        )
-                        val files = fullPath.listFiles()
-                        System.err.println("[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex")
-                        files
-                            ?.filter { regex.matches(it.name) }
-                            ?.sortedBy { file ->
-                                regex.find(file.name)?.groups?.get(1)?.value?.toIntOrNull() ?: 0
-                            }
-                            ?.map { it.absolutePath } ?: emptyList()
+
+                val toId = when (connection.to.type) {
+                    "screen" -> {
+                        "${connection.to.subgraph}:${connection.to.screen_id}"
+                    }
+                    "subgraph" -> {
+                        // Resolve to root screen of target subgraph
+                        subgraphRoots[connection.to.subgraph]
                     }
                     else -> {
-                        System.err.println("[AppFlower] findImagesInLocation: path does not exist or is not accessible: ${fullPath.absolutePath}")
-                        emptyList()
+                        null
                     }
                 }
-            } catch (e: Exception) {
-                System.err.println("[AppFlower] findImagesInLocation: exception for screenId=$screenId: ${e.message}")
-                emptyList()
+
+                if (fromId != null && toId != null) {
+                    edges.add(GraphEdge(fromId, toId, null))
+                }
             }
         }
+
+        nodesMap.values.toList() to edges
     }
 }
 
+private fun findImagesInLocation(
+    screenshotLocation: String,
+    screenId: String,
+    projectPath: String?
+): List<String> {
+    return try {
+        val fullPath = if (projectPath != null) {
+            java.io.File(projectPath, screenshotLocation)
+        } else {
+            java.io.File(screenshotLocation)
+        }
+        System.err.println("[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}")
+        when {
+            fullPath.isFile -> listOf(fullPath.absolutePath)
+            fullPath.isDirectory -> {
+                // Match {screenId}[_variant]_{index}.{ext} case-insensitively
+                val regex = Regex(
+                    "${Regex.escape(screenId)}(?:_.+?)?_(\\d+)\\.(?:png|jpg|jpeg|webp)",
+                    RegexOption.IGNORE_CASE
+                )
+                val files = fullPath.listFiles()
+                System.err.println("[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex")
+                files
+                    ?.filter { regex.matches(it.name) }
+                    ?.sortedBy { file ->
+                        regex.find(file.name)?.groups?.get(1)?.value?.toIntOrNull() ?: 0
+                    }
+                    ?.map { it.absolutePath } ?: emptyList()
+            }
+            else -> {
+                System.err.println("[AppFlower] findImagesInLocation: path does not exist or is not accessible: ${fullPath.absolutePath}")
+                emptyList()
+            }
+        }
+    } catch (e: Exception) {
+        System.err.println("[AppFlower] findImagesInLocation: exception for screenId=$screenId: ${e.message}")
+        emptyList()
+    }
+}
+
+fun getImageDimension(path: String): Pair<Int, Int>? {
+    val file = java.io.File(path)
+    if (!file.exists()) return null
+    val pos = file.name.lastIndexOf('.')
+    if (pos == -1) return null
+    val suffix = file.name.substring(pos + 1)
+    val iter = javax.imageio.ImageIO.getImageReadersBySuffix(suffix)
+    while (iter.hasNext()) {
+        val reader = iter.next()
+        var stream: javax.imageio.stream.FileImageInputStream? = null
+        try {
+            stream = javax.imageio.stream.FileImageInputStream(file)
+            reader.setInput(stream)
+            val width = reader.getWidth(reader.minIndex)
+            val height = reader.getHeight(reader.minIndex)
+            return width to height
+        } catch (_: Exception) {
+            // try next reader
+        } finally {
+            stream?.close()
+            reader.dispose()
+        }
+    }
+    return null
+}
 
 // Immutable layout models and layout builder
 

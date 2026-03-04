@@ -1,6 +1,6 @@
 package com.keymusicman.appflower.utils
 
-import com.keymusicman.appflower.model.Graph
+import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.renderer.renderGraphToImage
 import java.io.File
 import javax.imageio.ImageIO
@@ -10,10 +10,10 @@ import javax.swing.filechooser.FileNameExtensionFilter
 /**
  * Exports the full navigation graph as a PNG image file.
  * Opens a file-save dialog so the user can choose a destination.
- * Rendering is delegated to the shared :graph-renderer module.
+ * Rendering is delegated to the shared :graph-renderer module (runs on IO dispatcher).
  */
-fun exportGraphAsImage(graph: Graph, projectPath: String?) {
-    val image = renderGraphToImage(graph, projectPath) ?: return
+suspend fun exportGraphAsImage(appGraph: AppGraph, projectPath: String?) {
+    val image = renderGraphToImage(appGraph, projectPath) ?: return
 
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Graph as Image"

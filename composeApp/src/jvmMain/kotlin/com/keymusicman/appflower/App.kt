@@ -18,25 +18,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
-import com.keymusicman.appflower.model.Graph
+import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.ui.GraphVisualizer
 import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.utils.exportGraphAsDrawio
 import com.keymusicman.appflower.utils.exportGraphAsImage
 import com.keymusicman.appflower.viewmodel.GraphViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun App() {
     var projectPath by remember { mutableStateOf("/Users/keymusicman/example/android") }
-    // use ViewModel to build and hold graph
+    // use ViewModel to build and hold layout graph
     val viewModel = remember { GraphViewModel() }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    var graph by remember { mutableStateOf<Graph?>(null) }
+    var appGraph by remember { mutableStateOf<AppGraph?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     MaterialTheme {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -66,14 +69,14 @@ fun App() {
                             if (projectPath.isNotEmpty()) {
                                 isLoading = true
                                 errorMessage = ""
-                                val appGraphV2 = GraphLoader.loadGraphFromProject(projectPath)
-                                if (appGraphV2 != null) {
-                                    // delegate to ViewModel to build the Graph and expose it
-                                    viewModel.buildFromAppGraphV2(appGraphV2, projectPath)
-                                    graph = viewModel.graphState.value
-                                    val subgraphCount = appGraphV2.subgraphs.size
-                                    val totalScreens = appGraphV2.subgraphs.values.sumOf { it.screens.size }
-                                    val totalConnections = appGraphV2.subgraphs.values.sumOf { it.connections.size }
+                                val loadedAppGraph = GraphLoader.loadGraphFromProject(projectPath)
+                                if (loadedAppGraph != null) {
+                                    appGraph = loadedAppGraph
+                                    // ViewModel uses coroutines internally to build layout on IO dispatcher
+                                    viewModel.buildFromAppGraphV2(loadedAppGraph, projectPath)
+                                    val subgraphCount = loadedAppGraph.subgraphs.size
+                                    val totalScreens = loadedAppGraph.subgraphs.values.sumOf { it.screens.size }
+                                    val totalConnections = loadedAppGraph.subgraphs.values.sumOf { it.connections.size }
                                     errorMessage =
                                         "Graph loaded: $subgraphCount subgraphs, $totalScreens screens, $totalConnections connections"
                                 } else {
@@ -93,7 +96,7 @@ fun App() {
                     Button(
                         onClick = {
                             projectPath = ""
-                            graph = null
+                            appGraph = null
                             errorMessage = ""
                         },
                         modifier = Modifier.weight(1f)
@@ -103,17 +106,31 @@ fun App() {
                 }
 
                 Button(
-                    onClick = { exportGraphAsImage(graph!!, projectPath) },
+                    onClick = {
+                        val graph = appGraph
+                        if (graph != null) {
+                            coroutineScope.launch {
+                                exportGraphAsImage(graph, projectPath)
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = graph != null
+                    enabled = appGraph != null
                 ) {
                     Text("Save as Image")
                 }
 
                 Button(
-                    onClick = { exportGraphAsDrawio(graph!!, projectPath) },
+                    onClick = {
+                        val graph = appGraph
+                        if (graph != null) {
+                            coroutineScope.launch {
+                                exportGraphAsDrawio(graph, projectPath)
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = graph != null
+                    enabled = appGraph != null
                 ) {
                     Text("Export to draw.io")
                 }
@@ -128,25 +145,26 @@ fun App() {
 
                 HorizontalDivider()
 
-                if (graph != null) {
+                if (appGraph != null) {
+                    val graph = appGraph!!
                     Text(
-                        "Nodes: ${graph!!.nodes.size}",
+                        "Subgraphs: ${graph.subgraphs.size}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        "Edges: ${graph!!.edges.size}",
+                        "Screens: ${graph.subgraphs.values.sumOf { it.screens.size }}",
                         style = MaterialTheme.typography.bodyMedium
                     )
 
-                    Text("Nodes List:", style = MaterialTheme.typography.labelMedium)
+                    Text("Subgraphs List:", style = MaterialTheme.typography.labelMedium)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
                     ) {
-                        graph!!.nodes.forEach { node ->
+                        graph.subgraphs.values.forEach { subgraph ->
                             Text(
-                                node.id,
+                                subgraph.key,
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(vertical = 2.dp)
                             )

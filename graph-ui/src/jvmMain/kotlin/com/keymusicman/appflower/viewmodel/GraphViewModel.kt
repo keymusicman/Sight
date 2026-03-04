@@ -3,19 +3,27 @@ package com.keymusicman.appflower.viewmodel
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.keymusicman.appflower.model.AppGraph
-import com.keymusicman.appflower.model.Graph
+import com.keymusicman.appflower.model.GraphNode
+import com.keymusicman.appflower.model.LayoutGraph
+import com.keymusicman.appflower.model.buildLayoutGraph
+import com.keymusicman.appflower.model.flattenAppGraph
+import com.keymusicman.appflower.model.getImageDimension
+import kotlinx.coroutines.launch
+import kotlin.time.measureTime
 
 /**
- * Minimal view model to construct and expose the Graph for the UI.
- * - graphState: current built Graph or null
+ * View model to construct and expose the LayoutGraph for the UI.
+ * - layoutGraphState: current built LayoutGraph or null
+ * - nodesState: nodes with image paths for lazy loading in UI
  * - zoomState: simple zoom holder shared with UI
- * - buildFromAppGraph: build graph from an in-memory AppGraph (v1.0 legacy)
- * - buildFromAppGraphV2: build graph from an in-memory AppGraphV2 (v2.0)
- * - loadFromJsonFile: read AppGraphV2 JSON from disk and build
+ * - buildFromAppGraphV2: load and layout from AppGraph asynchronously on IO dispatcher
  */
-class GraphViewModel {
-    val graphState: MutableState<Graph?> = mutableStateOf(null)
+class GraphViewModel : ViewModel() {
+    val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
+    val nodesState: MutableState<List<GraphNode>?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
     var viewportWidth: Float = 0f
@@ -54,7 +62,30 @@ class GraphViewModel {
     }
 
     fun buildFromAppGraphV2(appGraph: AppGraph, projectPath: String? = null) {
-        graphState.value = Graph.fromV2(appGraph, projectPath)
+        viewModelScope.launch {
+            val time = measureTime {
+                val (nodes, edges) = flattenAppGraph(appGraph, projectPath)
+                nodesState.value = nodes
+
+                // Load image dimensions efficiently (just metadata, not full image data)
+                val imageDimensions: Map<String, Pair<Int, Int>> = nodes.associate { node ->
+                    val dim = node.imagePaths.firstOrNull()
+                        ?.let { path ->
+                            getImageDimension(path)
+                        }
+                    node.id to (dim ?: (540 to 360))
+                }
+
+                val layoutGraph = buildLayoutGraph(
+                    nodes,
+                    edges,
+                    imageDimensions = imageDimensions
+                )
+                layoutGraphState.value = layoutGraph
+            }
+
+            println("Graph layout completed in ${time.inWholeSeconds} seconds")
+        }
     }
 
 }

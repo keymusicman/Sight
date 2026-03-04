@@ -47,15 +47,13 @@ import androidx.compose.ui.unit.sp
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.Connection
 import com.keymusicman.appflower.model.ConnectionEndpoint
-import com.keymusicman.appflower.model.GraphEdge
 import com.keymusicman.appflower.model.GraphMetadata
-import com.keymusicman.appflower.model.GraphNode
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.LayoutNode
 import com.keymusicman.appflower.model.Screen
 import com.keymusicman.appflower.model.Subgraph
-import com.keymusicman.appflower.model.buildLayoutGraph
 import com.keymusicman.appflower.viewmodel.GraphViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.imageio.ImageIO
@@ -76,19 +74,19 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     viewModel: GraphViewModel,
 ) {
-    val graph = viewModel.graphState.value
+    val layoutGraph = viewModel.layoutGraphState.value
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(ColorBackground),
         contentAlignment = Alignment.TopStart,
     ) {
-        if (graph == null) {
+        if (layoutGraph == null) {
             BasicText("No graph loaded", style = TextStyle(color = ColorOnBackground))
             return@BoxWithConstraints
         }
 
-        if (graph.nodes.isEmpty()) {
+        if (layoutGraph.nodes.isEmpty()) {
             BasicText("Graph is empty", style = TextStyle(color = ColorOnBackground))
             return@BoxWithConstraints
         }
@@ -100,27 +98,10 @@ fun GraphVisualizer(
         viewModel.viewportWidth = viewportWidth
         viewModel.viewportHeight = viewportHeight
 
-        // Build immutable domain and layout once per graph
-        val domainNodes = graph.nodes.map { n -> GraphNode(n.id, n.imagePaths, n.selectedState) }
-        val domainEdges = graph.edges.map { e -> GraphEdge(e.from, e.to, e.trigger) }
-
-        // Read only image dimensions (no pixel data) for layout sizing
-        val imageDimensions: Map<String, Pair<Int, Int>> = remember(graph, appBasePath) {
-            domainNodes.associate { node ->
-                val path = node.imagePaths.firstOrNull()
-                val dim = path?.let { getImageDimension(it) }
-                node.id to (dim ?: (540 to 360))
-            }
-        }
-
-        // File paths per node for Coil to load lazily
-        val pathById: Map<String, String?> = remember(graph) {
-            domainNodes.associate { it.id to it.imagePaths.firstOrNull() }
-        }
-
-        // build layout graph once and reuse across recompositions
-        val layoutGraph: LayoutGraph = remember(graph, appBasePath) {
-            buildLayoutGraph(domainNodes, domainEdges, imageDimensions)
+        // File paths per node for lazy image loading (from stored nodes)
+        val pathById: Map<String, String?> = remember(viewModel.nodesState.value) {
+            val nodes = viewModel.nodesState.value ?: emptyList()
+            nodes.associate { it.id to it.imagePaths.firstOrNull() }
         }
 
         // deterministic ordered list of layout nodes for composing children
@@ -137,7 +118,7 @@ fun GraphVisualizer(
         val pan = viewModel.panState
 
         // Reset pan to center the entry node whenever the graph changes
-        LaunchedEffect(graph) {
+        LaunchedEffect(layoutGraph) {
             pan.value = if (entryNode != null) {
                 Offset(
                     viewportWidth / 2f - entryNode.x * zoomState.value,
@@ -366,7 +347,7 @@ private fun <T> AsyncImage(
 
     LaunchedEffect(contentDescription) {
         try {
-            image = withContext(kotlinx.coroutines.Dispatchers.IO) { load() }
+            image = withContext(Dispatchers.IO) { load() }
         } catch (e: Throwable) {
             System.err.println("[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}")
             error = e
