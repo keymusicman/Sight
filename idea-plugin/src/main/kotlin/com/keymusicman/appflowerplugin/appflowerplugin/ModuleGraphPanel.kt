@@ -66,7 +66,7 @@ class ModuleGraphPanel(
             SwingUtilities.invokeLater {
                 removeAll()
                 if (appGraphV2 != null) {
-                    viewModel.buildFromAppGraphV2(appGraphV2, moduleInfo.modulePath)
+                    viewModel.buildFromAppGraphV2(appGraphV2, moduleInfo.projectRootPath)
                     val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
                         add(buildButton)
                         add(statusLabel)

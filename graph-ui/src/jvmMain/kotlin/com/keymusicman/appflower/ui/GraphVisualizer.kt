@@ -1,8 +1,8 @@
 package com.keymusicman.appflower.ui
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -14,15 +14,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,10 +28,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
@@ -57,6 +52,7 @@ import com.keymusicman.appflower.model.LayoutNode
 import com.keymusicman.appflower.model.Transition
 import com.keymusicman.appflower.model.buildLayoutGraph
 import com.keymusicman.appflower.viewmodel.GraphViewModel
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import javax.imageio.ImageIO
@@ -176,14 +172,24 @@ fun GraphVisualizer(
                         val path = pathById[ln.id]
                         if (path != null) {
                             AsyncImage(
-                                load = { File(path).inputStream().buffered().use(::loadImageBitmap) },
+                                load = {
+                                    File(path).inputStream()
+                                        .buffered()
+                                        .use(::loadImageBitmap)
+                                },
                                 painterFor = { remember { BitmapPainter(it) } },
                                 contentDescription = ln.id,
                                 contentScale = ContentScale.FillBounds,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Box(modifier = Modifier.fillMaxSize())
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                    BasicText(
+                                        "No image",
+                                        style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                                        modifier = Modifier.align(Alignment.Center)
+                                    )
+                            }
                         }
                     }
                 }
@@ -270,7 +276,8 @@ private fun ZoomControls(
                 value = zoom,
                 onValueChange = onZoomChange,
                 valueRange = GraphViewModel.ZOOM_MIN..GraphViewModel.ZOOM_MAX,
-                modifier = Modifier.width(140.dp).height(24.dp),
+                modifier = Modifier.width(140.dp)
+                    .height(24.dp),
             )
             Box(
                 modifier = Modifier
@@ -281,7 +288,8 @@ private fun ZoomControls(
             BasicText(
                 text = "$percent%",
                 style = TextStyle(fontSize = 12.sp),
-                modifier = Modifier.padding(start = 4.dp, end = 16.dp).width(40.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 16.dp)
+                    .width(40.dp),
             )
         }
     }
@@ -320,8 +328,18 @@ private fun ZoomSlider(
             val trackStart = thumbR
             val trackEnd = size.width - thumbR
             val thumbX = trackStart + (trackEnd - trackStart) * fraction
-            drawLine(Color.LightGray, Offset(trackStart, trackY), Offset(trackEnd, trackY), strokeWidth = trackH)
-            drawLine(ColorPrimary, Offset(trackStart, trackY), Offset(thumbX, trackY), strokeWidth = trackH)
+            drawLine(
+                Color.LightGray,
+                Offset(trackStart, trackY),
+                Offset(trackEnd, trackY),
+                strokeWidth = trackH
+            )
+            drawLine(
+                ColorPrimary,
+                Offset(trackStart, trackY),
+                Offset(thumbX, trackY),
+                strokeWidth = trackH
+            )
             drawCircle(ColorPrimary, radius = thumbR, center = Offset(thumbX, trackY))
         }
     }
@@ -340,11 +358,18 @@ private fun <T> AsyncImage(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
 ) {
-    val image: T? by produceState<T?>(null) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try { load() } catch (_: IOException) { null }
+    var image by remember { mutableStateOf<T?>(null) }
+    var error by remember { mutableStateOf<Throwable?>(null) }
+
+    LaunchedEffect(contentDescription) {
+        try {
+            image = withContext(kotlinx.coroutines.Dispatchers.IO) { load() }
+        } catch (e: Throwable) {
+            System.err.println("[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}")
+            error = e
         }
     }
+
     if (image != null) {
         Image(
             painter = painterFor(image!!),
@@ -353,7 +378,17 @@ private fun <T> AsyncImage(
             modifier = modifier,
         )
     } else {
-        Box(modifier = modifier)
+        Box(modifier = modifier) {
+            if (error != null) {
+                BasicText(
+                    "Error: ${error!!.message}",
+                    style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            } else {
+                BasicText("Loading...", style = TextStyle(color = Color.Gray, fontSize = 12.sp))
+            }
+        }
     }
 }
 

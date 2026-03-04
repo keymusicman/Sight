@@ -191,6 +191,7 @@ data class Graph(
                 } else {
                     java.io.File(screenshotLocation)
                 }
+                System.err.println("[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}")
                 when {
                     fullPath.isFile -> listOf(fullPath.absolutePath)
                     fullPath.isDirectory -> {
@@ -199,16 +200,22 @@ data class Graph(
                             "${Regex.escape(screenId)}(?:_.+?)?_(\\d+)\\.(?:png|jpg|jpeg|webp)",
                             RegexOption.IGNORE_CASE
                         )
-                        fullPath.listFiles()
+                        val files = fullPath.listFiles()
+                        System.err.println("[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex")
+                        files
                             ?.filter { regex.matches(it.name) }
                             ?.sortedBy { file ->
                                 regex.find(file.name)?.groups?.get(1)?.value?.toIntOrNull() ?: 0
                             }
                             ?.map { it.absolutePath } ?: emptyList()
                     }
-                    else -> emptyList()
+                    else -> {
+                        System.err.println("[AppFlower] findImagesInLocation: path does not exist or is not accessible: ${fullPath.absolutePath}")
+                        emptyList()
+                    }
                 }
             } catch (e: Exception) {
+                System.err.println("[AppFlower] findImagesInLocation: exception for screenId=$screenId: ${e.message}")
                 emptyList()
             }
         }
