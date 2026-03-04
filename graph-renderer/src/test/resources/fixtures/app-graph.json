@@ -1,0 +1,1054 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "generated_at": "1772627034202"
+  },
+  "subgraphs": {
+    "remittance": {
+      "key": "remittance",
+      "qualified_name": "com.example.screenshottest.remittanceGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "RemittanceChooseBeneficiary",
+      "screens": [
+        {
+          "id": "RemittanceChooseBeneficiary",
+          "function": "RemittanceChooseBeneficiaryScreenshots::RemittanceChooseBeneficiary",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/beneficiary/select/RemittanceChooseBeneficiaryScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/beneficiary/select/RemittanceChooseBeneficiaryScreenshots/"
+        },
+        {
+          "id": "RemittanceChooseCountry",
+          "function": "RemittanceChooseCountryScreenshots::RemittanceChooseCountry",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/country/RemittanceChooseCountryScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/country/RemittanceChooseCountryScreenshots/"
+        },
+        {
+          "id": "UnsupportedCountryScreen",
+          "function": "UnsupportedCountryScreenshots::UnsupportedCountryScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/country/UnsupportedCountryScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/country/UnsupportedCountryScreenshots/"
+        },
+        {
+          "id": "RemittanceChooseProvider",
+          "function": "RemittanceChooseProviderScreenshots::RemittanceChooseProvider",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/provider/RemittanceChooseProviderScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/provider/RemittanceChooseProviderScreenshots/"
+        },
+        {
+          "id": "RemittanceBeneficiaryDetails",
+          "function": "RemittanceBeneficiaryDetailsScreenshots::RemittanceBeneficiaryDetails",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/beneficiary/create/RemittanceBeneficiaryDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/beneficiary/create/RemittanceBeneficiaryDetailsScreenshots/"
+        },
+        {
+          "id": "RemittanceEnterAmount",
+          "function": "RemittanceEnterAmountScreenshots::RemittanceEnterAmount",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/RemittanceEnterAmountScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/RemittanceEnterAmountScreenshots/"
+        },
+        {
+          "id": "BeneficiaryVerificationDetailsBottomSheet",
+          "function": "BeneficiaryVerificationDetailsScreenshots::BeneficiaryVerificationDetailsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/beneficiary/create/BeneficiaryVerificationDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/beneficiary/create/BeneficiaryVerificationDetailsScreenshots/"
+        },
+        {
+          "id": "RnplOfferDialog",
+          "function": "RnplOfferDialogScreenshots::RnplOfferDialog",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/RnplOfferDialogScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/RnplOfferDialogScreenshots/"
+        },
+        {
+          "id": "SignRnplAgreementScreen",
+          "function": "SignRnplAgreementScreenshots::SignRnplAgreementScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/SignRnplAgreementScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/SignRnplAgreementScreenshots/"
+        },
+        {
+          "id": "TransactionSuccessContent",
+          "function": "TransactionConfirmationDialogScreenshots::TransactionSuccessContent",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/TransactionConfirmationDialogScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/TransactionConfirmationDialogScreenshots/"
+        },
+        {
+          "id": "TransactionFailureContent",
+          "function": "TransactionConfirmationDialogScreenshots::TransactionFailureContent",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/TransactionConfirmationDialogScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/TransactionConfirmationDialogScreenshots/"
+        },
+        {
+          "id": "RnplMinAmountConditionsBottomSheet",
+          "function": "RnplMinAmountConditionsScreenshots::RnplMinAmountConditionsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/RnplMinAmountConditionsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/RnplMinAmountConditionsScreenshots/"
+        },
+        {
+          "id": "RepaymentBottomSheet",
+          "function": "RepaymentBottomSheetScreenshots::RepaymentBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/create/RepaymentBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/create/RepaymentBottomSheetScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceChooseBeneficiary"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceChooseCountry"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceChooseCountry"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "UnsupportedCountryScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceChooseCountry"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceChooseProvider"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceChooseProvider"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceBeneficiaryDetails"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceBeneficiaryDetails"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceEnterAmount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceBeneficiaryDetails"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "BeneficiaryVerificationDetailsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceEnterAmount"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RnplOfferDialog"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RnplOfferDialog"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "SignRnplAgreementScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "SignRnplAgreementScreen"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "TransactionSuccessContent"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "SignRnplAgreementScreen"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "TransactionFailureContent"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceEnterAmount"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RnplMinAmountConditionsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "remittance", "screen_id": "RemittanceEnterAmount"},
+          "to": {"type": "screen", "subgraph": "remittance", "screen_id": "RepaymentBottomSheet"}
+        }
+      ]
+    },
+    "cards": {
+      "key": "cards",
+      "qualified_name": "com.example.screenshottest.cardsGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "BankCardScreen",
+      "screens": [
+        {
+          "id": "BankCardScreen",
+          "function": "BankCardScreenshots::BankCardScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/card/landing/BankCardScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/card/landing/BankCardScreenshots/"
+        },
+        {
+          "id": "CardDetailsScreen",
+          "function": "CardDetailsScreenshots::CardDetailsScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/card/details/CardDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/card/details/CardDetailsScreenshots/"
+        },
+        {
+          "id": "CardSettingsScreen",
+          "function": "CardSettingsScreenshots::CardSettingsScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/card/details/CardSettingsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/card/details/CardSettingsScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "cards", "screen_id": "BankCardScreen"},
+          "to": {"type": "screen", "subgraph": "cards", "screen_id": "CardDetailsScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "cards", "screen_id": "CardDetailsScreen"},
+          "to": {"type": "screen", "subgraph": "cards", "screen_id": "CardSettingsScreen"}
+        }
+      ]
+    },
+    "add_money": {
+      "key": "add_money",
+      "qualified_name": "com.example.screenshottest.addMoneyGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "AddMoneyBottomSheet",
+      "screens": [
+        {
+          "id": "AddMoneyBottomSheet",
+          "function": "AddMoneyBottomSheetScreenshots::AddMoneyBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/addmoney/AddMoneyBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/addmoney/AddMoneyBottomSheetScreenshots/"
+        },
+        {
+          "id": "ReconnectProviderExpired",
+          "function": "ReconnectProviderScreenshots::ReconnectProviderExpired",
+          "location": "app/src/screenshotTest/java/money/example/feature/addmoney/ReconnectProviderScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/addmoney/ReconnectProviderScreenshots/"
+        },
+        {
+          "id": "ActivateSalary",
+          "function": "ActivateSalaryScreenshots::ActivateSalary",
+          "location": "app/src/screenshotTest/java/money/example/feature/salary/ActivateSalaryScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/salary/ActivateSalaryScreenshots/"
+        },
+        {
+          "id": "CardTopUpEnterAmount",
+          "function": "CardTopUpEnterAmountScreenshots::CardTopUpEnterAmount",
+          "location": "app/src/screenshotTest/java/money/example/feature/addmoney/card/CardTopUpEnterAmountScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/addmoney/card/CardTopUpEnterAmountScreenshots/"
+        },
+        {
+          "id": "PaymentCardDetails",
+          "function": "PaymentCardDetailsScreenshots::PaymentCardDetails",
+          "location": "app/src/screenshotTest/java/money/example/feature/payment/PaymentCardDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/payment/PaymentCardDetailsScreenshots/"
+        },
+        {
+          "id": "PciDssDetailsBottomSheet",
+          "function": "PciDssDetailsBottomSheetScreenshots::PciDssDetailsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/payment/PciDssDetailsBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/payment/PciDssDetailsBottomSheetScreenshots/"
+        },
+        {
+          "id": "PaymentSuccessBottomSheet",
+          "function": "PaymentSuccessBottomSheetScreenshots::PaymentSuccessBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/payment/PaymentSuccessBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/payment/PaymentSuccessBottomSheetScreenshots/"
+        },
+        {
+          "id": "PaymentErrorBottomSheet",
+          "function": "PaymentErrorBottomSheetScreenshots::PaymentErrorBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/payment/PaymentErrorBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/payment/PaymentErrorBottomSheetScreenshots/"
+        },
+        {
+          "id": "AddMoneyEnterAmount",
+          "function": "AddMoneyEnterAmountScreenshots::AddMoneyEnterAmount",
+          "location": "app/src/screenshotTest/java/money/example/feature/addmoney/openbanking/AddMoneyEnterAmountScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/addmoney/openbanking/AddMoneyEnterAmountScreenshots/"
+        },
+        {
+          "id": "ConnectBankAccount",
+          "function": "ConnectBankAccountScreenshots::ConnectBankAccount",
+          "location": "app/src/screenshotTest/java/money/example/feature/accounts/ConnectBankAccountScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/accounts/ConnectBankAccountScreenshots/"
+        },
+        {
+          "id": "AddMoneyManually",
+          "function": "AddMoneyManuallyScreenshots::AddMoneyManually",
+          "location": "app/src/screenshotTest/java/money/example/feature/addmoney/manual/AddMoneyManuallyScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/addmoney/manual/AddMoneyManuallyScreenshots/"
+        },
+        {
+          "id": "PaymentCompleted",
+          "function": "PaymentCompletedScreenshots::PaymentCompleted",
+          "location": "app/src/screenshotTest/java/money/example/feature/addmoney/PaymentCompletedScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/addmoney/PaymentCompletedScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyBottomSheet"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "ReconnectProviderExpired"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyBottomSheet"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "ActivateSalary"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyBottomSheet"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "CardTopUpEnterAmount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyBottomSheet"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentCardDetails"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentCardDetails"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "PciDssDetailsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentCardDetails"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentSuccessBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentCardDetails"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentErrorBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyBottomSheet"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyEnterAmount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyBottomSheet"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "ConnectBankAccount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "ConnectBankAccount"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyManually"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "ConnectBankAccount"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyEnterAmount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "add_money", "screen_id": "AddMoneyEnterAmount"},
+          "to": {"type": "screen", "subgraph": "add_money", "screen_id": "PaymentCompleted"}
+        }
+      ]
+    },
+    "profile": {
+      "key": "profile",
+      "qualified_name": "com.example.screenshottest.profileGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "ProfileScreen",
+      "screens": [
+        {
+          "id": "ProfileScreen",
+          "function": "ProfileScreenshots::ProfileScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/profile/ProfileScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/profile/ProfileScreenshots/"
+        },
+        {
+          "id": "AccountDetailsScreen",
+          "function": "AccountDetailsScreenshots::AccountDetailsScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/profile/account/AccountDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/profile/account/AccountDetailsScreenshots/"
+        },
+        {
+          "id": "PersonalDetailsScreen",
+          "function": "PersonalDetailsScreenshots::PersonalDetailsScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/profile/personaldetails/PersonalDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/profile/personaldetails/PersonalDetailsScreenshots/"
+        },
+        {
+          "id": "DeleteAccountSurveyBottomSheet",
+          "function": "DeleteAccountSurveyScreenshots::DeleteAccountSurveyBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/profile/delete/DeleteAccountSurveyScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/profile/delete/DeleteAccountSurveyScreenshots/"
+        },
+        {
+          "id": "DocumentsScreen",
+          "function": "DocumentsScreenshots::DocumentsScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/documents/DocumentsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/documents/DocumentsScreenshots/"
+        },
+        {
+          "id": "StatementDateBottomSheet",
+          "function": "StatementDateScreenshots::StatementDateBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/statement/StatementDateScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/statement/StatementDateScreenshots/"
+        },
+        {
+          "id": "Connections",
+          "function": "ConnectionsScreenshots::Connections",
+          "location": "app/src/screenshotTest/java/money/example/feature/openbanking/external/connections/ConnectionsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/openbanking/external/connections/ConnectionsScreenshots/"
+        },
+        {
+          "id": "RevokeConfirmationBottomSheet",
+          "function": "RevokeConfirmationScreenshots::RevokeConfirmationBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/openbanking/external/connections/RevokeConfirmationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/openbanking/external/connections/RevokeConfirmationScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "ProfileScreen"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "AccountDetailsScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "ProfileScreen"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "PersonalDetailsScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "ProfileScreen"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "DeleteAccountSurveyBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "ProfileScreen"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "DocumentsScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "ProfileScreen"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "StatementDateBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "ProfileScreen"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "Connections"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "profile", "screen_id": "Connections"},
+          "to": {"type": "screen", "subgraph": "profile", "screen_id": "RevokeConfirmationBottomSheet"}
+        }
+      ]
+    },
+    "kyc_update": {
+      "key": "kyc_update",
+      "qualified_name": "com.example.screenshottest.kycUpdateGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "KycWelcomeScreen",
+      "screens": [
+        {
+          "id": "KycWelcomeScreen",
+          "function": "KycWelcomeScreenshots::KycWelcomeScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/kyc/KycWelcomeScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/kyc/KycWelcomeScreenshots/"
+        },
+        {
+          "id": "KycThankYouScreen",
+          "function": "KycThankYouScreenshots::KycThankYouScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/kyc/KycThankYouScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/kyc/KycThankYouScreenshots/"
+        },
+        {
+          "id": "KycUpdateWrapperScreen",
+          "function": "KycUpdateWrapperScreenshots::KycUpdateWrapperScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/kyc/KycUpdateWrapperScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/kyc/KycUpdateWrapperScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "kyc_update", "screen_id": "KycWelcomeScreen"},
+          "to": {"type": "screen", "subgraph": "kyc_update", "screen_id": "KycThankYouScreen"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc_update", "screen_id": "KycThankYouScreen"},
+          "to": {"type": "screen", "subgraph": "kyc_update", "screen_id": "KycUpdateWrapperScreen"}
+        }
+      ]
+    },
+    "main": {
+      "key": "main",
+      "qualified_name": "com.example.screenshottest.mainGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "MainScreen",
+      "screens": [
+        {
+          "id": "MainScreen",
+          "function": "MainScreenScreenshots::MainScreen",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/MainScreenScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/MainScreenScreenshots/"
+        },
+        {
+          "id": "CashbackDescriptionBottomSheet",
+          "function": "CashbackDetailsScreenshots::CashbackDescriptionBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/cashback/CashbackDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/cashback/CashbackDetailsScreenshots/"
+        },
+        {
+          "id": "AllBannersBottomSheet",
+          "function": "AllBannersScreenshots::AllBannersBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/promo/AllBannersScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/promo/AllBannersScreenshots/"
+        },
+        {
+          "id": "BannerDetailsBottomSheet",
+          "function": "BannerDetailsScreenshots::BannerDetailsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/promo/BannerDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/promo/BannerDetailsScreenshots/"
+        },
+        {
+          "id": "ReferralProgramDetailsBottomSheet",
+          "function": "ReferralProgramDetailsScreenshots::ReferralProgramDetailsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/referral/ReferralProgramDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/referral/ReferralProgramDetailsScreenshots/"
+        },
+        {
+          "id": "RewardDescriptionBottomSheet",
+          "function": "RewardDescriptionBottomSheetScreenshots::RewardDescriptionBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/cashback/RewardDescriptionBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/cashback/RewardDescriptionBottomSheetScreenshots/"
+        },
+        {
+          "id": "NewAccountDetails",
+          "function": "NewAccountDetailsScreenshots::NewAccountDetails",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/NewAccountDetailsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/NewAccountDetailsScreenshots/"
+        },
+        {
+          "id": "PendingRnplBottomSheet",
+          "function": "PendingRnplScreenshots::PendingRnplBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/component/PendingRnplScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/component/PendingRnplScreenshots/"
+        },
+        {
+          "id": "RepaymentOptionsBottomSheet",
+          "function": "RepaymentOptionsScreenshots::RepaymentOptionsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/component/RepaymentOptionsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/component/RepaymentOptionsScreenshots/"
+        },
+        {
+          "id": "RemittanceOptionsBottomSheet",
+          "function": "RemittanceOptionsBottomSheetScreenshots::RemittanceOptionsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/RemittanceOptionsBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/RemittanceOptionsBottomSheetScreenshots/"
+        },
+        {
+          "id": "Rnpl",
+          "function": "LoanTopUpScreenshots::Rnpl",
+          "location": "app/src/screenshotTest/java/money/example/feature/remittance/loantopup/LoanTopUpScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/remittance/loantopup/LoanTopUpScreenshots/"
+        },
+        {
+          "id": "ConnectBankBottomSheet",
+          "function": "ConnectBankScreenshots::ConnectBankBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/rnpl_eligibility/ConnectBankScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/rnpl_eligibility/ConnectBankScreenshots/"
+        },
+        {
+          "id": "Consent",
+          "function": "ConsentBottomSheetScreenshots::Consent",
+          "location": "app/src/screenshotTest/java/money/example/feature/openbanking/external/consent/ConsentBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/openbanking/external/consent/ConsentBottomSheetScreenshots/"
+        },
+        {
+          "id": "DataPermissions",
+          "function": "ConsentBottomSheetScreenshots::DataPermissions",
+          "location": "app/src/screenshotTest/java/money/example/feature/openbanking/external/consent/ConsentBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/openbanking/external/consent/ConsentBottomSheetScreenshots/"
+        },
+        {
+          "id": "CheckingEligibilityBottomSheet",
+          "function": "CheckingEligibilityScreenshots::CheckingEligibilityBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/rnpl_eligibility/CheckingEligibilityScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/rnpl_eligibility/CheckingEligibilityScreenshots/"
+        },
+        {
+          "id": "EligibleForRnplBottomSheet",
+          "function": "EligibleForRnplScreenshots::EligibleForRnplBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/rnpl_eligibility/EligibleForRnplScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/rnpl_eligibility/EligibleForRnplScreenshots/"
+        },
+        {
+          "id": "NotEligibleForRnplBottomSheet",
+          "function": "NotEligibleForRnplScreenshots::NotEligibleForRnplBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/mainscreen/rnpl_eligibility/NotEligibleForRnplScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/mainscreen/rnpl_eligibility/NotEligibleForRnplScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "subgraph", "subgraph": "remittance"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "subgraph", "subgraph": "add_money"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "subgraph", "subgraph": "cards"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "subgraph", "subgraph": "profile"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "subgraph", "subgraph": "kyc_update"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "CashbackDescriptionBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "AllBannersBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "BannerDetailsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "ReferralProgramDetailsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "RewardDescriptionBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "NewAccountDetails"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "PendingRnplBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "RepaymentOptionsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "RemittanceOptionsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "RemittanceOptionsBottomSheet"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "Rnpl"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "ConnectBankBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "MainScreen"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "Consent"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "Consent"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "DataPermissions"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "ConnectBankBottomSheet"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "CheckingEligibilityBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "CheckingEligibilityBottomSheet"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "EligibleForRnplBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "main", "screen_id": "CheckingEligibilityBottomSheet"},
+          "to": {"type": "screen", "subgraph": "main", "screen_id": "NotEligibleForRnplBottomSheet"}
+        }
+      ]
+    },
+    "kyc": {
+      "key": "kyc",
+      "qualified_name": "com.example.screenshottest.kycGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "EmploymentStatus",
+      "screens": [
+        {
+          "id": "EmploymentStatus",
+          "function": "SurveyScreenshots::EmploymentStatus",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/survey/SurveyScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/survey/SurveyScreenshots/"
+        },
+        {
+          "id": "Occupation",
+          "function": "SurveyScreenshots::Occupation",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/survey/SurveyScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/survey/SurveyScreenshots/"
+        },
+        {
+          "id": "Turnover",
+          "function": "SurveyScreenshots::Turnover",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/survey/SurveyScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/survey/SurveyScreenshots/"
+        },
+        {
+          "id": "AccountUsage",
+          "function": "SurveyScreenshots::AccountUsage",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/survey/SurveyScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/survey/SurveyScreenshots/"
+        },
+        {
+          "id": "GetLocationAndSubmitUser",
+          "function": "RegistrationFinalizationScreenshots::GetLocationAndSubmitUser",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        },
+        {
+          "id": "Octoberlist",
+          "function": "OctoberlistScreenshots::Octoberlist",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/octoberlist/OctoberlistScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/octoberlist/OctoberlistScreenshots/"
+        },
+        {
+          "id": "KycOnboarding",
+          "function": "KycScreenshots::KycOnboarding",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/kyc/KycScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/kyc/KycScreenshots/"
+        },
+        {
+          "id": "KycSafety",
+          "function": "KycScreenshots::KycSafety",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/kyc/KycScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/kyc/KycScreenshots/"
+        },
+        {
+          "id": "KycReminder",
+          "function": "KycScreenshots::KycReminder",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/kyc/KycScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/kyc/KycScreenshots/"
+        },
+        {
+          "id": "VerifyingIdentity",
+          "function": "RegistrationFinalizationScreenshots::VerifyingIdentity",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        },
+        {
+          "id": "ShareCode",
+          "function": "RegistrationFinalizationScreenshots::ShareCode",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        },
+        {
+          "id": "VerifyingAfterShareCodeIdentity",
+          "function": "RegistrationFinalizationScreenshots::VerifyingAfterShareCodeIdentity",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        },
+        {
+          "id": "TermsAndConditions",
+          "function": "TermsScreenshots::TermsAndConditions",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/terms/TermsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/terms/TermsScreenshots/"
+        },
+        {
+          "id": "ReviewTermsAndConditions",
+          "function": "TermsScreenshots::ReviewTermsAndConditions",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/terms/TermsScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/terms/TermsScreenshots/"
+        },
+        {
+          "id": "Processing",
+          "function": "RegistrationFinalizationScreenshots::Processing",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        },
+        {
+          "id": "BreathingAfterOpeningAccount",
+          "function": "RegistrationFinalizationScreenshots::BreathingAfterOpeningAccount",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        },
+        {
+          "id": "FailedToOpenAccount",
+          "function": "RegistrationFinalizationScreenshots::FailedToOpenAccount",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/RegistrationFinalizationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/RegistrationFinalizationScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "EmploymentStatus"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "Occupation"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "Occupation"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "Turnover"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "Turnover"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "AccountUsage"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "AccountUsage"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "GetLocationAndSubmitUser"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "GetLocationAndSubmitUser"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "Octoberlist"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "GetLocationAndSubmitUser"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "KycOnboarding"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "KycOnboarding"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "KycSafety"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "KycOnboarding"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "KycReminder"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "KycSafety"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "VerifyingIdentity"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "VerifyingIdentity"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "ShareCode"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "ShareCode"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "VerifyingAfterShareCodeIdentity"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "VerifyingAfterShareCodeIdentity"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "TermsAndConditions"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "TermsAndConditions"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "ReviewTermsAndConditions"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "ReviewTermsAndConditions"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "Processing"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "Processing"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "BreathingAfterOpeningAccount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "Processing"},
+          "to": {"type": "screen", "subgraph": "kyc", "screen_id": "FailedToOpenAccount"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "kyc", "screen_id": "BreathingAfterOpeningAccount"},
+          "to": {"type": "subgraph", "subgraph": "main"}
+        }
+      ]
+    },
+    "registration": {
+      "key": "registration",
+      "qualified_name": "com.example.screenshottest.registrationGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "SetPersonalData",
+      "screens": [
+        {
+          "id": "SetPersonalData",
+          "function": "SetPersonalDataScreenshots::SetPersonalData",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/personal/SetPersonalDataScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/personal/SetPersonalDataScreenshots/"
+        },
+        {
+          "id": "SetEmail",
+          "function": "EmailScreenshots::SetEmail",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/email/EmailScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/email/EmailScreenshots/"
+        },
+        {
+          "id": "VerifyEmail",
+          "function": "EmailScreenshots::VerifyEmail",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/email/EmailScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/email/EmailScreenshots/"
+        },
+        {
+          "id": "SetPostcode",
+          "function": "AddressScreenshots::SetPostcode",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/address/AddressScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/address/AddressScreenshots/"
+        },
+        {
+          "id": "SelectAddressFromList",
+          "function": "AddressScreenshots::SelectAddressFromList",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/address/AddressScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/address/AddressScreenshots/"
+        },
+        {
+          "id": "EnterAddressManually",
+          "function": "AddressScreenshots::EnterAddressManually",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/address/AddressScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/address/AddressScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "SetPersonalData"},
+          "to": {"type": "screen", "subgraph": "registration", "screen_id": "SetEmail"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "SetEmail"},
+          "to": {"type": "screen", "subgraph": "registration", "screen_id": "VerifyEmail"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "VerifyEmail"},
+          "to": {"type": "screen", "subgraph": "registration", "screen_id": "SetPostcode"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "SetPostcode"},
+          "to": {"type": "screen", "subgraph": "registration", "screen_id": "SelectAddressFromList"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "SetPostcode"},
+          "to": {"type": "screen", "subgraph": "registration", "screen_id": "EnterAddressManually"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "SelectAddressFromList"},
+          "to": {"type": "subgraph", "subgraph": "kyc"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "registration", "screen_id": "EnterAddressManually"},
+          "to": {"type": "subgraph", "subgraph": "kyc"}
+        }
+      ]
+    },
+    "onboarding_login": {
+      "key": "onboarding_login",
+      "qualified_name": "com.example.screenshottest.onboardingLoginGraph",
+      "location": "app/src/screenshotTest/java/money/example/screenshottest/Graph.kt",
+      "root_screen": "Startup",
+      "screens": [
+        {
+          "id": "Startup",
+          "function": "StartupScreenshots::Startup",
+          "location": "app/src/screenshotTest/java/money/example/feature/startup/StartupScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/startup/StartupScreenshots/"
+        },
+        {
+          "id": "Onboarding",
+          "function": "OnboardingScreenshots::Onboarding",
+          "location": "app/src/screenshotTest/java/money/example/feature/startup/onboarding/OnboardingScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/startup/onboarding/OnboardingScreenshots/"
+        },
+        {
+          "id": "ForceUpdate",
+          "function": "ForceUpdateScreenshots::ForceUpdate",
+          "location": "app/src/screenshotTest/java/money/example/feature/update/ForceUpdateScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/update/ForceUpdateScreenshots/"
+        },
+        {
+          "id": "EnterPhone",
+          "function": "PhoneScreenshots::EnterPhone",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/phone/PhoneScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/phone/PhoneScreenshots/"
+        },
+        {
+          "id": "OtpCode",
+          "function": "OtpCodeScreenshots::OtpCode",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/otp/OtpCodeScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/otp/OtpCodeScreenshots/"
+        },
+        {
+          "id": "Authorize",
+          "function": "PasscodeScreenshots::Authorize",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/passcode/PasscodeScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/passcode/PasscodeScreenshots/"
+        },
+        {
+          "id": "SetPasscode",
+          "function": "PasscodeScreenshots::SetPasscode",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/passcode/PasscodeScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/passcode/PasscodeScreenshots/"
+        },
+        {
+          "id": "FaceCheck",
+          "function": "FaceCheckScreenshots::FaceCheck",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/facecheck/FaceCheckScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/facecheck/FaceCheckScreenshots/"
+        },
+        {
+          "id": "FaceCheckAwaitingResult",
+          "function": "FaceCheckScreenshots::FaceCheckAwaitingResult",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/facecheck/FaceCheckScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/facecheck/FaceCheckScreenshots/"
+        },
+        {
+          "id": "EnableBiometricAuthenticationBottomSheet",
+          "function": "EnableBiometricAuthenticationScreenshots::EnableBiometricAuthenticationBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/login/EnableBiometricAuthenticationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/login/EnableBiometricAuthenticationScreenshots/"
+        },
+        {
+          "id": "MigrationAccountClosed",
+          "function": "MigrationAccountClosedScreenshots::MigrationAccountClosed",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/migration/MigrationAccountClosedScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/migration/MigrationAccountClosedScreenshots/"
+        },
+        {
+          "id": "MigrationInProgress",
+          "function": "MigrationInProgressScreenshots::MigrationInProgress",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/migration/MigrationInProgressScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/migration/MigrationInProgressScreenshots/"
+        },
+        {
+          "id": "MigrationDeclined",
+          "function": "MigrationDeclinedScreenshots::MigrationDeclined",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/migration/MigrationDeclinedScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/migration/MigrationDeclinedScreenshots/"
+        },
+        {
+          "id": "ContinueAccountCreationScreenContent",
+          "function": "ContinueAccountCreationScreenshots::ContinueAccountCreationScreenContent",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/migration/ContinueAccountCreationScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/migration/ContinueAccountCreationScreenshots/"
+        },
+        {
+          "id": "HowToReclaimFundsBottomSheet",
+          "function": "HowToReclaimFundsBottomSheetScreenshots::HowToReclaimFundsBottomSheet",
+          "location": "app/src/screenshotTest/java/money/example/feature/createuser/migration/HowToReclaimFundsBottomSheetScreenshots.kt",
+          "screenshot_location": "app/src/screenshotTestDebug/reference/money/example/feature/createuser/migration/HowToReclaimFundsBottomSheetScreenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Startup"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Onboarding"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Startup"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "ForceUpdate"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Onboarding"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "EnterPhone"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "EnterPhone"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "OtpCode"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "OtpCode"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "OtpCode"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "SetPasscode"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "FaceCheck"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "FaceCheck"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "FaceCheckAwaitingResult"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "EnableBiometricAuthenticationBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "MigrationAccountClosed"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "MigrationInProgress"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "MigrationDeclined"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "ContinueAccountCreationScreenContent"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "MigrationAccountClosed"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "HowToReclaimFundsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "MigrationInProgress"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "HowToReclaimFundsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "MigrationDeclined"},
+          "to": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "HowToReclaimFundsBottomSheet"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "Authorize"},
+          "to": {"type": "subgraph", "subgraph": "registration"}
+        },
+        {
+          "from": {"type": "screen", "subgraph": "onboarding_login", "screen_id": "SetPasscode"},
+          "to": {"type": "subgraph", "subgraph": "registration"}
+        }
+      ]
+    }
+  }
+}

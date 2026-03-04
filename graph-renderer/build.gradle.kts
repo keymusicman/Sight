@@ -13,4 +13,8 @@ kotlin {
 dependencies {
     implementation(libs.kotlinx.coroutines)
     implementation(libs.kotlinx.serialization)
+
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.testJunit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }

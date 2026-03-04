@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "generated_at": "1234567890"
+  },
+  "subgraphs": {
+    "subgraph1": {
+      "key": "subgraph1",
+      "qualified_name": "com.example.subgraph1",
+      "location": "SubGraph1.kt",
+      "root_screen": "Screen1A",
+      "screens": [
+        {
+          "id": "Screen1A",
+          "function": "SubGraph1::Screen1A",
+          "location": "SubGraph1.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        },
+        {
+          "id": "Screen1B",
+          "function": "SubGraph1::Screen1B",
+          "location": "SubGraph1.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "subgraph1",
+            "screen_id": "Screen1A"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "subgraph1",
+            "screen_id": "Screen1B"
+          }
+        }
+      ]
+    },
+    "subgraph2": {
+      "key": "subgraph2",
+      "qualified_name": "com.example.subgraph2",
+      "location": "SubGraph2.kt",
+      "root_screen": "Screen2A",
+      "screens": [
+        {
+          "id": "Screen2A",
+          "function": "SubGraph2::Screen2A",
+          "location": "SubGraph2.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        }
+      ],
+      "connections": []
+    }
+  }
+}
