@@ -50,8 +50,16 @@
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
+    let pinchStartDistance = null;
+    let pinchStartZoom = 1;
+    let pinchStartPanX = 0;
+    let pinchStartPanY = 0;
     const imageByFileName = new Map();
     const imageByNodeId = new Map();
+    const ZOOM_MIN = 0.1;
+    const ZOOM_MAX = 3;
+    const WHEEL_ZOOM_INTENSITY = 0.0018;
+    const PINCH_ZOOM_DAMPING = 1.4;
 
     function setStatus(message) {
       statusBox.textContent = message;
@@ -136,6 +144,61 @@
       return { x: x * zoom + panX, y: y * zoom + panY };
     }
 
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function setViewInstant(newZoom, newPanX, newPanY) {
+      zoom = newZoom;
+      panX = newPanX;
+      panY = newPanY;
+    }
+
+    function applyZoomAtPoint(nextZoom, mx, my, baseZoom = zoom, basePanX = panX, basePanY = panY) {
+      const clampedZoom = clamp(nextZoom, ZOOM_MIN, ZOOM_MAX);
+      const ratio = clampedZoom / baseZoom;
+      zoom = clampedZoom;
+      panX = mx - (mx - basePanX) * ratio;
+      panY = my - (my - basePanY) * ratio;
+      draw();
+    }
+
+    function touchDistance(t1, t2) {
+      const dx = t2.clientX - t1.clientX;
+      const dy = t2.clientY - t1.clientY;
+      return Math.hypot(dx, dy);
+    }
+
+    function touchMidpointOnCanvas(t1, t2) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (t1.clientX + t2.clientX) / 2 - rect.left,
+        y: (t1.clientY + t2.clientY) / 2 - rect.top
+      };
+    }
+
+    function centerOnLeftmostNode() {
+      if (!layout || !layout.nodes || layout.nodes.length === 0) {
+        setViewInstant(1, 40, 40);
+        return;
+      }
+      const leftmost = layout.nodes.reduce((best, node) => {
+        if (!best) return node;
+        if (node.x < best.x) return node;
+        if (node.x === best.x && node.y < best.y) return node;
+        return best;
+      }, null);
+      if (!leftmost) {
+        setViewInstant(1, 40, 40);
+        return;
+      }
+      const viewport = canvas.getBoundingClientRect();
+      const initialZoom = 1;
+      const initialPanX = viewport.width / 2 - leftmost.x * initialZoom;
+      const initialPanY = viewport.height / 2 - leftmost.y * initialZoom;
+      setViewInstant(initialZoom, initialPanX, initialPanY);
+    }
+
     function draw() {
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
@@ -207,9 +270,7 @@
       }
       layout = await res.json();
       await hydrateInlineImages(layout.nodes);
-      zoom = 1;
-      panX = 40;
-      panY = 40;
+      centerOnLeftmostNode();
       draw();
       setStatus(`Rendered ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
     });
@@ -231,9 +292,7 @@
       }
       layout = await res.json();
       await hydrateInlineImages(layout.nodes);
-      zoom = 1;
-      panX = 40;
-      panY = 40;
+      centerOnLeftmostNode();
       draw();
       setStatus(`Rendered ZIP: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
     });
@@ -244,13 +303,8 @@
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const oldZoom = zoom;
-      const delta = Math.sign(e.deltaY) * -0.1;
-      zoom = Math.max(0.1, Math.min(3, zoom + delta));
-      const ratio = zoom / oldZoom;
-      panX = mx - (mx - panX) * ratio;
-      panY = my - (my - panY) * ratio;
-      draw();
+      const scale = Math.exp(-e.deltaY * WHEEL_ZOOM_INTENSITY);
+      applyZoomAtPoint(zoom * scale, mx, my);
     }, { passive: false });
 
     canvas.addEventListener("mousedown", (e) => {
@@ -265,11 +319,46 @@
     });
     window.addEventListener("mousemove", (e) => {
       if (!dragging) return;
-      panX += e.clientX - lastX;
-      panY += e.clientY - lastY;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      setViewInstant(zoom, panX + dx, panY + dy);
       lastX = e.clientX;
       lastY = e.clientY;
       draw();
+    });
+
+    canvas.addEventListener("touchstart", (e) => {
+      if (!layout) return;
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        pinchStartDistance = touchDistance(e.touches[0], e.touches[1]);
+        pinchStartZoom = zoom;
+        pinchStartPanX = panX;
+        pinchStartPanY = panY;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener("touchmove", (e) => {
+      if (!layout) return;
+      if (e.touches.length === 2 && pinchStartDistance) {
+        e.preventDefault();
+        const currentDistance = touchDistance(e.touches[0], e.touches[1]);
+        const rawScale = currentDistance / pinchStartDistance;
+        const smoothedScale = Math.pow(rawScale, PINCH_ZOOM_DAMPING);
+        const midpoint = touchMidpointOnCanvas(e.touches[0], e.touches[1]);
+        applyZoomAtPoint(
+          pinchStartZoom * smoothedScale,
+          midpoint.x,
+          midpoint.y,
+          pinchStartZoom,
+          pinchStartPanX,
+          pinchStartPanY
+        );
+      }
+    }, { passive: false });
+
+    canvas.addEventListener("touchend", () => {
+      pinchStartDistance = null;
     });
 
     window.addEventListener("resize", resizeCanvas);
