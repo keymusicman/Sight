@@ -25,3 +25,19 @@ in your IDE’s toolbar or run it directly from the terminal:
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+
+### Run Web Graph Viewer (Backend + Browser UI)
+
+This repository now includes a lightweight web server at `:web-server` that exposes:
+- `POST /api/layout` to compute layout from an `app-graph.json` payload
+- a browser UI at `http://localhost:8080/` for loading and rendering graphs
+
+Run it from terminal:
+
+```shell
+./gradlew :web-server:run
+```
+
+Then open `http://localhost:8080/` and either:
+- upload or paste `app-graph.json` (optionally adding screenshot files manually), or
+- upload a ZIP archive containing `app-graph.json` at root plus a screenshots directory referenced by `screenshot_location`.

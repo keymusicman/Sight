@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AppFlower Web Graph Viewer</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: system-ui, sans-serif; display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+    .panel { padding: 16px; border-right: 1px solid #ccc; overflow: auto; }
+    .panel h1 { margin-top: 0; font-size: 18px; }
+    textarea { width: 100%; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    button { margin-top: 12px; width: 100%; padding: 10px; }
+    .status { margin-top: 10px; font-size: 13px; opacity: 0.9; white-space: pre-wrap; }
+    canvas { width: 100%; height: 100%; display: block; background: #f5f5f5; cursor: grab; }
+    canvas.dragging { cursor: grabbing; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>AppFlower Web Graph Viewer</h1>
+    <p>Upload or paste <code>app-graph.json</code> then click Render.</p>
+    <input id="jsonFile" type="file" accept=".json,application/json" />
+    <p style="margin-bottom:4px;">Optional: upload screenshot files for node previews.</p>
+    <input id="imageFiles" type="file" accept="image/*" multiple />
+    <p style="margin-bottom:4px;">Or upload ZIP archive (<code>app-graph.json</code> + screenshots dir).</p>
+    <input id="zipArchive" type="file" accept=".zip,application/zip" />
+    <textarea id="jsonInput" placeholder='{"metadata":...,"subgraphs":...}'></textarea>
+    <button id="renderButton">Render Graph</button>
+    <button id="renderZipButton">Render ZIP Archive</button>
+    <div class="status" id="status">Ready.</div>
+  </div>
+  <canvas id="graphCanvas"></canvas>
+
+  <script>
+    const jsonInput = document.getElementById("jsonInput");
+    const jsonFile = document.getElementById("jsonFile");
+    const imageFiles = document.getElementById("imageFiles");
+    const zipArchive = document.getElementById("zipArchive");
+    const renderButton = document.getElementById("renderButton");
+    const renderZipButton = document.getElementById("renderZipButton");
+    const statusBox = document.getElementById("status");
+    const canvas = document.getElementById("graphCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let layout = null;
+    let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    const imageByFileName = new Map();
+    const imageByNodeId = new Map();
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+    }
+
+    jsonFile.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        jsonInput.value = await file.text();
+        setStatus(`Loaded ${file.name}`);
+      } catch (e) {
+        setStatus("Could not read file: " + e.message);
+      }
+    });
+
+    imageFiles.addEventListener("change", async (event) => {
+      imageByFileName.clear();
+      const files = Array.from(event.target.files || []);
+      const loadImage = (file) => new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Failed to load ${file.name}`)); };
+        img.src = url;
+      });
+
+      let loaded = 0;
+      for (const file of files) {
+        try {
+          const image = await loadImage(file);
+          imageByFileName.set(file.name, image);
+          loaded++;
+        } catch (_) {
+        }
+      }
+      setStatus(`Loaded ${loaded}/${files.length} screenshot files.`);
+      draw();
+    });
+
+    function findNodeImage(nodeId) {
+      if (imageByNodeId.has(nodeId)) {
+        return imageByNodeId.get(nodeId);
+      }
+      const screenId = (nodeId.split(":").pop() || nodeId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`^${screenId}(?:_.+?)?_\\d+\\.(png|jpg|jpeg|webp)$`, "i");
+      for (const [name, image] of imageByFileName.entries()) {
+        if (regex.test(name)) return image;
+      }
+      return null;
+    }
+
+    async function hydrateInlineImages(nodes) {
+      imageByNodeId.clear();
+      const loadDataUrl = (nodeId, dataUrl) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ nodeId, img });
+        img.onerror = () => reject(new Error(`Failed to decode image for ${nodeId}`));
+        img.src = dataUrl;
+      });
+      const jobs = nodes
+        .filter(node => node.imageDataUrl)
+        .map(node => loadDataUrl(node.id, node.imageDataUrl));
+      const loaded = await Promise.allSettled(jobs);
+      for (const r of loaded) {
+        if (r.status === "fulfilled") {
+          imageByNodeId.set(r.value.nodeId, r.value.img);
+        }
+      }
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    }
+
+    function transformPoint(x, y) {
+      return { x: x * zoom + panX, y: y * zoom + panY };
+    }
+
+    function draw() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!layout) return;
+
+      ctx.strokeStyle = "rgba(136,136,136,0.6)";
+      ctx.lineWidth = 1.8;
+      for (const edge of layout.edges) {
+        const points = edge.points.map(p => transformPoint(p.x, p.y));
+        if (points.length >= 4) {
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          ctx.bezierCurveTo(points[1].x, points[1].y, points[2].x, points[2].y, points[3].x, points[3].y);
+          ctx.stroke();
+        } else if (points.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+          ctx.stroke();
+        }
+      }
+
+      for (const node of layout.nodes) {
+        const center = transformPoint(node.x, node.y);
+        const w = node.width * zoom;
+        const h = node.height * zoom;
+        const x = center.x - w / 2;
+        const y = center.y - h / 2;
+
+        const nodeImage = findNodeImage(node.id);
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "#2196f3";
+        ctx.lineWidth = 2;
+        if (nodeImage) {
+          ctx.drawImage(nodeImage, x, y, w, h);
+        } else {
+          ctx.fillRect(x, y, w, h);
+        }
+        ctx.strokeRect(x, y, w, h);
+
+        ctx.fillStyle = "#212121";
+        ctx.font = `${Math.max(10, 12 * zoom)}px sans-serif`;
+        ctx.fillText(node.id, x + 8, y + Math.min(20, h - 6));
+      }
+    }
+
+    renderButton.addEventListener("click", async () => {
+      const raw = jsonInput.value.trim();
+      if (!raw) {
+        setStatus("Please paste app-graph.json content.");
+        return;
+      }
+      try {
+        JSON.parse(raw);
+      } catch (e) {
+        setStatus("Invalid JSON: " + e.message);
+        return;
+      }
+      setStatus("Rendering...");
+      const res = await fetch("/api/layout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: raw
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        setStatus(`API error (${res.status}): ${body}`);
+        return;
+      }
+      layout = await res.json();
+      await hydrateInlineImages(layout.nodes);
+      zoom = 1;
+      panX = 40;
+      panY = 40;
+      draw();
+      setStatus(`Rendered ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
+    });
+
+    renderZipButton.addEventListener("click", async () => {
+      const archive = zipArchive.files?.[0];
+      if (!archive) {
+        setStatus("Please choose a ZIP archive first.");
+        return;
+      }
+      setStatus("Uploading ZIP and rendering...");
+      const form = new FormData();
+      form.append("archive", archive);
+      const res = await fetch("/api/layout-zip", { method: "POST", body: form });
+      if (!res.ok) {
+        const body = await res.text();
+        setStatus(`ZIP API error (${res.status}): ${body}`);
+        return;
+      }
+      layout = await res.json();
+      await hydrateInlineImages(layout.nodes);
+      zoom = 1;
+      panX = 40;
+      panY = 40;
+      draw();
+      setStatus(`Rendered ZIP: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
+    });
+
+    canvas.addEventListener("wheel", (e) => {
+      if (!layout) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const oldZoom = zoom;
+      const delta = Math.sign(e.deltaY) * -0.1;
+      zoom = Math.max(0.1, Math.min(3, zoom + delta));
+      const ratio = zoom / oldZoom;
+      panX = mx - (mx - panX) * ratio;
+      panY = my - (my - panY) * ratio;
+      draw();
+    }, { passive: false });
+
+    canvas.addEventListener("mousedown", (e) => {
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      canvas.classList.add("dragging");
+    });
+    window.addEventListener("mouseup", () => {
+      dragging = false;
+      canvas.classList.remove("dragging");
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      panX += e.clientX - lastX;
+      panY += e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      draw();
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+  </script>
+</body>
+</html>
