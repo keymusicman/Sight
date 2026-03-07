@@ -3,6 +3,7 @@ package com.keymusicman.appflower.model
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.PriorityQueue
 
 /**
  * Build a fully immutable, render-ready layout graph directly from AppGraph.
@@ -97,11 +98,17 @@ object LayoutGraphBuilder {
         val adjacency: MutableMap<String, MutableList<String>> =
             nodeIds.associateWith { mutableListOf<String>() }
                 .toMutableMap()
+        val incomingParents: MutableMap<String, MutableList<String>> =
+            nodeIds.associateWith { mutableListOf<String>() }
+                .toMutableMap()
         val incomingCount: MutableMap<String, Int> = nodeIds.associateWith { 0 }
             .toMutableMap()
 
         edges.forEach { e ->
             if (adjacency.containsKey(e.from)) adjacency[e.from]?.add(e.to)
+            if (incomingParents.containsKey(e.to) && adjacency.containsKey(e.from)) {
+                incomingParents[e.to]?.add(e.from)
+            }
             incomingCount[e.to] = (incomingCount[e.to] ?: 0) + 1
         }
 
@@ -109,26 +116,9 @@ object LayoutGraphBuilder {
         val entries = nodeIds.filter { incomingCount[it] == 0 }
         val entryId = if (entries.isNotEmpty()) entries.first() else nodeIds.first()
 
-        // compute depth via BFS (shortest distance from entry)
-        val depthMap = mutableMapOf<String, Int>()
-        val queue = ArrayDeque<String>()
-        depthMap[entryId] = 0
-        queue.add(entryId)
-
-        while (queue.isNotEmpty()) {
-            val cur = queue.removeFirst()
-            val curDepth = depthMap[cur] ?: 0
-            val neighbors = adjacency[cur] ?: emptyList()
-            for (n in neighbors) {
-                val prev = depthMap[n]
-                if (prev == null || curDepth + 1 < prev) {
-                    depthMap[n] = curDepth + 1
-                    queue.add(n)
-                }
-            }
-        }
-        // ensure all nodes have a depth
-        nodes.forEach { if (!depthMap.containsKey(it.id)) depthMap[it.id] = 0 }
+        // compute depth from entry on SCC-condensed DAG.
+        // Using longest path on the DAG keeps node columns stable when extra shortcut edges exist.
+        val depthMap = computeDepthBySccDag(nodeIds, adjacency, entryId)
 
         // group nodes by depth deterministically
         val nodesByDepth: Map<Int, List<String>> = depthMap.entries
@@ -174,9 +164,29 @@ object LayoutGraphBuilder {
             }
         }
 
-        // build children map (parent → ordered list of direct children)
-        val childrenMap: Map<String, List<String>> = nodeIds.associateWith { id ->
-            (adjacency[id] ?: emptyList()).sorted()
+        // Build a deterministic primary-parent tree for vertical packing.
+        // Non-primary incoming edges are still rendered, but they don't perturb node placement.
+        val primaryParentByNode: Map<String, String?> = nodeIds.associateWith { id ->
+            if (id == entryId) {
+                null
+            } else {
+                incomingParents[id]
+                    .orEmpty()
+                    .distinct()
+                    .maxWithOrNull(
+                        compareBy<String>({ depthMap[it] ?: 0 }, { it })
+                    )
+            }
+        }
+
+        val mutableChildrenMap = nodeIds.associateWith { mutableListOf<String>() }.toMutableMap()
+        primaryParentByNode.forEach { (nodeId, parentId) ->
+            if (parentId != null) {
+                mutableChildrenMap[parentId]?.add(nodeId)
+            }
+        }
+        val childrenMap: Map<String, List<String>> = mutableChildrenMap.mapValues { (_, children) ->
+            children.sorted()
         }
 
         // Contour-based subtree layout.
@@ -403,3 +413,112 @@ data class LayoutGaps(
     val minHorizontalGap: Float = 250f,
     val minVerticalGap: Float = 250f
 )
+
+private fun computeDepthBySccDag(
+    nodeIds: List<String>,
+    adjacency: Map<String, List<String>>,
+    entryId: String
+): MutableMap<String, Int> {
+    var index = 0
+    val stack = ArrayDeque<String>()
+    val onStack = mutableSetOf<String>()
+    val indices = mutableMapOf<String, Int>()
+    val lowLink = mutableMapOf<String, Int>()
+    val components = mutableListOf<List<String>>()
+
+    fun strongConnect(v: String) {
+        indices[v] = index
+        lowLink[v] = index
+        index++
+        stack.addLast(v)
+        onStack.add(v)
+
+        for (w in (adjacency[v] ?: emptyList()).sorted()) {
+            if (w !in indices) {
+                strongConnect(w)
+                lowLink[v] = minOf(lowLink[v] ?: Int.MAX_VALUE, lowLink[w] ?: Int.MAX_VALUE)
+            } else if (w in onStack) {
+                lowLink[v] = minOf(lowLink[v] ?: Int.MAX_VALUE, indices[w] ?: Int.MAX_VALUE)
+            }
+        }
+
+        if (lowLink[v] == indices[v]) {
+            val component = mutableListOf<String>()
+            while (true) {
+                val w = stack.removeLast()
+                onStack.remove(w)
+                component.add(w)
+                if (w == v) break
+            }
+            components.add(component.sorted())
+        }
+    }
+
+    nodeIds.sorted().forEach { node ->
+        if (node !in indices) strongConnect(node)
+    }
+
+    val componentByNode = mutableMapOf<String, Int>()
+    components.forEachIndexed { componentIndex, component ->
+        component.forEach { node -> componentByNode[node] = componentIndex }
+    }
+
+    val dagAdjacency = components.indices.associateWith { mutableSetOf<Int>() }.toMutableMap()
+    nodeIds.forEach { from ->
+        val fromComponent = componentByNode[from] ?: return@forEach
+        adjacency[from].orEmpty().forEach { to ->
+            val toComponent = componentByNode[to] ?: return@forEach
+            if (fromComponent != toComponent) {
+                dagAdjacency[fromComponent]?.add(toComponent)
+            }
+        }
+    }
+
+    val entryComponent = componentByNode[entryId] ?: 0
+    val reachableComponents = mutableSetOf<Int>()
+    val reachableQueue = ArrayDeque<Int>()
+    reachableComponents.add(entryComponent)
+    reachableQueue.add(entryComponent)
+    while (reachableQueue.isNotEmpty()) {
+        val current = reachableQueue.removeFirst()
+        dagAdjacency[current].orEmpty().forEach { next ->
+            if (reachableComponents.add(next)) {
+                reachableQueue.add(next)
+            }
+        }
+    }
+
+    val inDegree = reachableComponents.associateWith { 0 }.toMutableMap()
+    reachableComponents.forEach { from ->
+        dagAdjacency[from].orEmpty().forEach { to ->
+            if (to in reachableComponents) {
+                inDegree[to] = (inDegree[to] ?: 0) + 1
+            }
+        }
+    }
+
+    val ready = PriorityQueue<Int>()
+    inDegree.forEach { (component, degree) ->
+        if (degree == 0) ready.add(component)
+    }
+
+    val depthByComponent = components.indices.associateWith { 0 }.toMutableMap()
+    while (ready.isNotEmpty()) {
+        val current = ready.poll()
+        val currentDepth = depthByComponent[current] ?: 0
+        dagAdjacency[current].orEmpty().sorted().forEach { next ->
+            if (next !in reachableComponents) return@forEach
+            depthByComponent[next] = maxOf(depthByComponent[next] ?: 0, currentDepth + 1)
+            val nextDegree = (inDegree[next] ?: 0) - 1
+            inDegree[next] = nextDegree
+            if (nextDegree == 0) {
+                ready.add(next)
+            }
+        }
+    }
+
+    return nodeIds.associateWith { node ->
+        val componentIndex = componentByNode[node] ?: return@associateWith 0
+        if (componentIndex in reachableComponents) depthByComponent[componentIndex] ?: 0 else 0
+    }.toMutableMap()
+}

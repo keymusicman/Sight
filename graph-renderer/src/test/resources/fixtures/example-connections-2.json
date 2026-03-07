@@ -1,0 +1,115 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "generated_at": "1234567890"
+  },
+  "subgraphs": {
+    "A": {
+      "key": "A",
+      "qualified_name": "com.example.A",
+      "location": "A.kt",
+      "root_screen": "A1",
+      "screens": [
+        {
+          "id": "A1",
+          "function": "A::A1",
+          "location": "A.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "A",
+            "screen_id": "A1"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "B",
+            "screen_id": "B1"
+          }
+        },
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "A",
+            "screen_id": "A1"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "C",
+            "screen_id": "C1"
+          }
+        }
+      ]
+    },
+    "B": {
+      "key": "B",
+      "qualified_name": "com.example.B",
+      "location": "B.kt",
+      "root_screen": "B1",
+      "screens": [
+        {
+          "id": "B1",
+          "function": "B::B1",
+          "location": "B.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        }
+      ],
+      "connections": []
+    },
+    "C": {
+      "key": "C",
+      "qualified_name": "com.example.C",
+      "location": "C.kt",
+      "root_screen": "C1",
+      "screens": [
+        {
+          "id": "C1",
+          "function": "C::C1",
+          "location": "C.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        },
+        {
+          "id": "C2",
+          "function": "C::C2",
+          "location": "C.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        },
+        {
+          "id": "C3",
+          "function": "C::C3",
+          "location": "C.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "C",
+            "screen_id": "C1"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "C",
+            "screen_id": "C2"
+          }
+        },
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "C",
+            "screen_id": "C2"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "C",
+            "screen_id": "C3"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -309,6 +309,25 @@ class BuildLayoutGraphTest {
     }
 
     @Test
+    fun testExampleGraphNodePlacementStableAcrossConnectionSets() = runTest {
+        val graphWithConnections1 = FixtureLoader.loadFixture("example-connections-1.json")
+        val graphWithConnections2 = FixtureLoader.loadFixture("example-connections-2.json")
+        val layout1 = TestLayoutBuilder.buildWithConstants(graphWithConnections1)
+        val layout2 = TestLayoutBuilder.buildWithConstants(graphWithConnections2)
+
+        assertEquals(layout1.nodes.keys, layout2.nodes.keys)
+
+        layout1.nodes.forEach { (nodeId, node1) ->
+            val node2 = layout2.nodes[nodeId]
+            assertNotNull(node2, "Missing node $nodeId in second layout")
+            assertEquals(node1.x, node2.x, 0.01f, "Unexpected x position for $nodeId")
+            assertEquals(node1.y, node2.y, 0.01f, "Unexpected y position for $nodeId")
+            assertEquals(node1.width, node2.width, 0.01f, "Unexpected width for $nodeId")
+            assertEquals(node1.height, node2.height, 0.01f, "Unexpected height for $nodeId")
+        }
+    }
+
+    @Test
     fun testPrecisePositioningLinearGraph() = runTest {
         val fixture = FixtureLoader.loadFixture("simple-linear.json")
         val gaps = LayoutGaps(leftMargin = 100f, topMargin = 100f, minHorizontalGap = 250f, minVerticalGap = 250f)
