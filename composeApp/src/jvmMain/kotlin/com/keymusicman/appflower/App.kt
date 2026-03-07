@@ -28,6 +28,7 @@ import com.keymusicman.appflower.ui.GraphVisualizer
 import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.utils.exportGraphAsDrawio
 import com.keymusicman.appflower.utils.exportGraphAsImage
+import com.keymusicman.appflower.utils.prepareGraphZipArchive
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import kotlinx.coroutines.launch
 
@@ -133,6 +134,25 @@ fun App() {
                     enabled = appGraph != null
                 ) {
                     Text("Export to draw.io")
+                }
+
+                Button(
+                    onClick = {
+                        val graph = appGraph
+                        if (graph != null) {
+                            coroutineScope.launch {
+                                errorMessage = try {
+                                    prepareGraphZipArchive(graph, projectPath)
+                                } catch (e: Exception) {
+                                    "Failed to prepare ZIP: ${e.message}"
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = appGraph != null
+                ) {
+                    Text("Prepare ZIP for Web")
                 }
 
                 if (errorMessage.isNotEmpty()) {

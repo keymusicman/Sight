@@ -41,3 +41,5 @@ Run it from terminal:
 Then open `http://localhost:8080/` and either:
 - upload or paste `app-graph.json` (optionally adding screenshot files manually), or
 - upload a ZIP archive containing `app-graph.json` at root plus a screenshots directory referenced by `screenshot_location`.
+
+Desktop app now also includes a **Prepare ZIP for Web** button that creates this archive format.
