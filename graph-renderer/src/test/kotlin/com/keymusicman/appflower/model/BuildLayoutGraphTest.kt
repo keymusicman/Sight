@@ -210,7 +210,7 @@ class BuildLayoutGraphTest {
         val fixture = FixtureLoader.loadFixture("branching-merge.json")
         val layout = TestLayoutBuilder.buildWithConstants(fixture)
 
-        // All edges should have 4 points (start, mid-left, mid-right, end)
+        // All edges should have 4 points (start, control1, control2, end)
         layout.edges.forEach { edge ->
             assertEquals(4, edge.points.size, "Edge ${edge.from}->${edge.to} should have 4 points")
 
@@ -219,14 +219,32 @@ class BuildLayoutGraphTest {
             assertNotNull(fromNode)
             assertEquals(fromNode!!.y, edge.points[0].y, 0.1f)
 
-            // Last point should be on left edge of target node
+            // Last point should be on left edge of target node (y can vary by incoming slot)
             val toNode = layout.nodes[edge.to]
             assertNotNull(toNode)
-            assertEquals(toNode!!.y, edge.points[3].y, 0.1f)
+            val targetTop = toNode!!.y - toNode.height / 2f
+            val targetBottom = toNode.y + toNode.height / 2f
+            assertTrue(
+                edge.points[3].y in targetTop..targetBottom,
+                "Edge ${edge.from}->${edge.to} target anchor must be inside target bounds"
+            )
 
-            // Middle points should have same X coordinates
-            assertEquals(edge.points[1].x, edge.points[2].x, 1f)
+            // Cubic controls follow cubic-bezier(.5, 0, .05, 1) mapping.
+            val dx = edge.points[3].x - edge.points[0].x
+            val dy = edge.points[3].y - edge.points[0].y
+            assertEquals(edge.points[0].x + dx * 0.5f, edge.points[1].x, 0.1f)
+            assertEquals(edge.points[0].y + dy * 0f, edge.points[1].y, 0.1f)
+            assertEquals(edge.points[0].x + dx * 0.05f, edge.points[2].x, 0.1f)
+            assertEquals(edge.points[0].y + dy * 1f, edge.points[2].y, 0.1f)
         }
+
+        // Incoming edges to ScreenD should be segregated vertically by source Y order.
+        val incomingToD = layout.edges.filter { it.to == "main:ScreenD" }
+        assertEquals(2, incomingToD.size)
+        val sortedBySourceY = incomingToD.sortedBy { edge -> layout.nodes[edge.from]!!.y }
+        val firstEntryY = sortedBySourceY[0].points[3].y
+        val secondEntryY = sortedBySourceY[1].points[3].y
+        assertTrue(firstEntryY < secondEntryY, "Higher source must connect higher on target")
     }
 
     @Test

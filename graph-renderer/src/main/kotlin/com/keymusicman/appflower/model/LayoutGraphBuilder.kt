@@ -320,23 +320,41 @@ object LayoutGraphBuilder {
         // convert to map by id for deterministic lookup
         val layoutNodesMap: Map<String, LayoutNode> = layoutNodesList.associateBy { it.id }
 
-        // route orthogonal edges: start at right-center of from, end at left-center of to
+        // Route edges as cubic Bezier curves using preset cubic-bezier(.5, 0, .05, 1):
+        // - outgoing anchors stay fixed at source right-center
+        // - incoming anchors on target are distributed by source Y ordering
+        val incomingByTarget = edges.groupBy { it.to }
+        val targetAnchors: Map<GraphEdge, Float> = incomingByTarget.flatMap { (targetId, incomingEdges) ->
+            val targetNode = layoutNodesMap[targetId] ?: return@flatMap emptyList()
+            val pad = (targetNode.height * 0.14f).coerceAtMost(targetNode.height / 2f - 1f)
+            val top = targetNode.y - targetNode.height / 2f + pad
+            val bottom = targetNode.y + targetNode.height / 2f - pad
+            val sortedIncoming = incomingEdges.sortedWith(
+                compareBy<GraphEdge> { layoutNodesMap[it.from]?.y ?: Float.MAX_VALUE }
+                    .thenBy { it.from }
+                    .thenBy { it.to }
+            )
+            if (sortedIncoming.size == 1) {
+                listOf(sortedIncoming.first() to targetNode.y)
+            } else {
+                val step = if (bottom > top) (bottom - top) / (sortedIncoming.size - 1) else 0f
+                sortedIncoming.mapIndexed { index, edge ->
+                    edge to (top + step * index)
+                }
+            }
+        }.toMap()
+
         val layoutEdges = edges.mapNotNull { e ->
             val fromNode = layoutNodesMap[e.from] ?: return@mapNotNull null
             val toNode = layoutNodesMap[e.to] ?: return@mapNotNull null
 
             val start = PointF(fromNode.x + fromNode.width / 2f, fromNode.y)
-            val end = PointF(toNode.x - toNode.width / 2f, toNode.y)
-            val midX = (start.x + end.x) / 2f
-
-            val points = listOf(
-                start,
-                PointF(midX, start.y),
-                PointF(midX, end.y),
-                end
-            )
-
-            LayoutEdge(from = e.from, to = e.to, points = points)
+            val end = PointF(toNode.x - toNode.width / 2f, targetAnchors[e] ?: toNode.y)
+            val dx = end.x - start.x
+            val dy = end.y - start.y
+            val c1 = PointF(start.x + dx * 0.99f, start.y + dy * 0f)
+            val c2 = PointF(start.x + dx * 0.01f, start.y + dy * 1f)
+            LayoutEdge(from = e.from, to = e.to, points = listOf(start, c1, c2, end))
         }
 
         return LayoutGraph(nodes = layoutNodesMap, edges = layoutEdges)

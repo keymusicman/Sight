@@ -30,6 +30,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
@@ -66,6 +69,7 @@ private val ColorOnBackground = Color(0xFF212121)
 private val ColorSurface = Color(0xFFFFFFFF)
 private val ColorPrimary = Color(0xFF2196F3)
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GraphVisualizer(
     appBasePath: String? = null,
@@ -113,6 +117,7 @@ fun GraphVisualizer(
 
         val zoomState = viewModel.zoomState
         val pan = viewModel.panState
+        var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
 
         // Reset pan to center the entry node whenever the graph changes
         LaunchedEffect(layoutGraph) {
@@ -144,8 +149,27 @@ fun GraphVisualizer(
                     },
                 content = {
                     // background Canvas draws edges and responds to pan/zoom using precomputed layout
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawGraphEdgesLayout(layoutGraph, pan.value, zoomState.value)
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onPointerEvent(PointerEventType.Move) { event ->
+                                hoveredEdgeIndex = findHoveredEdgeIndex(
+                                    layoutGraph = layoutGraph,
+                                    pan = pan.value,
+                                    zoom = zoomState.value,
+                                    pointer = event.changes.firstOrNull()?.position ?: return@onPointerEvent
+                                )
+                            }
+                            .onPointerEvent(PointerEventType.Exit) {
+                                hoveredEdgeIndex = null
+                            }
+                    ) {
+                        drawGraphEdgesLayout(
+                            layoutGraph = layoutGraph,
+                            pan = pan.value,
+                            zoom = zoomState.value,
+                            hoveredEdgeIndex = hoveredEdgeIndex
+                        )
                     }
 
                     // image children for each node — loaded asynchronously via loadImageBitmap
@@ -374,18 +398,36 @@ private fun <T> AsyncImage(
 }
 
 
-private fun DrawScope.drawGraphEdgesLayout(layoutGraph: LayoutGraph, pan: Offset, zoom: Float) {
-    layoutGraph.edges.forEach { edge ->
+private fun DrawScope.drawGraphEdgesLayout(
+    layoutGraph: LayoutGraph,
+    pan: Offset,
+    zoom: Float,
+    hoveredEdgeIndex: Int?
+) {
+    val defaultColor = Color(0x66888888)
+    val hoverColor = Color(0xFF2196F3)
+    layoutGraph.edges.forEachIndexed { edgeIndex, edge ->
         val points = edge.points.map { Offset(it.x * zoom + pan.x, it.y * zoom + pan.y) }
-        if (points.size >= 2) {
-            for (i in 0 until points.size - 1) {
-                drawLine(Color.Gray, points[i], points[i + 1], strokeWidth = 2f)
+        if (points.size >= 4) {
+            val hovered = hoveredEdgeIndex == edgeIndex
+            val edgeColor = if (hovered) hoverColor else defaultColor
+            val strokeWidth = if (hovered) 3.5f else 1.6f
+            val path = Path().apply {
+                moveTo(points[0].x, points[0].y)
+                cubicTo(
+                    points[1].x, points[1].y,
+                    points[2].x, points[2].y,
+                    points[3].x, points[3].y
+                )
             }
-            // arrow at end
+            drawPath(path = path, color = edgeColor, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+
+            // Arrow at end, aligned with cubic tangent at end (end - control2).
             val last = points.last()
             val prev = points[points.size - 2]
             val angle = atan2(last.y - prev.y, last.x - prev.x)
-            val arrowSize = 12f * zoom
+            val zoomFactor = zoom.coerceIn(0.7f, 2.2f)
+            val arrowSize = (if (hovered) 12f else 9f) * zoomFactor
             val arrowEnd1 = Offset(
                 last.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
                 last.y - arrowSize * sin(angle - Math.PI / 6).toFloat()
@@ -394,10 +436,97 @@ private fun DrawScope.drawGraphEdgesLayout(layoutGraph: LayoutGraph, pan: Offset
                 last.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
                 last.y - arrowSize * sin(angle + Math.PI / 6).toFloat()
             )
-            drawLine(Color.Gray, last, arrowEnd1, strokeWidth = 2f)
-            drawLine(Color.Gray, last, arrowEnd2, strokeWidth = 2f)
+            drawLine(edgeColor, last, arrowEnd1, strokeWidth = strokeWidth)
+            drawLine(edgeColor, last, arrowEnd2, strokeWidth = strokeWidth)
+        } else if (points.size >= 2) {
+            for (i in 0 until points.size - 1) {
+                drawLine(defaultColor, points[i], points[i + 1], strokeWidth = 1.6f)
+            }
         }
     }
+}
+
+private fun findHoveredEdgeIndex(
+    layoutGraph: LayoutGraph,
+    pan: Offset,
+    zoom: Float,
+    pointer: Offset
+): Int? {
+    var bestIndex: Int? = null
+    var bestDistance = Float.MAX_VALUE
+    layoutGraph.edges.forEachIndexed { index, edge ->
+        val points = edge.points.map { Offset(it.x * zoom + pan.x, it.y * zoom + pan.y) }
+        val distance = when {
+            points.size >= 4 -> distanceToCubicBezier(
+                p0 = points[0],
+                p1 = points[1],
+                p2 = points[2],
+                p3 = points[3],
+                p = pointer
+            )
+
+            points.size >= 2 -> points
+                .zipWithNext()
+                .minOf { (a, b) -> distanceToSegment(pointer, a, b) }
+
+            else -> Float.MAX_VALUE
+        }
+        if (distance < bestDistance) {
+            bestDistance = distance
+            bestIndex = index
+        }
+    }
+    val tolerancePx = 9f
+    return if (bestDistance <= tolerancePx) bestIndex else null
+}
+
+private fun distanceToCubicBezier(
+    p0: Offset,
+    p1: Offset,
+    p2: Offset,
+    p3: Offset,
+    p: Offset
+): Float {
+    val samples = 32
+    var best = Float.MAX_VALUE
+    var prev = cubicPoint(p0, p1, p2, p3, 0f)
+    for (i in 1..samples) {
+        val t = i / samples.toFloat()
+        val current = cubicPoint(p0, p1, p2, p3, t)
+        best = minOf(best, distanceToSegment(p, prev, current))
+        prev = current
+    }
+    return best
+}
+
+private fun cubicPoint(
+    p0: Offset,
+    p1: Offset,
+    p2: Offset,
+    p3: Offset,
+    t: Float
+): Offset {
+    val u = 1f - t
+    val tt = t * t
+    val uu = u * u
+    val uuu = uu * u
+    val ttt = tt * t
+    return Offset(
+        x = uuu * p0.x + 3f * uu * t * p1.x + 3f * u * tt * p2.x + ttt * p3.x,
+        y = uuu * p0.y + 3f * uu * t * p1.y + 3f * u * tt * p2.y + ttt * p3.y
+    )
+}
+
+private fun distanceToSegment(p: Offset, a: Offset, b: Offset): Float {
+    val ab = b - a
+    val ap = p - a
+    val lengthSq = ab.x * ab.x + ab.y * ab.y
+    if (lengthSq == 0f) return kotlin.math.hypot((p.x - a.x).toDouble(), (p.y - a.y).toDouble())
+        .toFloat()
+    val t = ((ap.x * ab.x + ap.y * ab.y) / lengthSq).coerceIn(0f, 1f)
+    val projection = Offset(a.x + ab.x * t, a.y + ab.y * t)
+    return kotlin.math.hypot((p.x - projection.x).toDouble(), (p.y - projection.y).toDouble())
+        .toFloat()
 }
 
 @Preview

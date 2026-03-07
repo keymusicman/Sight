@@ -88,10 +88,24 @@ private fun buildDrawioXml(
     layoutGraph.edges.forEachIndexed { idx, le ->
         val safeFrom = le.from.sanitizeXmlId()
         val safeTo = le.to.sanitizeXmlId()
+        val fromNode = layoutGraph.nodes[le.from]
+        val toNode = layoutGraph.nodes[le.to]
+        val start = le.points.firstOrNull()
+        val end = le.points.lastOrNull()
+        val exitY = if (fromNode != null && start != null && fromNode.height > 0f) {
+            ((start.y - (fromNode.y - fromNode.height / 2f)) / fromNode.height).coerceIn(0f, 1f)
+        } else {
+            0.5f
+        }
+        val entryY = if (toNode != null && end != null && toNode.height > 0f) {
+            ((end.y - (toNode.y - toNode.height / 2f)) / toNode.height).coerceIn(0f, 1f)
+        } else {
+            0.5f
+        }
         sb.appendLine(
-            """        <mxCell id="edge_$idx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;""" +
-                    """exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;""" +
-                    """strokeWidth=4;endSize=5;" """ +
+            """        <mxCell id="edge_$idx" style="curved=1;rounded=1;html=1;""" +
+                    """strokeColor=#888888;opacity=40;strokeWidth=2;endArrow=classic;endSize=8;""" +
+                    """exitX=1;exitY=$exitY;exitDx=0;exitDy=0;entryX=0;entryY=$entryY;entryDx=0;entryDy=0;" """ +
                     """edge="1" source="$safeFrom" target="$safeTo" parent="1">"""
         )
         sb.appendLine("""          <mxGeometry relative="1" as="geometry"/>""")

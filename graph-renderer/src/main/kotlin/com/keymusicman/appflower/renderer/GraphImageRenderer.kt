@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.RenderingHints
+import java.awt.geom.CubicCurve2D
 import java.awt.geom.Line2D
 import java.awt.image.BufferedImage
 import java.io.File
@@ -47,18 +48,23 @@ suspend fun renderGraphToImage(appGraph: AppGraph, projectPath: String? = null):
         }
 
         // Draw edges
-        g.color = Color(0x88, 0x88, 0x88)
-        g.stroke = BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        g.color = Color(0x88, 0x88, 0x88, 0x66)
+        g.stroke = BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
         layoutGraph.edges.forEach { edge ->
             val pts = edge.points
-            if (pts.size >= 2) {
-                for (i in 0 until pts.size - 1) {
-                    g.draw(Line2D.Float(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y))
-                }
+            if (pts.size >= 4) {
+                g.draw(
+                    CubicCurve2D.Float(
+                        pts[0].x, pts[0].y,
+                        pts[1].x, pts[1].y,
+                        pts[2].x, pts[2].y,
+                        pts[3].x, pts[3].y
+                    )
+                )
                 val last = pts.last()
                 val prev = pts[pts.size - 2]
                 val angle = atan2(last.y - prev.y, last.x - prev.x)
-                val arrowSize = 12f
+                val arrowSize = 9f
                 g.draw(Line2D.Float(
                     last.x, last.y,
                     last.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
@@ -69,6 +75,10 @@ suspend fun renderGraphToImage(appGraph: AppGraph, projectPath: String? = null):
                     last.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
                     last.y - arrowSize * sin(angle + Math.PI / 6).toFloat()
                 ))
+            } else if (pts.size >= 2) {
+                for (i in 0 until pts.size - 1) {
+                    g.draw(Line2D.Float(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y))
+                }
             }
         }
 
