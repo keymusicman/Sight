@@ -230,8 +230,8 @@
 
         const nodeImage = findNodeImage(node.id);
         ctx.fillStyle = "white";
-        ctx.strokeStyle = "#2196f3";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#cccccc";
+        ctx.lineWidth = 1 * zoom;
         if (nodeImage) {
           ctx.drawImage(nodeImage, x, y, w, h);
         } else {
@@ -239,9 +239,24 @@
         }
         ctx.strokeRect(x, y, w, h);
 
+        const labelFontSize = clamp(20 * Math.sqrt(zoom), 6, 40);
+        const labelY = y - 8;
+        ctx.font = `${labelFontSize}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        const labelWidth = ctx.measureText(node.id).width;
+        const labelPadding = 6;
+        ctx.fillStyle = "rgba(245,245,245,0.9)";
+        ctx.fillRect(
+          center.x - labelWidth / 2 - labelPadding,
+          labelY - labelFontSize - 2,
+          labelWidth + labelPadding * 2,
+          labelFontSize + 4
+        );
         ctx.fillStyle = "#212121";
-        ctx.font = `${Math.max(10, 12 * zoom)}px sans-serif`;
-        ctx.fillText(node.id, x + 8, y + Math.min(20, h - 6));
+        ctx.fillText(node.id, center.x, labelY);
+        ctx.textAlign = "start";
+        ctx.textBaseline = "alphabetic";
       }
     }
 
