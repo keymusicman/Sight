@@ -320,28 +320,52 @@ object LayoutGraphBuilder {
         // convert to map by id for deterministic lookup
         val layoutNodesMap: Map<String, LayoutNode> = layoutNodesList.associateBy { it.id }
 
-        // Route edges as cubic Bezier curves using preset cubic-bezier(.5, 0, .05, 1):
+        // Route edges as cubic Bezier curves:
         // - outgoing anchors stay fixed at source right-center
-        // - incoming anchors on target are distributed by source Y ordering
+        // - if source/target vertically overlap, connect middle-to-middle on target
+        // - for non-overlap incoming edges, keep anchor above/below target center based on
+        //   source-vs-target Y direction while preserving deterministic ordering
         val incomingByTarget = edges.groupBy { it.to }
         val targetAnchors: Map<GraphEdge, Float> = incomingByTarget.flatMap { (targetId, incomingEdges) ->
             val targetNode = layoutNodesMap[targetId] ?: return@flatMap emptyList()
             val pad = (targetNode.height * 0.14f).coerceAtMost(targetNode.height / 2f - 1f)
             val top = targetNode.y - targetNode.height / 2f + pad
             val bottom = targetNode.y + targetNode.height / 2f - pad
-            val sortedIncoming = incomingEdges.sortedWith(
+            val (overlappingEdges, nonOverlappingEdges) = incomingEdges.partition { edge ->
+                val fromNode = layoutNodesMap[edge.from] ?: return@partition false
+                overlapsVerticallyInclusive(fromNode, targetNode)
+            }
+            val sortedNonOverlapping = nonOverlappingEdges.sortedWith(
                 compareBy<GraphEdge> { layoutNodesMap[it.from]?.y ?: Float.MAX_VALUE }
                     .thenBy { it.from }
                     .thenBy { it.to }
             )
-            if (sortedIncoming.size == 1) {
-                listOf(sortedIncoming.first() to targetNode.y)
-            } else {
-                val step = if (bottom > top) (bottom - top) / (sortedIncoming.size - 1) else 0f
-                sortedIncoming.mapIndexed { index, edge ->
-                    edge to (top + step * index)
-                }
+            val aboveEdges = sortedNonOverlapping.filter { edge ->
+                val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
+                fromY < targetNode.y
             }
+            val belowEdges = sortedNonOverlapping.filter { edge ->
+                val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
+                fromY > targetNode.y
+            }
+            val sameLevelEdges = sortedNonOverlapping.filter { edge ->
+                val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
+                fromY == targetNode.y
+            }
+            val nonOverlapAnchors = mutableListOf<Pair<GraphEdge, Float>>()
+            nonOverlapAnchors += distributeAnchorsInRange(
+                edges = aboveEdges,
+                startY = top,
+                endY = (targetNode.y - 1f).coerceAtLeast(top)
+            )
+            nonOverlapAnchors += distributeAnchorsInRange(
+                edges = belowEdges,
+                startY = (targetNode.y + 1f).coerceAtMost(bottom),
+                endY = bottom
+            )
+            nonOverlapAnchors += sameLevelEdges.map { edge -> edge to targetNode.y }
+            val overlapAnchors = overlappingEdges.map { edge -> edge to targetNode.y }
+            overlapAnchors + nonOverlapAnchors
         }.toMap()
 
         val layoutEdges = edges.mapNotNull { e ->
@@ -358,6 +382,28 @@ object LayoutGraphBuilder {
         }
 
         return LayoutGraph(nodes = layoutNodesMap, edges = layoutEdges)
+    }
+}
+
+private fun overlapsVerticallyInclusive(source: LayoutNode, target: LayoutNode): Boolean {
+    val sourceTop = source.y - source.height / 2f
+    val sourceBottom = source.y + source.height / 2f
+    val targetTop = target.y - target.height / 2f
+    val targetBottom = target.y + target.height / 2f
+    return sourceBottom >= targetTop && targetBottom >= sourceTop
+}
+
+private fun distributeAnchorsInRange(
+    edges: List<GraphEdge>,
+    startY: Float,
+    endY: Float
+): List<Pair<GraphEdge, Float>> {
+    if (edges.isEmpty()) return emptyList()
+    if (edges.size == 1) return listOf(edges.first() to ((startY + endY) / 2f))
+    val span = endY - startY
+    val step = if (span > 0f) span / (edges.size - 1) else 0f
+    return edges.mapIndexed { index, edge ->
+        edge to (startY + step * index)
     }
 }
 

@@ -3,11 +3,13 @@ package com.keymusicman.appflower.viewmodel
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlin.time.measureTime
 
@@ -17,7 +19,10 @@ import kotlin.time.measureTime
  * - zoomState: simple zoom holder shared with UI
  * - buildFromAppGraphV2: load and layout from AppGraph asynchronously
  */
-class GraphViewModel : ViewModel() {
+class GraphViewModel {
+    private val scope =
+        CoroutineScope(Dispatchers.IO + SupervisorJob() + CoroutineName("GraphViewModel"))
+
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
@@ -57,13 +62,13 @@ class GraphViewModel : ViewModel() {
     }
 
     fun buildFromAppGraphV2(appGraph: AppGraph, projectPath: String? = null) {
-        viewModelScope.launch {
+        scope.launch {
             val time = measureTime {
                 val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
                 layoutGraphState.value = layoutGraph
             }
 
-            println("Graph layout completed in ${time.inWholeSeconds} seconds")
+            println("Graph layout completed in ${time.inWholeMilliseconds} ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges")
         }
     }
 

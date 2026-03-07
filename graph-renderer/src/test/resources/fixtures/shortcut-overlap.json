@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "generated_at": "1234567890"
+  },
+  "subgraphs": {
+    "main": {
+      "key": "main",
+      "qualified_name": "com.example.shortcutGraph",
+      "location": "MainActivity.kt",
+      "root_screen": "ScreenA",
+      "screens": [
+        {
+          "id": "ScreenA",
+          "function": "MainActivity::ScreenA",
+          "location": "MainActivity.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        },
+        {
+          "id": "ScreenB",
+          "function": "MainActivity::ScreenB",
+          "location": "MainActivity.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        },
+        {
+          "id": "ScreenC",
+          "function": "MainActivity::ScreenC",
+          "location": "MainActivity.kt",
+          "screenshot_location": "/tmp/screenshots/"
+        }
+      ],
+      "connections": [
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "main",
+            "screen_id": "ScreenA"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "main",
+            "screen_id": "ScreenB"
+          }
+        },
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "main",
+            "screen_id": "ScreenB"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "main",
+            "screen_id": "ScreenC"
+          }
+        },
+        {
+          "from": {
+            "type": "screen",
+            "subgraph": "main",
+            "screen_id": "ScreenA"
+          },
+          "to": {
+            "type": "screen",
+            "subgraph": "main",
+            "screen_id": "ScreenC"
+          }
+        }
+      ]
+    }
+  }
+}

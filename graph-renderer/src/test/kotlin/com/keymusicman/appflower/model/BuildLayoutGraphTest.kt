@@ -241,10 +241,85 @@ class BuildLayoutGraphTest {
         // Incoming edges to ScreenD should be segregated vertically by source Y order.
         val incomingToD = layout.edges.filter { it.to == "main:ScreenD" }
         assertEquals(2, incomingToD.size)
-        val sortedBySourceY = incomingToD.sortedBy { edge -> layout.nodes[edge.from]!!.y }
-        val firstEntryY = sortedBySourceY[0].points[3].y
-        val secondEntryY = sortedBySourceY[1].points[3].y
-        assertTrue(firstEntryY < secondEntryY, "Higher source must connect higher on target")
+        val nonOverlappingIncomingToD = incomingToD.filter { edge ->
+            val fromNode = layout.nodes[edge.from]!!
+            val toNode = layout.nodes[edge.to]!!
+            !overlapsVerticallyInclusive(fromNode, toNode)
+        }
+        if (nonOverlappingIncomingToD.size >= 2) {
+            val sortedBySourceY = nonOverlappingIncomingToD.sortedBy { edge -> layout.nodes[edge.from]!!.y }
+            val firstEntryY = sortedBySourceY[0].points[3].y
+            val secondEntryY = sortedBySourceY[1].points[3].y
+            assertTrue(firstEntryY < secondEntryY, "Higher non-overlapping source must connect higher on target")
+        }
+        nonOverlappingIncomingToD.forEach { edge ->
+            val fromNode = layout.nodes[edge.from]!!
+            val toNode = layout.nodes[edge.to]!!
+            when {
+                fromNode.y < toNode.y -> assertTrue(
+                    edge.points.last().y < toNode.y,
+                    "Higher non-overlapping source should connect above target center"
+                )
+
+                fromNode.y > toNode.y -> assertTrue(
+                    edge.points.last().y > toNode.y,
+                    "Lower non-overlapping source should connect below target center"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun testOverlappingIncomingEdgesConnectMiddleToMiddle() = runTest {
+        val fixture = FixtureLoader.loadFixture("shortcut-overlap.json")
+        val layout = TestLayoutBuilder.buildWithConstants(fixture)
+
+        val incomingToC = layout.edges.filter { it.to == "main:ScreenC" }
+        assertEquals(2, incomingToC.size)
+
+        incomingToC.forEach { edge ->
+            val fromNode = layout.nodes[edge.from]
+            val toNode = layout.nodes[edge.to]
+            assertNotNull(fromNode)
+            assertNotNull(toNode)
+            assertTrue(
+                overlapsVerticallyInclusive(fromNode!!, toNode!!),
+                "Fixture must produce Y-overlap for ${edge.from}->${edge.to}"
+            )
+            assertEquals(fromNode.y, edge.points.first().y, 0.1f, "Source anchor should be source middle")
+            assertEquals(toNode.y, edge.points.last().y, 0.1f, "Overlapping edge should connect at target middle")
+        }
+    }
+
+    @Test
+    fun testNonOverlappingIncomingEdgesUseDirectionalAnchor() = runTest {
+        val fixture = FixtureLoader.loadFixture("branching-merge.json")
+        val layout = TestLayoutBuilder.buildWithConstants(fixture)
+
+        val nonOverlappingIncomingToD = layout.edges
+            .filter { it.to == "main:ScreenD" }
+            .filter { edge ->
+                val fromNode = layout.nodes[edge.from]!!
+                val toNode = layout.nodes[edge.to]!!
+                !overlapsVerticallyInclusive(fromNode, toNode)
+            }
+
+        assertTrue(nonOverlappingIncomingToD.isNotEmpty())
+        nonOverlappingIncomingToD.forEach { edge ->
+            val fromNode = layout.nodes[edge.from]!!
+            val toNode = layout.nodes[edge.to]!!
+            when {
+                fromNode.y < toNode.y -> assertTrue(
+                    edge.points.last().y < toNode.y,
+                    "Higher non-overlapping source should connect above target center"
+                )
+
+                fromNode.y > toNode.y -> assertTrue(
+                    edge.points.last().y > toNode.y,
+                    "Lower non-overlapping source should connect below target center"
+                )
+            }
+        }
     }
 
     @Test
@@ -375,4 +450,12 @@ class BuildLayoutGraphTest {
         assertTrue(screenB.y > 0)
         assertTrue(screenC.y > 0)
     }
+}
+
+private fun overlapsVerticallyInclusive(source: LayoutNode, target: LayoutNode): Boolean {
+    val sourceTop = source.y - source.height / 2f
+    val sourceBottom = source.y + source.height / 2f
+    val targetTop = target.y - target.height / 2f
+    val targetBottom = target.y + target.height / 2f
+    return sourceBottom >= targetTop && targetBottom >= sourceTop
 }
