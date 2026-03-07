@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -32,8 +33,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -41,8 +43,10 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -63,11 +67,13 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 private val ColorBackground = Color(0xFFF5F5F5)
 private val ColorOnBackground = Color(0xFF212121)
 private val ColorSurface = Color(0xFFFFFFFF)
 private val ColorPrimary = Color(0xFF2196F3)
+private val ColorLabelBackground = Color(0xE6F5F5F5)
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -118,6 +124,10 @@ fun GraphVisualizer(
         val zoomState = viewModel.zoomState
         val pan = viewModel.panState
         var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
+        val labelFontSize = (14f * sqrt(zoomState.value.toDouble()).toFloat()).coerceIn(6f, 40f)
+        val labelTextStyle = remember(labelFontSize) {
+            TextStyle(color = ColorOnBackground, fontSize = labelFontSize.sp)
+        }
 
         // Reset pan to center the entry node whenever the graph changes
         LaunchedEffect(layoutGraph) {
@@ -157,7 +167,8 @@ fun GraphVisualizer(
                                     layoutGraph = layoutGraph,
                                     pan = pan.value,
                                     zoom = zoomState.value,
-                                    pointer = event.changes.firstOrNull()?.position ?: return@onPointerEvent
+                                    pointer = event.changes.firstOrNull()?.position
+                                        ?: return@onPointerEvent
                                 )
                             }
                             .onPointerEvent(PointerEventType.Exit) {
@@ -175,24 +186,42 @@ fun GraphVisualizer(
                     // image children for each node — loaded asynchronously via loadImageBitmap
                     nodeList.forEach { ln ->
                         val path = pathById[ln.id]
-                        if (path != null) {
-                            AsyncImage(
-                                load = {
-                                    File(path).inputStream()
-                                        .buffered()
-                                        .use(::loadImageBitmap)
-                                },
-                                painterFor = { remember { BitmapPainter(it) } },
-                                contentDescription = ln.id,
-                                contentScale = ContentScale.FillBounds,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Box(modifier = Modifier.fillMaxSize()) {
+                        val labelText = formatNodeLabel(ln.id)
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            if (path != null) {
+                                AsyncImage(
+                                    load = {
+                                        File(path).inputStream()
+                                            .buffered()
+                                            .use(::loadImageBitmap)
+                                    },
+                                    painterFor = { remember { BitmapPainter(it) } },
+                                    contentDescription = ln.id,
+                                    contentScale = ContentScale.FillBounds,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    BasicText(
+                                        "No image",
+                                        style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                                        modifier = Modifier.align(Alignment.Center)
+                                    )
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .offset(y = with(LocalDensity.current) { (-labelTextStyle.fontSize * 1.8).toDp() })
+                                    .graphicsLayer { clip = false }
+                                    .background(ColorLabelBackground)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
                                 BasicText(
-                                    "No image",
-                                    style = TextStyle(color = Color.Red, fontSize = 12.sp),
-                                    modifier = Modifier.align(Alignment.Center)
+                                    text = labelText,
+                                    style = labelTextStyle,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -420,7 +449,11 @@ private fun DrawScope.drawGraphEdgesLayout(
                     points[3].x, points[3].y
                 )
             }
-            drawPath(path = path, color = edgeColor, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+            drawPath(
+                path = path,
+                color = edgeColor,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
 
             // Arrow at end, aligned with cubic tangent at end (end - control2).
             val last = points.last()
@@ -527,6 +560,19 @@ private fun distanceToSegment(p: Offset, a: Offset, b: Offset): Float {
     val projection = Offset(a.x + ab.x * t, a.y + ab.y * t)
     return kotlin.math.hypot((p.x - projection.x).toDouble(), (p.y - projection.y).toDouble())
         .toFloat()
+}
+
+private fun formatNodeLabel(nodeId: String): String {
+    val leaf = (nodeId.substringAfterLast(':', nodeId))
+        .replace(
+            Regex("(Screen|Route|Fragment|Activity|Destination)$", RegexOption.IGNORE_CASE),
+            ""
+        )
+        .replace(Regex("[_-]+"), " ")
+        .replace(Regex("([a-z0-9])([A-Z])"), "$1 $2")
+        .replace(Regex("([A-Z]+)([A-Z][a-z])"), "$1 $2")
+        .trim()
+    return if (leaf.isNotEmpty()) leaf else nodeId
 }
 
 @Preview
