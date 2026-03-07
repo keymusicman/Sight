@@ -199,6 +199,16 @@
       setViewInstant(initialZoom, initialPanX, initialPanY);
     }
 
+    function formatNodeLabel(nodeId) {
+      const leaf = (nodeId.split(":").pop() || nodeId)
+        .replace(/(Screen|Route|Fragment|Activity|Destination)$/i, "")
+        .replace(/[_-]+/g, " ")
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+        .trim();
+      return leaf || nodeId;
+    }
+
     function draw() {
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
@@ -239,12 +249,13 @@
         }
         ctx.strokeRect(x, y, w, h);
 
+        const labelText = formatNodeLabel(node.id);
         const labelFontSize = clamp(20 * Math.sqrt(zoom), 6, 40);
         const labelY = y - 8;
         ctx.font = `${labelFontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        const labelWidth = ctx.measureText(node.id).width;
+        const labelWidth = ctx.measureText(labelText).width;
         const labelPadding = 6;
         ctx.fillStyle = "rgba(245,245,245,0.9)";
         ctx.fillRect(
@@ -254,7 +265,7 @@
           labelFontSize + 4
         );
         ctx.fillStyle = "#212121";
-        ctx.fillText(node.id, center.x, labelY);
+        ctx.fillText(labelText, center.x, labelY);
         ctx.textAlign = "start";
         ctx.textBaseline = "alphabetic";
       }
