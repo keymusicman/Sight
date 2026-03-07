@@ -54,6 +54,7 @@
     let pinchStartZoom = 1;
     let pinchStartPanX = 0;
     let pinchStartPanY = 0;
+    let hoveredEdgeIndex = null;
     const imageByFileName = new Map();
     const imageByNodeId = new Map();
     const ZOOM_MIN = 0.1;
@@ -209,14 +210,78 @@
       return leaf || nodeId;
     }
 
+    function distanceToSegment(px, py, ax, ay, bx, by) {
+      const abx = bx - ax;
+      const aby = by - ay;
+      const apx = px - ax;
+      const apy = py - ay;
+      const abLen2 = abx * abx + aby * aby;
+      if (abLen2 === 0) return Math.hypot(px - ax, py - ay);
+      const t = clamp((apx * abx + apy * aby) / abLen2, 0, 1);
+      const cx = ax + abx * t;
+      const cy = ay + aby * t;
+      return Math.hypot(px - cx, py - cy);
+    }
+
+    function cubicPoint(p0, p1, p2, p3, t) {
+      const u = 1 - t;
+      const tt = t * t;
+      const uu = u * u;
+      const uuu = uu * u;
+      const ttt = tt * t;
+      return {
+        x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+        y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
+      };
+    }
+
+    function distanceToCubicBezier(p0, p1, p2, p3, p) {
+      const samples = 32;
+      let best = Number.POSITIVE_INFINITY;
+      let prev = cubicPoint(p0, p1, p2, p3, 0);
+      for (let i = 1; i <= samples; i++) {
+        const t = i / samples;
+        const cur = cubicPoint(p0, p1, p2, p3, t);
+        const d = distanceToSegment(p.x, p.y, prev.x, prev.y, cur.x, cur.y);
+        if (d < best) best = d;
+        prev = cur;
+      }
+      return best;
+    }
+
+    function findHoveredEdgeIndex(pointerX, pointerY) {
+      if (!layout) return null;
+      let bestIndex = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      layout.edges.forEach((edge, edgeIndex) => {
+        const points = edge.points.map(p => transformPoint(p.x, p.y));
+        let distance = Number.POSITIVE_INFINITY;
+        if (points.length >= 4) {
+          distance = distanceToCubicBezier(points[0], points[1], points[2], points[3], { x: pointerX, y: pointerY });
+        } else if (points.length >= 2) {
+          for (let i = 0; i < points.length - 1; i++) {
+            const d = distanceToSegment(pointerX, pointerY, points[i].x, points[i].y, points[i + 1].x, points[i + 1].y);
+            if (d < distance) distance = d;
+          }
+        }
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = edgeIndex;
+        }
+      });
+      return bestDistance <= 10 ? bestIndex : null;
+    }
+
     function draw() {
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
       if (!layout) return;
 
-      ctx.strokeStyle = "rgba(136,136,136,0.6)";
-      ctx.lineWidth = 1.8;
-      for (const edge of layout.edges) {
+      for (let edgeIndex = 0; edgeIndex < layout.edges.length; edgeIndex++) {
+        const edge = layout.edges[edgeIndex];
+        const isHovered = hoveredEdgeIndex === edgeIndex;
+        ctx.strokeStyle = isHovered ? "#2196f3" : "rgba(136,136,136,0.6)";
+        ctx.lineWidth = isHovered ? 3.5 : 1.8;
         const points = edge.points.map(p => transformPoint(p.x, p.y));
         if (points.length >= 4) {
           ctx.beginPath();
@@ -296,6 +361,7 @@
       }
       layout = await res.json();
       await hydrateInlineImages(layout.nodes);
+      hoveredEdgeIndex = null;
       centerOnLeftmostNode();
       draw();
       setStatus(`Rendered ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
@@ -318,6 +384,7 @@
       }
       layout = await res.json();
       await hydrateInlineImages(layout.nodes);
+      hoveredEdgeIndex = null;
       centerOnLeftmostNode();
       draw();
       setStatus(`Rendered ZIP: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
@@ -351,6 +418,25 @@
       lastX = e.clientX;
       lastY = e.clientY;
       draw();
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (!layout || dragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const pointerX = e.clientX - rect.left;
+      const pointerY = e.clientY - rect.top;
+      const nextHovered = findHoveredEdgeIndex(pointerX, pointerY);
+      if (nextHovered !== hoveredEdgeIndex) {
+        hoveredEdgeIndex = nextHovered;
+        draw();
+      }
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      if (hoveredEdgeIndex !== null) {
+        hoveredEdgeIndex = null;
+        draw();
+      }
     });
 
     canvas.addEventListener("touchstart", (e) => {
