@@ -51,7 +51,6 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -65,10 +64,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogWindow
+import androidx.compose.ui.window.rememberDialogState
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.Connection
 import com.keymusicman.appflower.model.ConnectionEndpoint
@@ -80,6 +81,7 @@ import com.keymusicman.appflower.model.Subgraph
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.awt.Toolkit
 import java.io.File
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -383,22 +385,31 @@ private fun StatePickerDialog(
     onSelectState: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
-    Dialog(onCloseRequest = onClose) {
+    val screenWidth =
+        with(LocalDensity.current) { Toolkit.getDefaultToolkit().screenSize.width.toDp() }
+    val screenHeight =
+        with(LocalDensity.current) { Toolkit.getDefaultToolkit().screenSize.height.toDp() }
+
+    DialogWindow(
+        onCloseRequest = onClose,
+        onPreviewKeyEvent = {
+            if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        },
+        title = "States",
+        state = rememberDialogState(size = DpSize(screenWidth, screenHeight)),
+        alwaysOnTop = true,
+    ) {
+
         Box(
             modifier = Modifier
-                .width(900.dp)
-                .heightIn(max = 700.dp)
+                .fillMaxSize()
                 .background(ColorSurface, RoundedCornerShape(12.dp))
-                .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
-                .padding(16.dp)
-                .onPreviewKeyEvent {
-                    if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
-                        onClose()
-                        true
-                    } else {
-                        false
-                    }
-                }
+                .padding(16.dp),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 BasicText(
