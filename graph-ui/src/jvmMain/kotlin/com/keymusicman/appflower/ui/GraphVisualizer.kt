@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -129,6 +130,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     layoutGraph: LayoutGraph,
     viewModel: GraphViewModel
 ) {
+    var loadedOnce by rememberSaveable { mutableStateOf(false) }
     if (layoutGraph.nodes.isEmpty()) {
         BasicText("Graph is empty", style = TextStyle(color = ColorOnBackground))
         return
@@ -152,9 +154,6 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     }
 
     // entry node is the leftmost node (smallest x = depth-0 root)
-    val entryNode: LayoutNode? = remember(layoutGraph) {
-        layoutGraph.nodes.values.minByOrNull { it.x }
-    }
 
     val zoomState = viewModel.zoomState
     val pan = viewModel.panState
@@ -164,14 +163,19 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     }
 
     // Reset pan to center the entry node whenever the graph changes
-    LaunchedEffect(layoutGraph) {
-        pan.value = if (entryNode != null) {
-            Offset(
-                viewportWidth / 2f - entryNode.x * zoomState.value,
-                viewportHeight / 2f - entryNode.y * zoomState.value
-            )
-        } else {
-            Offset.Zero
+    LaunchedEffect(Unit) {
+        if (!loadedOnce) {
+            val entryNode = layoutGraph.nodes.values.minByOrNull { it.x }
+
+            pan.value = if (entryNode != null) {
+                loadedOnce = true
+                Offset(
+                    viewportWidth / 2f - entryNode.x * zoomState.value,
+                    viewportHeight / 2f - entryNode.y * zoomState.value
+                )
+            } else {
+                Offset.Zero
+            }
         }
     }
 
