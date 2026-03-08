@@ -59,7 +59,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.loadImageBitmap
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -151,7 +150,9 @@ fun GraphVisualizer(
         val labelTextStyle = remember(labelFontSize) {
             TextStyle(color = ColorOnBackground, fontSize = labelFontSize.sp)
         }
-        val cameraIconPainter = painterResource("img_states_24.png")
+        val cameraIconPainter = remember {
+            BitmapPainter(loadRequiredClasspathBitmap("img_states_24.png"))
+        }
 
         // Reset pan to center the entry node whenever the graph changes
         LaunchedEffect(layoutGraph) {
@@ -788,6 +789,12 @@ private fun formatNodeLabel(nodeId: String): String {
         .trim()
     return if (leaf.isNotEmpty()) leaf else nodeId
 }
+
+private fun loadRequiredClasspathBitmap(path: String) =
+    GraphViewModel::class.java.classLoader
+        ?.getResourceAsStream(path)
+        ?.use(::loadImageBitmap)
+        ?: throw IllegalArgumentException("Resource $path not found")
 
 @Preview
 @Composable
