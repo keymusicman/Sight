@@ -4,19 +4,29 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +48,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,12 +60,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.Connection
 import com.keymusicman.appflower.model.ConnectionEndpoint
@@ -74,6 +92,7 @@ private val ColorOnBackground = Color(0xFF212121)
 private val ColorSurface = Color(0xFFFFFFFF)
 private val ColorPrimary = Color(0xFF2196F3)
 private val ColorLabelBackground = Color(0xE6F5F5F5)
+private val ColorStateSelected = Color(0xFFFFB3B3)
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -106,9 +125,9 @@ fun GraphVisualizer(
         viewModel.viewportWidth = viewportWidth
         viewModel.viewportHeight = viewportHeight
 
-        // File paths per node for lazy image loading (from layout nodes)
-        val pathById: Map<String, String?> = remember(layoutGraph) {
-            layoutGraph.nodes.values.associate { it.id to it.imagePaths.firstOrNull() }
+        // Image paths per node for lazy image loading (from layout nodes)
+        val imagePathsById: Map<String, List<String>> = remember(layoutGraph) {
+            layoutGraph.nodes.values.associate { it.id to it.imagePaths }
         }
 
         // deterministic ordered list of layout nodes for composing children
@@ -124,10 +143,13 @@ fun GraphVisualizer(
         val zoomState = viewModel.zoomState
         val pan = viewModel.panState
         var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
+        var hoveredNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
+        var hoveredIconNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
         val labelFontSize = (14f * sqrt(zoomState.value.toDouble()).toFloat()).coerceIn(6f, 40f)
         val labelTextStyle = remember(labelFontSize) {
             TextStyle(color = ColorOnBackground, fontSize = labelFontSize.sp)
         }
+        val cameraIconPainter = painterResource("img_states_24.png")
 
         // Reset pan to center the entry node whenever the graph changes
         LaunchedEffect(layoutGraph) {
@@ -185,13 +207,35 @@ fun GraphVisualizer(
 
                     // image children for each node — loaded asynchronously via loadImageBitmap
                     nodeList.forEach { ln ->
-                        val path = pathById[ln.id]
+                        val imagePaths = imagePathsById[ln.id] ?: emptyList()
+                        val selectedState = viewModel.getSelectedState(
+                            nodeId = ln.id,
+                            statesCount = imagePaths.size,
+                            fallback = ln.selectedState
+                        )
+                        val selectedPath = imagePaths.getOrNull(selectedState)
                         val labelText = formatNodeLabel(ln.id)
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            if (path != null) {
+                        val hasMultipleStates = imagePaths.size > 1
+                        val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onPointerEvent(PointerEventType.Enter) {
+                                    hoveredNodeId = ln.id
+                                }
+                                .onPointerEvent(PointerEventType.Exit) {
+                                    if (hoveredNodeId == ln.id) {
+                                        hoveredNodeId = null
+                                    }
+                                    if (hoveredIconNodeId == ln.id) {
+                                        hoveredIconNodeId = null
+                                    }
+                                }
+                        ) {
+                            if (selectedPath != null) {
                                 AsyncImage(
                                     load = {
-                                        File(path).inputStream()
+                                        File(selectedPath).inputStream()
                                             .buffered()
                                             .use(::loadImageBitmap)
                                     },
@@ -207,6 +251,39 @@ fun GraphVisualizer(
                                         style = TextStyle(color = Color.Red, fontSize = 12.sp),
                                         modifier = Modifier.align(Alignment.Center)
                                     )
+                                }
+                            }
+                            if (showStateIcon) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp),
+                                ) {
+                                    val iconAlpha = if (hoveredIconNodeId == ln.id) 0.9f else 0.5f
+                                    val iconSize = (24.dp * zoomState.value).coerceIn(24.dp, 32.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .size(iconSize)
+                                            .alpha(iconAlpha)
+                                            .clickable { viewModel.openStatePicker(ln.id) }
+                                            .onPointerEvent(PointerEventType.Enter) {
+                                                hoveredIconNodeId = ln.id
+                                            }
+                                            .onPointerEvent(PointerEventType.Exit) {
+                                                if (hoveredIconNodeId == ln.id) {
+                                                    hoveredIconNodeId = null
+                                                }
+                                            }
+                                            .padding(2.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            painter = cameraIconPainter,
+                                            contentDescription = "Show image states",
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
                                 }
                             }
                             Box(
@@ -268,6 +345,132 @@ fun GraphVisualizer(
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .padding(16.dp)
             )
+
+            val statePickerNodeId = viewModel.statePickerNodeId.value
+            if (statePickerNodeId != null) {
+                val modalNode = layoutGraph.nodes[statePickerNodeId]
+                if (modalNode != null) {
+                    StatePickerDialog(
+                        nodeId = statePickerNodeId,
+                        imagePaths = modalNode.imagePaths,
+                        selectedState = viewModel.getSelectedState(
+                            nodeId = statePickerNodeId,
+                            statesCount = modalNode.imagePaths.size,
+                            fallback = modalNode.selectedState
+                        ),
+                        onSelectState = { state ->
+                            viewModel.selectState(
+                                nodeId = statePickerNodeId,
+                                selectedState = state,
+                                statesCount = modalNode.imagePaths.size
+                            )
+                        },
+                        onClose = { viewModel.closeStatePicker() }
+                    )
+                } else {
+                    viewModel.closeStatePicker()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatePickerDialog(
+    nodeId: String,
+    imagePaths: List<String>,
+    selectedState: Int,
+    onSelectState: (Int) -> Unit,
+    onClose: () -> Unit,
+) {
+    Dialog(onCloseRequest = onClose) {
+        Box(
+            modifier = Modifier
+                .width(900.dp)
+                .heightIn(max = 700.dp)
+                .background(ColorSurface, RoundedCornerShape(12.dp))
+                .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
+                .padding(16.dp)
+                .onPreviewKeyEvent {
+                    if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+                        onClose()
+                        true
+                    } else {
+                        false
+                    }
+                }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                BasicText(
+                    text = "Select state for ${formatNodeLabel(nodeId)}",
+                    style = TextStyle(color = ColorOnBackground, fontSize = 16.sp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 220.dp),
+                    modifier = Modifier.fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                ) {
+                    itemsIndexed(imagePaths) { index, path ->
+                        val isSelected = selectedState == index
+                        Box(
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isSelected) ColorStateSelected else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(6.dp)
+                                .pointerInput(path) {
+                                    detectTapGestures(
+                                        onTap = { onSelectState(index) },
+                                        onDoubleTap = {
+                                            onSelectState(index)
+                                            onClose()
+                                        }
+                                    )
+                                }
+                        ) {
+                            Column {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(220.dp)
+                                        .background(Color(0xFFF0F0F0), RoundedCornerShape(6.dp))
+                                        .padding(6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        load = {
+                                            File(path).inputStream()
+                                                .buffered()
+                                                .use(::loadImageBitmap)
+                                        },
+                                        painterFor = { remember { BitmapPainter(it) } },
+                                        contentDescription = "$nodeId-state-$index",
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                BasicText("State $index", style = TextStyle(fontSize = 12.sp))
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .background(ColorPrimary, RoundedCornerShape(8.dp))
+                        .clickable { onClose() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicText("Save", style = TextStyle(color = Color.White, fontSize = 13.sp))
+                }
+            }
         }
     }
 }

@@ -14,7 +14,8 @@ data class Screen(
     val id: String,
     val function: String,
     val location: String,
-    val screenshot_location: String
+    val screenshot_location: String,
+    val selected_state: Int = 0
 )
 
 @Serializable
@@ -96,7 +97,8 @@ data class LayoutNode(
     val y: Float, // center y
     val width: Float,
     val height: Float,
-    val imagePaths: List<String> = emptyList() // screenshot paths for rendering
+    val imagePaths: List<String> = emptyList(), // screenshot paths for rendering
+    val selectedState: Int = 0
 )
 
 data class LayoutEdge(

@@ -111,7 +111,7 @@ fun App() {
                         val graph = appGraph
                         if (graph != null) {
                             coroutineScope.launch {
-                                exportGraphAsImage(graph, projectPath)
+                                exportGraphAsImage(viewModel.applySelectedStates(graph), projectPath)
                             }
                         }
                     },
@@ -126,7 +126,7 @@ fun App() {
                         val graph = appGraph
                         if (graph != null) {
                             coroutineScope.launch {
-                                exportGraphAsDrawio(graph, projectPath)
+                                exportGraphAsDrawio(viewModel.applySelectedStates(graph), projectPath)
                             }
                         }
                     },
@@ -142,7 +142,7 @@ fun App() {
                         if (graph != null) {
                             coroutineScope.launch {
                                 errorMessage = try {
-                                    prepareGraphZipArchive(graph, projectPath)
+                                    prepareGraphZipArchive(viewModel.applySelectedStates(graph), projectPath)
                                 } catch (e: Exception) {
                                     "Failed to prepare ZIP: ${e.message}"
                                 }

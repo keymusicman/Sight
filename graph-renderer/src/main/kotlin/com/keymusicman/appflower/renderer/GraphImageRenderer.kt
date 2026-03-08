@@ -30,7 +30,8 @@ suspend fun renderGraphToImage(appGraph: AppGraph, projectPath: String? = null):
 
         // Load actual image files for rendering  
         val loadedImages: Map<String, BufferedImage?> = layoutGraph.nodes.mapNotNull { (id, ln) ->
-            id to ln.imagePaths.firstOrNull()?.let { loadBufferedImage(it) }
+            val selectedPath = ln.imagePaths.getOrNull(ln.selectedState) ?: ln.imagePaths.firstOrNull()
+            id to selectedPath?.let { loadBufferedImage(it) }
         }.toMap()
 
         val padding = 200f

@@ -26,6 +26,8 @@ class GraphViewModel {
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
+    val selectedStateByNodeId: MutableState<Map<String, Int>> = mutableStateOf(emptyMap())
+    val statePickerNodeId: MutableState<String?> = mutableStateOf(null)
     var viewportWidth: Float = 0f
     var viewportHeight: Float = 0f
 
@@ -66,10 +68,50 @@ class GraphViewModel {
             val time = measureTime {
                 val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
                 layoutGraphState.value = layoutGraph
+                selectedStateByNodeId.value = layoutGraph.nodes.values.associate { node ->
+                    node.id to node.selectedState.coerceAtLeast(0)
+                }
             }
 
             println("Graph layout completed in ${time.inWholeMilliseconds} ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges")
         }
+    }
+
+    fun getSelectedState(nodeId: String, statesCount: Int, fallback: Int = 0): Int {
+        val defaultValue = fallback.coerceAtLeast(0)
+        val selected = selectedStateByNodeId.value[nodeId] ?: defaultValue
+        val maxIndex = (statesCount - 1).coerceAtLeast(0)
+        return selected.coerceIn(0, maxIndex)
+    }
+
+    fun selectState(nodeId: String, selectedState: Int, statesCount: Int) {
+        val normalized = selectedState
+            .coerceAtLeast(0)
+            .coerceAtMost((statesCount - 1).coerceAtLeast(0))
+        selectedStateByNodeId.value = selectedStateByNodeId.value + (nodeId to normalized)
+    }
+
+    fun openStatePicker(nodeId: String) {
+        statePickerNodeId.value = nodeId
+    }
+
+    fun closeStatePicker() {
+        statePickerNodeId.value = null
+    }
+
+    fun applySelectedStates(appGraph: AppGraph): AppGraph {
+        val selectedById = selectedStateByNodeId.value
+        return appGraph.copy(
+            subgraphs = appGraph.subgraphs.mapValues { (subgraphKey, subgraph) ->
+                subgraph.copy(
+                    screens = subgraph.screens.map { screen ->
+                        val nodeId = "$subgraphKey:${screen.id}"
+                        val selected = selectedById[nodeId] ?: screen.selected_state
+                        screen.copy(selected_state = selected.coerceAtLeast(0))
+                    }
+                )
+            }
+        )
     }
 
 }

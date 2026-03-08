@@ -22,7 +22,9 @@ suspend fun exportGraphAsDrawio(appGraph: AppGraph, projectPath: String?) {
 
     // Load image data for embedding in XML (convert paths to Base64)
     val imageDataMap: Map<String, ByteArray?> = layoutGraph.nodes.mapNotNull { (id, layoutNode) ->
-        id to layoutNode.imagePaths.firstOrNull()?.let { path ->
+        val selectedPath = layoutNode.imagePaths.getOrNull(layoutNode.selectedState)
+            ?: layoutNode.imagePaths.firstOrNull()
+        id to selectedPath?.let { path ->
             try {
                 File(path).takeIf { it.exists() }?.readBytes()
             } catch (_: Exception) {

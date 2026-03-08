@@ -40,7 +40,11 @@ object LayoutGraphBuilder {
                     val nodeId = "$subgraphKey:${screen.id}"
                     val imagePaths =
                         findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
-                    nodesMap[nodeId] = GraphNode(nodeId, imagePaths)
+                    nodesMap[nodeId] = GraphNode(
+                        id = nodeId,
+                        imagePaths = imagePaths,
+                        selectedState = screen.selected_state.coerceAtLeast(0)
+                    )
                 }
             }
 
@@ -82,7 +86,9 @@ object LayoutGraphBuilder {
 
         // Load image dimensions efficiently (header-only, no full image load)
         val imageDimensions: Map<String, Pair<Int, Int>> = nodes.associate { node ->
-            val dim = node.imagePaths.firstOrNull()
+            val selectedPath = node.imagePaths.getOrNull(node.selectedState)
+                ?: node.imagePaths.firstOrNull()
+            val dim = selectedPath
                 ?.let { path ->
                     imageResolver.resolveDimension(path)
                 }
@@ -282,8 +288,17 @@ object LayoutGraphBuilder {
             val d = depthMap[id] ?: 0
             val x = columnX[d] ?: leftMargin
             val imagePaths = nodeById[id]?.imagePaths ?: emptyList()
+            val selectedState = nodeById[id]?.selectedState ?: 0
             layoutNodeMap[id] =
-                LayoutNode(id = id, x = x, y = relY, width = w, height = h, imagePaths = imagePaths)
+                LayoutNode(
+                    id = id,
+                    x = x,
+                    y = relY,
+                    width = w,
+                    height = h,
+                    imagePaths = imagePaths,
+                    selectedState = selectedState
+                )
         }
 
         // stack any nodes unreachable from entry below the main layout
@@ -295,13 +310,15 @@ object LayoutGraphBuilder {
                 val d = depthMap[id] ?: 0
                 val x = columnX[d] ?: leftMargin
                 val imagePaths = nodeById[id]?.imagePaths ?: emptyList()
+                val selectedState = nodeById[id]?.selectedState ?: 0
                 layoutNodeMap[id] = LayoutNode(
                     id = id,
                     x = x,
                     y = extraTop + h / 2f,
                     width = w,
                     height = h,
-                    imagePaths = imagePaths
+                    imagePaths = imagePaths,
+                    selectedState = selectedState
                 )
                 extraTop += h + minVerticalGap
             }
@@ -376,8 +393,8 @@ object LayoutGraphBuilder {
             val end = PointF(toNode.x - toNode.width / 2f, targetAnchors[e] ?: toNode.y)
             val dx = end.x - start.x
             val dy = end.y - start.y
-            val c1 = PointF(start.x + dx * 0.99f, start.y + dy * 0f)
-            val c2 = PointF(start.x + dx * 0.01f, start.y + dy * 1f)
+            val c1 = PointF(start.x + dx * 0.5f, start.y + dy * 0f)
+            val c2 = PointF(start.x + dx * 0.05f, start.y + dy * 1f)
             LayoutEdge(from = e.from, to = e.to, points = listOf(start, c1, c2, end))
         }
 

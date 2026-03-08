@@ -1,6 +1,8 @@
 package com.keymusicman.appflower.utils
 
 import com.keymusicman.appflower.model.AppGraph
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -20,9 +22,6 @@ suspend fun prepareGraphZipArchive(appGraph: AppGraph, projectPath: String?): St
     val projectRoot = File(projectPath.trim())
     require(projectRoot.exists() && projectRoot.isDirectory) { "Invalid project path: ${projectRoot.absolutePath}" }
 
-    val graphFile = resolveGraphFile(projectRoot)
-        ?: error("app-graph.json not found. Expected at app/build/graph/app-graph.json or build/graph/app-graph.json")
-
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Web Archive ZIP"
         fileFilter = FileNameExtensionFilter("ZIP Archives (*.zip)", "zip")
@@ -39,7 +38,10 @@ suspend fun prepareGraphZipArchive(appGraph: AppGraph, projectPath: String?): St
 
     val stagingDir = Files.createTempDirectory("appflower-zip-").toFile()
     try {
-        graphFile.copyTo(File(stagingDir, "app-graph.json"), overwrite = true)
+        File(stagingDir, "app-graph.json").writeText(
+            Json { prettyPrint = true }.encodeToString(appGraph),
+            Charsets.UTF_8
+        )
 
         val screenshotLocations = appGraph.subgraphs.values
             .flatMap { subgraph -> subgraph.screens.map { it.screenshot_location } }
@@ -69,14 +71,6 @@ suspend fun prepareGraphZipArchive(appGraph: AppGraph, projectPath: String?): St
     } finally {
         stagingDir.deleteRecursively()
     }
-}
-
-private fun resolveGraphFile(projectRoot: File): File? {
-    val appPath = File(projectRoot, "app/build/graph/app-graph.json")
-    if (appPath.exists()) return appPath
-    val rootPath = File(projectRoot, "build/graph/app-graph.json")
-    if (rootPath.exists()) return rootPath
-    return null
 }
 
 private fun zipDirectoryContents(sourceDir: File, zipFile: File) {
