@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -102,277 +103,279 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     viewModel: GraphViewModel,
 ) {
-    val layoutGraph = viewModel.layoutGraphState.value
+    val layoutGraph by viewModel.layoutGraphState
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(ColorBackground),
         contentAlignment = Alignment.TopStart,
     ) {
-        if (layoutGraph == null) {
-            BasicText("No graph loaded", style = TextStyle(color = ColorOnBackground))
-            return@BoxWithConstraints
-        }
+        when (val layoutGraph = layoutGraph) {
+            null -> {
+                BasicText("No graph loaded", style = TextStyle(color = ColorOnBackground))
+            }
 
-        if (layoutGraph.nodes.isEmpty()) {
-            BasicText("Graph is empty", style = TextStyle(color = ColorOnBackground))
-            return@BoxWithConstraints
-        }
-
-        val viewportWidth = constraints.maxWidth.toFloat()
-        val viewportHeight = constraints.maxHeight.toFloat()
-
-        // Store viewport size in ViewModel so zoom() can compute pan adjustment
-        viewModel.viewportWidth = viewportWidth
-        viewModel.viewportHeight = viewportHeight
-
-        // Image paths per node for lazy image loading (from layout nodes)
-        val imagePathsById: Map<String, List<String>> = remember(layoutGraph) {
-            layoutGraph.nodes.values.associate { it.id to it.imagePaths }
-        }
-
-        // deterministic ordered list of layout nodes for composing children
-        val nodeList: List<LayoutNode> = remember(layoutGraph) {
-            layoutGraph.nodes.values.sortedWith(compareBy({ it.x }, { it.y }, { it.id }))
-        }
-
-        // entry node is the leftmost node (smallest x = depth-0 root)
-        val entryNode: LayoutNode? = remember(layoutGraph) {
-            layoutGraph.nodes.values.minByOrNull { it.x }
-        }
-
-        val zoomState = viewModel.zoomState
-        val pan = viewModel.panState
-        var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
-        var hoveredNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
-        var hoveredIconNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
-        val labelFontSize = (14f * sqrt(zoomState.value.toDouble()).toFloat()).coerceIn(6f, 40f)
-        val labelTextStyle = remember(labelFontSize) {
-            TextStyle(color = ColorOnBackground, fontSize = labelFontSize.sp)
-        }
-        val cameraIconPainter = remember {
-            BitmapPainter(loadRequiredClasspathBitmap("img_states_24.png"))
-        }
-
-        // Reset pan to center the entry node whenever the graph changes
-        LaunchedEffect(layoutGraph) {
-            pan.value = if (entryNode != null) {
-                Offset(
-                    viewportWidth / 2f - entryNode.x * zoomState.value,
-                    viewportHeight / 2f - entryNode.y * zoomState.value
-                )
-            } else {
-                Offset.Zero
+            else -> {
+                GraphVisualizerInternal(layoutGraph, viewModel)
             }
         }
+    }
+}
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            Layout(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTransformGestures { centroid, panDelta, zoomFactor, _ ->
-                            val oldZoom = zoomState.value
-                            val newZoom = (oldZoom * zoomFactor).coerceIn(
-                                GraphViewModel.ZOOM_MIN,
-                                GraphViewModel.ZOOM_MAX
-                            )
-                            pan.value =
-                                centroid - (centroid - pan.value) * (newZoom / oldZoom) + panDelta
-                            zoomState.value = newZoom
-                        }
-                    },
-                content = {
-                    // background Canvas draws edges and responds to pan/zoom using precomputed layout
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .onPointerEvent(PointerEventType.Move) { event ->
-                                hoveredEdgeIndex = findHoveredEdgeIndex(
-                                    layoutGraph = layoutGraph,
-                                    pan = pan.value,
-                                    zoom = zoomState.value,
-                                    pointer = event.changes.firstOrNull()?.position
-                                        ?: return@onPointerEvent
-                                )
-                            }
-                            .onPointerEvent(PointerEventType.Exit) {
-                                hoveredEdgeIndex = null
-                            }
-                    ) {
-                        drawGraphEdgesLayout(
-                            layoutGraph = layoutGraph,
-                            pan = pan.value,
-                            zoom = zoomState.value,
-                            hoveredEdgeIndex = hoveredEdgeIndex
+@Composable
+@OptIn(ExperimentalComposeUiApi::class)
+private fun BoxWithConstraintsScope.GraphVisualizerInternal(
+    layoutGraph: LayoutGraph,
+    viewModel: GraphViewModel
+) {
+    if (layoutGraph.nodes.isEmpty()) {
+        BasicText("Graph is empty", style = TextStyle(color = ColorOnBackground))
+        return
+    }
+
+    val viewportWidth = constraints.maxWidth.toFloat()
+    val viewportHeight = constraints.maxHeight.toFloat()
+
+    // Store viewport size in ViewModel so zoom() can compute pan adjustment
+    viewModel.viewportWidth = viewportWidth
+    viewModel.viewportHeight = viewportHeight
+
+    // Image paths per node for lazy image loading (from layout nodes)
+    val imagePathsById: Map<String, List<String>> = remember(layoutGraph) {
+        layoutGraph.nodes.values.associate { it.id to it.imagePaths }
+    }
+
+    // deterministic ordered list of layout nodes for composing children
+    val nodeList: List<LayoutNode> = remember(layoutGraph) {
+        layoutGraph.nodes.values.sortedWith(compareBy({ it.x }, { it.y }, { it.id }))
+    }
+
+    // entry node is the leftmost node (smallest x = depth-0 root)
+    val entryNode: LayoutNode? = remember(layoutGraph) {
+        layoutGraph.nodes.values.minByOrNull { it.x }
+    }
+
+    val zoomState = viewModel.zoomState
+    val pan = viewModel.panState
+    var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
+    val cameraIconPainter = remember {
+        BitmapPainter(loadRequiredClasspathBitmap("img_states_24.png"))
+    }
+
+    // Reset pan to center the entry node whenever the graph changes
+    LaunchedEffect(layoutGraph) {
+        pan.value = if (entryNode != null) {
+            Offset(
+                viewportWidth / 2f - entryNode.x * zoomState.value,
+                viewportHeight / 2f - entryNode.y * zoomState.value
+            )
+        } else {
+            Offset.Zero
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Layout(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTransformGestures { centroid, panDelta, zoomFactor, _ ->
+                        val oldZoom = zoomState.value
+                        val newZoom = (oldZoom * zoomFactor).coerceIn(
+                            GraphViewModel.ZOOM_MIN,
+                            GraphViewModel.ZOOM_MAX
                         )
+                        pan.value =
+                            centroid - (centroid - pan.value) * (newZoom / oldZoom) + panDelta
+                        zoomState.value = newZoom
+                    }
+                },
+            content = {
+                // background Canvas draws edges and responds to pan/zoom using precomputed layout
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onPointerEvent(PointerEventType.Move) { event ->
+                            hoveredEdgeIndex = findHoveredEdgeIndex(
+                                layoutGraph = layoutGraph,
+                                pan = pan.value,
+                                zoom = zoomState.value,
+                                pointer = event.changes.firstOrNull()?.position
+                                    ?: return@onPointerEvent
+                            )
+                        }
+                        .onPointerEvent(PointerEventType.Exit) {
+                            hoveredEdgeIndex = null
+                        }
+                ) {
+                    drawGraphEdgesLayout(
+                        layoutGraph = layoutGraph,
+                        pan = pan.value,
+                        zoom = zoomState.value,
+                        hoveredEdgeIndex = hoveredEdgeIndex
+                    )
+                }
+
+                var hoveredNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
+                var hoveredIconNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
+                // image children for each node — loaded asynchronously via loadImageBitmap
+                nodeList.forEach { ln ->
+                    val labelFontSize =
+                        (14f * sqrt(zoomState.value.toDouble()).toFloat()).coerceIn(6f, 40f)
+                    val labelTextStyle = remember(labelFontSize) {
+                        TextStyle(color = ColorOnBackground, fontSize = labelFontSize.sp)
                     }
 
-                    // image children for each node — loaded asynchronously via loadImageBitmap
-                    nodeList.forEach { ln ->
-                        val imagePaths = imagePathsById[ln.id] ?: emptyList()
-                        val selectedState = viewModel.getSelectedState(
-                            nodeId = ln.id,
-                            statesCount = imagePaths.size,
-                            fallback = ln.selectedState
-                        )
-                        val selectedPath = imagePaths.getOrNull(selectedState)
-                        val labelText = formatNodeLabel(ln.id)
-                        val hasMultipleStates = imagePaths.size > 1
-                        val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .onPointerEvent(PointerEventType.Enter) {
-                                    hoveredNodeId = ln.id
+                    val imagePaths = imagePathsById[ln.id] ?: emptyList()
+                    val selectedState = ln.selectedState
+                    val selectedPath = imagePaths.getOrNull(selectedState)
+                    val labelText = formatNodeLabel(ln.id)
+                    val hasMultipleStates = imagePaths.size > 1
+                    val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onPointerEvent(PointerEventType.Enter) {
+                                hoveredNodeId = ln.id
+                            }
+                            .onPointerEvent(PointerEventType.Exit) {
+                                if (hoveredNodeId == ln.id) {
+                                    hoveredNodeId = null
                                 }
-                                .onPointerEvent(PointerEventType.Exit) {
-                                    if (hoveredNodeId == ln.id) {
-                                        hoveredNodeId = null
-                                    }
-                                    if (hoveredIconNodeId == ln.id) {
-                                        hoveredIconNodeId = null
-                                    }
+                                if (hoveredIconNodeId == ln.id) {
+                                    hoveredIconNodeId = null
                                 }
-                        ) {
-                            if (selectedPath != null) {
-                                AsyncImage(
-                                    load = {
-                                        File(selectedPath).inputStream()
-                                            .buffered()
-                                            .use(::loadImageBitmap)
-                                    },
-                                    painterFor = { remember { BitmapPainter(it) } },
-                                    contentDescription = ln.id,
-                                    contentScale = ContentScale.FillBounds,
-                                    modifier = Modifier.fillMaxSize()
+                            }
+                    ) {
+                        if (selectedPath != null) {
+                            AsyncImage(
+                                model = File(selectedPath),
+                                contentDescription = ln.id,
+                                contentScale = ContentScale.FillBounds,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                BasicText(
+                                    "No image",
+                                    style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                                    modifier = Modifier.align(Alignment.Center)
                                 )
-                            } else {
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    BasicText(
-                                        "No image",
-                                        style = TextStyle(color = Color.Red, fontSize = 12.sp),
-                                        modifier = Modifier.align(Alignment.Center)
+                            }
+                        }
+                        if (showStateIcon) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp),
+                            ) {
+                                val iconAlpha = if (hoveredIconNodeId == ln.id) 0.9f else 0.5f
+                                val iconSize = (24.dp * zoomState.value).coerceIn(24.dp, 32.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .size(iconSize)
+                                        .alpha(iconAlpha)
+                                        .clickable { viewModel.openStatePicker(ln.id) }
+                                        .onPointerEvent(PointerEventType.Enter) {
+                                            hoveredIconNodeId = ln.id
+                                        }
+                                        .onPointerEvent(PointerEventType.Exit) {
+                                            if (hoveredIconNodeId == ln.id) {
+                                                hoveredIconNodeId = null
+                                            }
+                                        }
+                                        .padding(2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        painter = cameraIconPainter,
+                                        contentDescription = "Show image states",
+                                        modifier = Modifier.fillMaxSize(),
                                     )
                                 }
                             }
-                            if (showStateIcon) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(4.dp),
-                                ) {
-                                    val iconAlpha = if (hoveredIconNodeId == ln.id) 0.9f else 0.5f
-                                    val iconSize = (24.dp * zoomState.value).coerceIn(24.dp, 32.dp)
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .size(iconSize)
-                                            .alpha(iconAlpha)
-                                            .clickable { viewModel.openStatePicker(ln.id) }
-                                            .onPointerEvent(PointerEventType.Enter) {
-                                                hoveredIconNodeId = ln.id
-                                            }
-                                            .onPointerEvent(PointerEventType.Exit) {
-                                                if (hoveredIconNodeId == ln.id) {
-                                                    hoveredIconNodeId = null
-                                                }
-                                            }
-                                            .padding(2.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Image(
-                                            painter = cameraIconPainter,
-                                            contentDescription = "Show image states",
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    }
-                                }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .offset(y = with(LocalDensity.current) { (-labelTextStyle.fontSize * 1.8).toDp() })
-                                    .graphicsLayer { clip = false }
-                                    .background(ColorLabelBackground)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                BasicText(
-                                    text = labelText,
-                                    style = labelTextStyle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
                         }
-                    }
-                }
-            ) { measurables, constraints ->
-                // measure children: Canvas fills all, images measured at zoomed pixel size
-                val placeables = buildList {
-                    if (measurables.isNotEmpty()) add(measurables[0].measure(constraints))
-                    for (i in nodeList.indices) {
-                        val ln = nodeList[i]
-                        val w = (ln.width * zoomState.value).toInt()
-                            .coerceAtLeast(1)
-                        val h = (ln.height * zoomState.value).toInt()
-                            .coerceAtLeast(1)
-                        add(measurables[i + 1].measure(Constraints.fixed(w, h)))
-                    }
-                }
-
-                layout(constraints.maxWidth, constraints.maxHeight) {
-                    if (placeables.isNotEmpty()) placeables[0].place(0, 0)
-                    // place nodes by immutable coordinates; skip those fully outside the viewport
-                    for (i in nodeList.indices) {
-                        val ln = nodeList[i]
-                        val p = placeables[i + 1]
-                        val x =
-                            (ln.x * zoomState.value + pan.value.x - ln.width / 2f * zoomState.value).toInt()
-                        val y =
-                            (ln.y * zoomState.value + pan.value.y - ln.height / 2f * zoomState.value).toInt()
-                        if (x + p.width > 0 && x < constraints.maxWidth &&
-                            y + p.height > 0 && y < constraints.maxHeight
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(y = with(LocalDensity.current) { (-labelTextStyle.fontSize * 1.8).toDp() })
+                                .graphicsLayer { clip = false }
+                                .background(ColorLabelBackground)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            p.place(x, y)
+                            BasicText(
+                                text = labelText,
+                                style = labelTextStyle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
             }
-
-            ZoomControls(
-                zoom = zoomState.value,
-                onZoomChange = { viewModel.setZoom(it) },
-                onZoomIn = { viewModel.zoom(1.2f) },
-                onZoomOut = { viewModel.zoom(1f / 1.2f) },
-                modifier = Modifier.align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            )
-
-            val statePickerNodeId = viewModel.statePickerNodeId.value
-            if (statePickerNodeId != null) {
-                val modalNode = layoutGraph.nodes[statePickerNodeId]
-                if (modalNode != null) {
-                    StatePickerDialog(
-                        nodeId = statePickerNodeId,
-                        imagePaths = modalNode.imagePaths,
-                        selectedState = viewModel.getSelectedState(
-                            nodeId = statePickerNodeId,
-                            statesCount = modalNode.imagePaths.size,
-                            fallback = modalNode.selectedState
-                        ),
-                        onSelectState = { state ->
-                            viewModel.selectState(
-                                nodeId = statePickerNodeId,
-                                selectedState = state,
-                                statesCount = modalNode.imagePaths.size
-                            )
-                        },
-                        onClose = { viewModel.closeStatePicker() }
-                    )
-                } else {
-                    viewModel.closeStatePicker()
+        ) { measurables, constraints ->
+            // measure children: Canvas fills all, images measured at zoomed pixel size
+            val placeables = buildList {
+                if (measurables.isNotEmpty()) add(measurables[0].measure(constraints))
+                for (i in nodeList.indices) {
+                    val ln = nodeList[i]
+                    val w = (ln.width * zoomState.value).toInt()
+                        .coerceAtLeast(1)
+                    val h = (ln.height * zoomState.value).toInt()
+                        .coerceAtLeast(1)
+                    add(measurables[i + 1].measure(Constraints.fixed(w, h)))
                 }
+            }
+
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                if (placeables.isNotEmpty()) placeables[0].place(0, 0)
+                // place nodes by immutable coordinates; skip those fully outside the viewport
+                for (i in nodeList.indices) {
+                    val ln = nodeList[i]
+                    val p = placeables[i + 1]
+                    val x =
+                        (ln.x * zoomState.value + pan.value.x - ln.width / 2f * zoomState.value).toInt()
+                    val y =
+                        (ln.y * zoomState.value + pan.value.y - ln.height / 2f * zoomState.value).toInt()
+                    if (x + p.width > 0 && x < constraints.maxWidth &&
+                        y + p.height > 0 && y < constraints.maxHeight
+                    ) {
+                        p.place(x, y)
+                    }
+                }
+            }
+        }
+
+        ZoomControls(
+            zoom = zoomState.value,
+            onZoomChange = { viewModel.setZoom(it) },
+            onZoomIn = { viewModel.zoom(1.2f) },
+            onZoomOut = { viewModel.zoom(1f / 1.2f) },
+            modifier = Modifier.align(Alignment.BottomEnd)
+                .padding(16.dp)
+        )
+
+        val statePickerNodeId = viewModel.statePickerNodeId.value
+        if (statePickerNodeId != null) {
+            val modalNode = layoutGraph.nodes[statePickerNodeId]
+            if (modalNode != null) {
+                StatePickerDialog(
+                    nodeId = statePickerNodeId,
+                    imagePaths = modalNode.imagePaths,
+                    selectedState = modalNode.selectedState,
+                    onSelectState = { state ->
+                        viewModel.selectState(
+                            nodeId = statePickerNodeId,
+                            selectedState = state,
+                            statesCount = modalNode.imagePaths.size
+                        )
+                    },
+                    onClose = { viewModel.closeStatePicker() }
+                )
+            } else {
+                viewModel.closeStatePicker()
             }
         }
     }
@@ -622,6 +625,67 @@ private fun <T> AsyncImage(
     if (image != null) {
         Image(
             painter = painterFor(image!!),
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier,
+        )
+    } else {
+        Box(modifier = modifier) {
+            if (error != null) {
+                BasicText(
+                    "Error: ${error!!.message}",
+                    style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            } else {
+                BasicText("Loading...", style = TextStyle(color = Color.Gray, fontSize = 12.sp))
+            }
+        }
+    }
+}
+
+/**
+ * Generic async image loader from the JetBrains Compose Multiplatform tutorial.
+ * Loads [T] on [kotlinx.coroutines.Dispatchers.IO] and renders via [painterFor].
+ */
+@Composable
+private fun AsyncImage(
+    model: Any?,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Fit,
+) {
+    val load = when (model) {
+        null -> {
+            error("no model")
+        }
+
+        is File -> {
+            {
+                model.inputStream()
+                    .buffered()
+                    .use(::loadImageBitmap)
+            }
+        }
+
+        else -> error("Unsupported AsyncImage model type: ${model::class}")
+    }
+    var image by remember(model) { mutableStateOf<BitmapPainter?>(null) }
+    var error by remember(model) { mutableStateOf<Throwable?>(null) }
+
+    LaunchedEffect(model) {
+        try {
+            image = withContext(Dispatchers.IO) { BitmapPainter(load()) }
+        } catch (e: Throwable) {
+            System.err.println("[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}")
+            error = e
+        }
+    }
+
+    val painter = image
+    if (painter != null) {
+        Image(
+            painter = painter,
             contentDescription = contentDescription,
             contentScale = contentScale,
             modifier = modifier,

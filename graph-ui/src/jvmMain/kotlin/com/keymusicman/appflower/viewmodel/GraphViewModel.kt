@@ -26,7 +26,7 @@ class GraphViewModel {
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
-    val selectedStateByNodeId: MutableState<Map<String, Int>> = mutableStateOf(emptyMap())
+    private val selectedStateByNodeId: MutableState<Map<String, Int>> = mutableStateOf(emptyMap())
     val statePickerNodeId: MutableState<String?> = mutableStateOf(null)
     var viewportWidth: Float = 0f
     var viewportHeight: Float = 0f
@@ -77,18 +77,20 @@ class GraphViewModel {
         }
     }
 
-    fun getSelectedState(nodeId: String, statesCount: Int, fallback: Int = 0): Int {
-        val defaultValue = fallback.coerceAtLeast(0)
-        val selected = selectedStateByNodeId.value[nodeId] ?: defaultValue
-        val maxIndex = (statesCount - 1).coerceAtLeast(0)
-        return selected.coerceIn(0, maxIndex)
-    }
-
     fun selectState(nodeId: String, selectedState: Int, statesCount: Int) {
-        val normalized = selectedState
-            .coerceAtLeast(0)
-            .coerceAtMost((statesCount - 1).coerceAtLeast(0))
-        selectedStateByNodeId.value = selectedStateByNodeId.value + (nodeId to normalized)
+        val measureTime = measureTime {
+            val normalized = selectedState
+                .coerceAtLeast(0)
+                .coerceAtMost((statesCount - 1).coerceAtLeast(0))
+            selectedStateByNodeId.value += (nodeId to normalized)
+            val currentGraph = layoutGraphState.value ?: return
+            val currentNode = currentGraph.nodes[nodeId] ?: return
+            val updatedNodes =
+                currentGraph.nodes + (nodeId to currentNode.copy(selectedState = normalized))
+            layoutGraphState.value = currentGraph.copy(nodes = updatedNodes)
+        }
+
+        println("Changed state of node $nodeId to $selectedState in ${measureTime.inWholeMilliseconds} ms")
     }
 
     fun openStatePicker(nodeId: String) {
@@ -100,7 +102,10 @@ class GraphViewModel {
     }
 
     fun applySelectedStates(appGraph: AppGraph): AppGraph {
-        val selectedById = selectedStateByNodeId.value
+        val selectedById = layoutGraphState.value
+            ?.nodes
+            ?.mapValues { (_, node) -> node.selectedState }
+            ?: selectedStateByNodeId.value
         return appGraph.copy(
             subgraphs = appGraph.subgraphs.mapValues { (subgraphKey, subgraph) ->
                 subgraph.copy(

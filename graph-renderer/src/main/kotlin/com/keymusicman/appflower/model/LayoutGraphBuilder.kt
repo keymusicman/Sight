@@ -458,7 +458,7 @@ private fun findImagesInLocation(
         } else {
             File(screenshotLocation)
         }
-        System.err.println("[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}")
+        println("[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}")
         when {
             fullPath.isFile -> listOf(fullPath.absolutePath)
             fullPath.isDirectory -> {
@@ -468,7 +468,7 @@ private fun findImagesInLocation(
                     RegexOption.IGNORE_CASE
                 )
                 val files = fullPath.listFiles()
-                System.err.println("[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex")
+                println("[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex")
                 files
                     ?.filter { regex.matches(it.name) }
                     ?.sortedBy { file ->
