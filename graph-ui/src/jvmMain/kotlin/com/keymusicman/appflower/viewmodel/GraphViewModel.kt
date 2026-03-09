@@ -12,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlin.time.measureTime
 
 /**
  * View model to construct and expose the LayoutGraph for the UI.
@@ -66,35 +65,35 @@ class GraphViewModel {
 
     fun buildFromAppGraphV2(appGraph: AppGraph, projectPath: String? = null) {
         scope.launch {
-            val time = measureTime {
-                val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
-                layoutGraphState.value = layoutGraph
-                selectedStateByNodeId.value = layoutGraph.nodes.values.associate { node ->
-                    node.id to node.selectedState.coerceAtLeast(0)
-                }
+            val startedAtNanos = System.nanoTime()
+            val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
+            layoutGraphState.value = layoutGraph
+            selectedStateByNodeId.value = layoutGraph.nodes.values.associate { node ->
+                node.id to node.selectedState.coerceAtLeast(0)
             }
+            val elapsedMilliseconds = (System.nanoTime() - startedAtNanos) / 1_000_000
 
-            Logger.d { "Graph layout completed in ${time.inWholeMilliseconds} ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges" }
+            Logger.d { "Graph layout completed in $elapsedMilliseconds ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges" }
         }
     }
 
     fun selectState(nodeId: String, selectedState: Int, statesCount: Int) {
         Logger.d { "Selecting state $selectedState for node $nodeId with statesCount $statesCount" }
 
-        val measureTime = measureTime {
-            val normalized = selectedState
-                .coerceAtLeast(0)
-                .coerceAtMost((statesCount - 1).coerceAtLeast(0))
-            selectedStateByNodeId.value += (nodeId to normalized)
-            val currentGraph = layoutGraphState.value ?: return
-            val currentNode = currentGraph.nodes[nodeId] ?: return
-            val updatedNodes =
-                currentGraph.nodes + (nodeId to currentNode.copy(selectedState = normalized))
-            layoutGraphState.value = currentGraph.copy(nodes = updatedNodes)
-        }
+        val startedAtNanos = System.nanoTime()
+        val normalized = selectedState
+            .coerceAtLeast(0)
+            .coerceAtMost((statesCount - 1).coerceAtLeast(0))
+        selectedStateByNodeId.value += (nodeId to normalized)
+        val currentGraph = layoutGraphState.value ?: return
+        val currentNode = currentGraph.nodes[nodeId] ?: return
+        val updatedNodes =
+            currentGraph.nodes + (nodeId to currentNode.copy(selectedState = normalized))
+        layoutGraphState.value = currentGraph.copy(nodes = updatedNodes)
+        val elapsedMilliseconds = (System.nanoTime() - startedAtNanos) / 1_000_000
 
         Logger.d {
-            "Changed state of node $nodeId to $selectedState in ${measureTime.inWholeMilliseconds} ms"
+            "Changed state of node $nodeId to $selectedState in $elapsedMilliseconds ms"
         }
     }
 

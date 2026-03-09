@@ -91,7 +91,6 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
-import kotlin.time.Clock
 
 private val ColorBackground = Color(0xFFF5F5F5)
 private val ColorOnBackground = Color(0xFF212121)
@@ -448,8 +447,7 @@ private fun StatePickerDialog(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                 ) {
-                                    val epochMilliseconds = Clock.System.now()
-                                        .toEpochMilliseconds()
+                                    val epochMilliseconds = System.currentTimeMillis()
                                     if (epochMilliseconds - lastClickTime < 300) {
                                         onSelectState(index)
                                         onClose()
