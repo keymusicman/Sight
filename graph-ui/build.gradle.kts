@@ -22,6 +22,8 @@ kotlin {
             // These have no Android/Compose transitive deps; safe to bundle.
             implementation(libs.kotlinx.serialization)
             implementation(libs.kotlinx.coroutinesSwing)
+
+            implementation(libs.logging.kermit)
         }
     }
 }

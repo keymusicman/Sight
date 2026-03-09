@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
@@ -71,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
+import co.touchlab.kermit.Logger
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.Connection
 import com.keymusicman.appflower.model.ConnectionEndpoint
@@ -89,6 +91,7 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.time.Clock
 
 private val ColorBackground = Color(0xFFF5F5F5)
 private val ColorOnBackground = Color(0xFF212121)
@@ -397,6 +400,7 @@ private fun StatePickerDialog(
         with(LocalDensity.current) { Toolkit.getDefaultToolkit().screenSize.width.toDp() }
     val screenHeight =
         with(LocalDensity.current) { Toolkit.getDefaultToolkit().screenSize.height.toDp() }
+    var lastClickTime by remember { mutableStateOf(0L) }
 
     DialogWindow(
         onCloseRequest = onClose,
@@ -410,7 +414,6 @@ private fun StatePickerDialog(
         },
         title = "States",
         state = rememberDialogState(size = DpSize(screenWidth, screenHeight)),
-        alwaysOnTop = true,
     ) {
 
         Box(
@@ -441,14 +444,19 @@ private fun StatePickerDialog(
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .padding(6.dp)
-                                .pointerInput(path) {
-                                    detectTapGestures(
-                                        onTap = { onSelectState(index) },
-                                        onDoubleTap = {
-                                            onSelectState(index)
-                                            onClose()
-                                        }
-                                    )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) {
+                                    val epochMilliseconds = Clock.System.now()
+                                        .toEpochMilliseconds()
+                                    if (epochMilliseconds - lastClickTime < 300) {
+                                        onSelectState(index)
+                                        onClose()
+                                    } else {
+                                        onSelectState(index)
+                                        lastClickTime = epochMilliseconds
+                                    }
                                 }
                         ) {
                             Column {
@@ -621,7 +629,7 @@ private fun <T> AsyncImage(
         try {
             image = withContext(Dispatchers.IO) { load() }
         } catch (e: Throwable) {
-            System.err.println("[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}")
+            Logger.w { "[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}" }
             error = e
         }
     }
@@ -681,7 +689,7 @@ private fun AsyncImage(
         try {
             image = withContext(Dispatchers.IO) { BitmapPainter(load()) }
         } catch (e: Throwable) {
-            System.err.println("[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}")
+            Logger.w { "[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}" }
             error = e
         }
     }

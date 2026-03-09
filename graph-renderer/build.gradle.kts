@@ -13,6 +13,7 @@ kotlin {
 dependencies {
     implementation(libs.kotlinx.coroutines)
     implementation(libs.kotlinx.serialization)
+    implementation(libs.logging.kermit)
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlin.testJunit)

@@ -1,5 +1,6 @@
 package com.keymusicman.appflower.model
 
+import co.touchlab.kermit.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -185,7 +186,8 @@ object LayoutGraphBuilder {
             }
         }
 
-        val mutableChildrenMap = nodeIds.associateWith { mutableListOf<String>() }.toMutableMap()
+        val mutableChildrenMap = nodeIds.associateWith { mutableListOf<String>() }
+            .toMutableMap()
         primaryParentByNode.forEach { (nodeId, parentId) ->
             if (parentId != null) {
                 mutableChildrenMap[parentId]?.add(nodeId)
@@ -343,47 +345,49 @@ object LayoutGraphBuilder {
         // - for non-overlap incoming edges, keep anchor above/below target center based on
         //   source-vs-target Y direction while preserving deterministic ordering
         val incomingByTarget = edges.groupBy { it.to }
-        val targetAnchors: Map<GraphEdge, Float> = incomingByTarget.flatMap { (targetId, incomingEdges) ->
-            val targetNode = layoutNodesMap[targetId] ?: return@flatMap emptyList()
-            val pad = (targetNode.height * 0.14f).coerceAtMost(targetNode.height / 2f - 1f)
-            val top = targetNode.y - targetNode.height / 2f + pad
-            val bottom = targetNode.y + targetNode.height / 2f - pad
-            val (overlappingEdges, nonOverlappingEdges) = incomingEdges.partition { edge ->
-                val fromNode = layoutNodesMap[edge.from] ?: return@partition false
-                overlapsVerticallyInclusive(fromNode, targetNode)
+        val targetAnchors: Map<GraphEdge, Float> =
+            incomingByTarget.flatMap { (targetId, incomingEdges) ->
+                val targetNode = layoutNodesMap[targetId] ?: return@flatMap emptyList()
+                val pad = (targetNode.height * 0.14f).coerceAtMost(targetNode.height / 2f - 1f)
+                val top = targetNode.y - targetNode.height / 2f + pad
+                val bottom = targetNode.y + targetNode.height / 2f - pad
+                val (overlappingEdges, nonOverlappingEdges) = incomingEdges.partition { edge ->
+                    val fromNode = layoutNodesMap[edge.from] ?: return@partition false
+                    overlapsVerticallyInclusive(fromNode, targetNode)
+                }
+                val sortedNonOverlapping = nonOverlappingEdges.sortedWith(
+                    compareBy<GraphEdge> { layoutNodesMap[it.from]?.y ?: Float.MAX_VALUE }
+                        .thenBy { it.from }
+                        .thenBy { it.to }
+                )
+                val aboveEdges = sortedNonOverlapping.filter { edge ->
+                    val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
+                    fromY < targetNode.y
+                }
+                val belowEdges = sortedNonOverlapping.filter { edge ->
+                    val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
+                    fromY > targetNode.y
+                }
+                val sameLevelEdges = sortedNonOverlapping.filter { edge ->
+                    val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
+                    fromY == targetNode.y
+                }
+                val nonOverlapAnchors = mutableListOf<Pair<GraphEdge, Float>>()
+                nonOverlapAnchors += distributeAnchorsInRange(
+                    edges = aboveEdges,
+                    startY = top,
+                    endY = (targetNode.y - 1f).coerceAtLeast(top)
+                )
+                nonOverlapAnchors += distributeAnchorsInRange(
+                    edges = belowEdges,
+                    startY = (targetNode.y + 1f).coerceAtMost(bottom),
+                    endY = bottom
+                )
+                nonOverlapAnchors += sameLevelEdges.map { edge -> edge to targetNode.y }
+                val overlapAnchors = overlappingEdges.map { edge -> edge to targetNode.y }
+                overlapAnchors + nonOverlapAnchors
             }
-            val sortedNonOverlapping = nonOverlappingEdges.sortedWith(
-                compareBy<GraphEdge> { layoutNodesMap[it.from]?.y ?: Float.MAX_VALUE }
-                    .thenBy { it.from }
-                    .thenBy { it.to }
-            )
-            val aboveEdges = sortedNonOverlapping.filter { edge ->
-                val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
-                fromY < targetNode.y
-            }
-            val belowEdges = sortedNonOverlapping.filter { edge ->
-                val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
-                fromY > targetNode.y
-            }
-            val sameLevelEdges = sortedNonOverlapping.filter { edge ->
-                val fromY = layoutNodesMap[edge.from]?.y ?: targetNode.y
-                fromY == targetNode.y
-            }
-            val nonOverlapAnchors = mutableListOf<Pair<GraphEdge, Float>>()
-            nonOverlapAnchors += distributeAnchorsInRange(
-                edges = aboveEdges,
-                startY = top,
-                endY = (targetNode.y - 1f).coerceAtLeast(top)
-            )
-            nonOverlapAnchors += distributeAnchorsInRange(
-                edges = belowEdges,
-                startY = (targetNode.y + 1f).coerceAtMost(bottom),
-                endY = bottom
-            )
-            nonOverlapAnchors += sameLevelEdges.map { edge -> edge to targetNode.y }
-            val overlapAnchors = overlappingEdges.map { edge -> edge to targetNode.y }
-            overlapAnchors + nonOverlapAnchors
-        }.toMap()
+                .toMap()
 
         val layoutEdges = edges.mapNotNull { e ->
             val fromNode = layoutNodesMap[e.from] ?: return@mapNotNull null
@@ -458,7 +462,7 @@ private fun findImagesInLocation(
         } else {
             File(screenshotLocation)
         }
-        println("[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}")
+        Logger.d { "[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}" }
         when {
             fullPath.isFile -> listOf(fullPath.absolutePath)
             fullPath.isDirectory -> {
@@ -468,7 +472,7 @@ private fun findImagesInLocation(
                     RegexOption.IGNORE_CASE
                 )
                 val files = fullPath.listFiles()
-                println("[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex")
+                Logger.d { "[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex" }
                 files
                     ?.filter { regex.matches(it.name) }
                     ?.sortedBy { file ->
@@ -478,12 +482,12 @@ private fun findImagesInLocation(
             }
 
             else -> {
-                System.err.println("[AppFlower] findImagesInLocation: path does not exist or is not accessible: ${fullPath.absolutePath}")
+                Logger.e { "[AppFlower] findImagesInLocation: path does not exist or is not accessible: ${fullPath.absolutePath}" }
                 emptyList()
             }
         }
     } catch (e: Exception) {
-        System.err.println("[AppFlower] findImagesInLocation: exception for screenId=$screenId: ${e.message}")
+        Logger.e { "[AppFlower] findImagesInLocation: exception for screenId=$screenId: ${e.message}" }
         emptyList()
     }
 }
@@ -535,24 +539,27 @@ private fun computeDepthBySccDag(
         }
     }
 
-    nodeIds.sorted().forEach { node ->
-        if (node !in indices) strongConnect(node)
-    }
+    nodeIds.sorted()
+        .forEach { node ->
+            if (node !in indices) strongConnect(node)
+        }
 
     val componentByNode = mutableMapOf<String, Int>()
     components.forEachIndexed { componentIndex, component ->
         component.forEach { node -> componentByNode[node] = componentIndex }
     }
 
-    val dagAdjacency = components.indices.associateWith { mutableSetOf<Int>() }.toMutableMap()
+    val dagAdjacency = components.indices.associateWith { mutableSetOf<Int>() }
+        .toMutableMap()
     nodeIds.forEach { from ->
         val fromComponent = componentByNode[from] ?: return@forEach
-        adjacency[from].orEmpty().forEach { to ->
-            val toComponent = componentByNode[to] ?: return@forEach
-            if (fromComponent != toComponent) {
-                dagAdjacency[fromComponent]?.add(toComponent)
+        adjacency[from].orEmpty()
+            .forEach { to ->
+                val toComponent = componentByNode[to] ?: return@forEach
+                if (fromComponent != toComponent) {
+                    dagAdjacency[fromComponent]?.add(toComponent)
+                }
             }
-        }
     }
 
     val entryComponent = componentByNode[entryId] ?: 0
@@ -562,20 +569,23 @@ private fun computeDepthBySccDag(
     reachableQueue.add(entryComponent)
     while (reachableQueue.isNotEmpty()) {
         val current = reachableQueue.removeFirst()
-        dagAdjacency[current].orEmpty().forEach { next ->
-            if (reachableComponents.add(next)) {
-                reachableQueue.add(next)
+        dagAdjacency[current].orEmpty()
+            .forEach { next ->
+                if (reachableComponents.add(next)) {
+                    reachableQueue.add(next)
+                }
             }
-        }
     }
 
-    val inDegree = reachableComponents.associateWith { 0 }.toMutableMap()
+    val inDegree = reachableComponents.associateWith { 0 }
+        .toMutableMap()
     reachableComponents.forEach { from ->
-        dagAdjacency[from].orEmpty().forEach { to ->
-            if (to in reachableComponents) {
-                inDegree[to] = (inDegree[to] ?: 0) + 1
+        dagAdjacency[from].orEmpty()
+            .forEach { to ->
+                if (to in reachableComponents) {
+                    inDegree[to] = (inDegree[to] ?: 0) + 1
+                }
             }
-        }
     }
 
     val ready = PriorityQueue<Int>()
@@ -583,23 +593,27 @@ private fun computeDepthBySccDag(
         if (degree == 0) ready.add(component)
     }
 
-    val depthByComponent = components.indices.associateWith { 0 }.toMutableMap()
+    val depthByComponent = components.indices.associateWith { 0 }
+        .toMutableMap()
     while (ready.isNotEmpty()) {
         val current = ready.poll()
         val currentDepth = depthByComponent[current] ?: 0
-        dagAdjacency[current].orEmpty().sorted().forEach { next ->
-            if (next !in reachableComponents) return@forEach
-            depthByComponent[next] = maxOf(depthByComponent[next] ?: 0, currentDepth + 1)
-            val nextDegree = (inDegree[next] ?: 0) - 1
-            inDegree[next] = nextDegree
-            if (nextDegree == 0) {
-                ready.add(next)
+        dagAdjacency[current].orEmpty()
+            .sorted()
+            .forEach { next ->
+                if (next !in reachableComponents) return@forEach
+                depthByComponent[next] = maxOf(depthByComponent[next] ?: 0, currentDepth + 1)
+                val nextDegree = (inDegree[next] ?: 0) - 1
+                inDegree[next] = nextDegree
+                if (nextDegree == 0) {
+                    ready.add(next)
+                }
             }
-        }
     }
 
     return nodeIds.associateWith { node ->
         val componentIndex = componentByNode[node] ?: return@associateWith 0
         if (componentIndex in reachableComponents) depthByComponent[componentIndex] ?: 0 else 0
-    }.toMutableMap()
+    }
+        .toMutableMap()
 }

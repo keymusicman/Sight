@@ -3,6 +3,7 @@ package com.keymusicman.appflower.viewmodel
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
+import co.touchlab.kermit.Logger
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
@@ -73,11 +74,13 @@ class GraphViewModel {
                 }
             }
 
-            println("Graph layout completed in ${time.inWholeMilliseconds} ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges")
+            Logger.d { "Graph layout completed in ${time.inWholeMilliseconds} ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges" }
         }
     }
 
     fun selectState(nodeId: String, selectedState: Int, statesCount: Int) {
+        Logger.d { "Selecting state $selectedState for node $nodeId with statesCount $statesCount" }
+
         val measureTime = measureTime {
             val normalized = selectedState
                 .coerceAtLeast(0)
@@ -90,7 +93,9 @@ class GraphViewModel {
             layoutGraphState.value = currentGraph.copy(nodes = updatedNodes)
         }
 
-        println("Changed state of node $nodeId to $selectedState in ${measureTime.inWholeMilliseconds} ms")
+        Logger.d {
+            "Changed state of node $nodeId to $selectedState in ${measureTime.inWholeMilliseconds} ms"
+        }
     }
 
     fun openStatePicker(nodeId: String) {

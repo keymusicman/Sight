@@ -2,9 +2,11 @@
 androidx-lifecycle = "2.9.6"
 composeHotReload = "1.0.0"
 composeMultiplatform = "1.10.0"
-intellijPlatform = "2.10.2"
+intellijPlatform = "2.10.5"
 junit = "4.13.2"
+kermit = "2.0.4"
 kotlin = "2.3.0"
+kotlinx-datetime = "0.7.1"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.7.1"
 ktor = "2.3.12"
@@ -22,8 +24,10 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
+logging-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 ktor-server-core = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
 ktor-server-netty = { module = "io.ktor:ktor-server-netty-jvm", version.ref = "ktor" }

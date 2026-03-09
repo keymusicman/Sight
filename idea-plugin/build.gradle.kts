@@ -19,7 +19,7 @@ dependencies {
     implementation(project(":graph-ui"))
 
     intellijPlatform {
-        intellijIdeaCommunity("2025.1")
+        intellijIdeaCommunity("2025.1.4")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("org.jetbrains.plugins.gradle")
         composeUI()

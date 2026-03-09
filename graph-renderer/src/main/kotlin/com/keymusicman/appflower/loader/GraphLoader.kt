@@ -1,5 +1,6 @@
 package com.keymusicman.appflower.loader
 
+import co.touchlab.kermit.Logger
 import com.keymusicman.appflower.model.AppGraph
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -14,12 +15,12 @@ object GraphLoader {
                 val content = graphFile.readText()
                 json.decodeFromString<AppGraph>(content)
             } catch (e: Exception) {
-                println("Error loading graph: ${e.message}")
+                Logger.w { "Error loading graph: ${e.message}" }
                 e.printStackTrace()
                 null
             }
         } else {
-            println("Graph file not found at: ${graphFile.absolutePath}")
+            Logger.i { "Graph file not found at: ${graphFile.absolutePath}" }
             null
         }
     }
