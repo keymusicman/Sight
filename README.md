@@ -28,18 +28,108 @@ Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-mu
 
 ### Run Web Graph Viewer (Backend + Browser UI)
 
-This repository now includes a lightweight web server at `:web-server` that exposes:
-- `POST /api/layout` to compute layout from an `app-graph.json` payload
-- a browser UI at `http://localhost:8080/` for loading and rendering graphs
+The `:web-server` module serves a browser UI at `http://localhost:8080/` and exposes:
+- `GET /health`
+- `POST /api/upload-graph` (multipart: `graphName` + ZIP `archive`)
+- `GET /api/graphs`
+- `GET /api/layout/{graphId}`
+- `DELETE /api/graph/{graphId}`
 
-Run it from terminal:
+Run locally:
 
 ```shell
 ./gradlew :web-server:run
 ```
 
-Then open `http://localhost:8080/` and either:
-- upload or paste `app-graph.json` (optionally adding screenshot files manually), or
-- upload a ZIP archive containing `app-graph.json` at root plus a screenshots directory referenced by `screenshot_location`.
+Upload ZIP requirements:
+- archive must include `app-graph.json` at root
+- archive must include `screenshots/` folder
+- upload rejects duplicate graph IDs with `409 Conflict`
+- ZIP extraction is streamed and zip-slip protected
 
-Desktop app now also includes a **Prepare ZIP for Web** button that creates this archive format.
+### Docker
+
+Build and run:
+
+```shell
+docker build -t appflower-web:latest .
+docker run --rm -p 8080:8080 -e GCS_BUCKET=your-gcs-bucket appflower-web:latest
+```
+
+### Google Cloud deployment (Cloud Run + GCS + CDN)
+
+Set variables:
+
+```shell
+PROJECT_ID="<your-project-id>"
+REGION="us-central1"
+SERVICE="appflower-web"
+BUCKET="your-gcs-bucket"
+SA="appflower-web-sa"
+DOMAIN="graph.example.com"
+```
+
+Create bucket and CORS:
+
+```shell
+gcloud config set project "$PROJECT_ID"
+gcloud storage buckets create "gs://$BUCKET" --location="$REGION" --uniform-bucket-level-access
+gcloud storage buckets update "gs://$BUCKET" --cors-file=<(cat <<'JSON'
+[
+  {
+    "origin": ["*"],
+    "method": ["GET", "POST", "DELETE", "OPTIONS"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
+JSON
+)
+```
+
+Create service account and grant bucket access:
+
+```shell
+gcloud iam service-accounts create "$SA" --display-name="AppFlower Web Service"
+gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
+  --member="serviceAccount:$SA@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+```
+
+Build and deploy Cloud Run (public):
+
+```shell
+gcloud builds submit --tag "gcr.io/$PROJECT_ID/$SERVICE:latest"
+gcloud run deploy "$SERVICE" \
+  --image "gcr.io/$PROJECT_ID/$SERVICE:latest" \
+  --region "$REGION" \
+  --platform managed \
+  --allow-unauthenticated \
+  --service-account "$SA@$PROJECT_ID.iam.gserviceaccount.com" \
+  --set-env-vars "GCS_BUCKET=$BUCKET"
+```
+
+Cloud CDN in front of bucket (backend bucket + HTTPS load balancer):
+
+```shell
+gcloud compute backend-buckets create appflower-gcs-backend \
+  --gcs-bucket-name="$BUCKET" \
+  --enable-cdn
+gcloud compute url-maps create appflower-map --default-backend-bucket=appflower-gcs-backend
+gcloud compute ssl-certificates create appflower-cert \
+  --domains="$DOMAIN" \
+  --global
+gcloud compute target-https-proxies create appflower-https-proxy \
+  --url-map=appflower-map \
+  --ssl-certificates=appflower-cert
+gcloud compute forwarding-rules create appflower-https-rule \
+  --global \
+  --target-https-proxy=appflower-https-proxy \
+  --ports=443
+```
+
+Then map DNS `A/AAAA` records to the global load balancer IP and verify certificate status:
+
+```shell
+gcloud compute ssl-certificates describe appflower-cert --global
+```

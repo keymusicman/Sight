@@ -6,11 +6,13 @@
   <title>AppFlower Web Graph Viewer</title>
   <style>
     :root { color-scheme: light dark; }
-    body { margin: 0; font-family: system-ui, sans-serif; display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+    body { margin: 0; font-family: system-ui, sans-serif; display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
     .panel { padding: 16px; border-right: 1px solid #ccc; overflow: auto; }
     .panel h1 { margin-top: 0; font-size: 18px; }
-    textarea { width: 100%; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    button { margin-top: 12px; width: 100%; padding: 10px; }
+    .field { margin-bottom: 12px; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; }
+    input, select, button { width: 100%; box-sizing: border-box; padding: 8px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .status { margin-top: 10px; font-size: 13px; opacity: 0.9; white-space: pre-wrap; }
     canvas { width: 100%; height: 100%; display: block; background: #f5f5f5; cursor: grab; }
     canvas.dragging { cursor: grabbing; }
@@ -18,27 +20,51 @@
 </head>
 <body>
   <div class="panel">
-    <h1>AppFlower Web Graph Viewer</h1>
-    <p>Upload or paste <code>app-graph.json</code> then click Render.</p>
-    <input id="jsonFile" type="file" accept=".json,application/json" />
-    <p style="margin-bottom:4px;">Optional: upload screenshot files for node previews.</p>
-    <input id="imageFiles" type="file" accept="image/*" multiple />
-    <p style="margin-bottom:4px;">Or upload ZIP archive (<code>app-graph.json</code> + screenshots dir).</p>
-    <input id="zipArchive" type="file" accept=".zip,application/zip" />
-    <textarea id="jsonInput" placeholder='{"metadata":...,"subgraphs":...}'></textarea>
-    <button id="renderButton">Render Graph</button>
-    <button id="renderZipButton">Render ZIP Archive</button>
+    <h1>AppFlower Graph Viewer</h1>
+
+    <div class="field">
+      <label for="graphName">Graph name (used to generate graph-id)</label>
+      <input id="graphName" type="text" placeholder="My Feature Graph" />
+    </div>
+
+    <div class="field">
+      <label for="zipArchive">Upload ZIP (<code>app-graph.json</code> + <code>screenshots/</code>)</label>
+      <input id="zipArchive" type="file" accept=".zip,application/zip" />
+    </div>
+
+    <div class="field">
+      <button id="uploadButton">Upload Graph ZIP</button>
+    </div>
+
+    <hr />
+
+    <div class="field">
+      <label for="graphSelect">Available graphs</label>
+      <select id="graphSelect"></select>
+    </div>
+
+    <div class="row">
+      <button id="refreshButton">Refresh List</button>
+      <button id="renderButton">Render Selected</button>
+    </div>
+
+    <div class="field">
+      <button id="deleteButton">Delete Selected</button>
+    </div>
+
     <div class="status" id="status">Ready.</div>
   </div>
+
   <canvas id="graphCanvas"></canvas>
 
   <script>
-    const jsonInput = document.getElementById("jsonInput");
-    const jsonFile = document.getElementById("jsonFile");
-    const imageFiles = document.getElementById("imageFiles");
-    const zipArchive = document.getElementById("zipArchive");
+    const graphNameInput = document.getElementById("graphName");
+    const zipArchiveInput = document.getElementById("zipArchive");
+    const graphSelect = document.getElementById("graphSelect");
+    const uploadButton = document.getElementById("uploadButton");
+    const refreshButton = document.getElementById("refreshButton");
     const renderButton = document.getElementById("renderButton");
-    const renderZipButton = document.getElementById("renderZipButton");
+    const deleteButton = document.getElementById("deleteButton");
     const statusBox = document.getElementById("status");
     const canvas = document.getElementById("graphCanvas");
     const ctx = canvas.getContext("2d");
@@ -50,103 +76,49 @@
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
-    let pinchStartDistance = null;
-    let pinchStartZoom = 1;
-    let pinchStartPanX = 0;
-    let pinchStartPanY = 0;
     let hoveredEdgeIndex = null;
-    const imageByFileName = new Map();
-    const imageByNodeId = new Map();
     const ZOOM_MIN = 0.1;
     const ZOOM_MAX = 3;
     const WHEEL_ZOOM_INTENSITY = 0.0018;
-    const PINCH_ZOOM_DAMPING = 1.4;
 
     function setStatus(message) {
       statusBox.textContent = message;
     }
 
-    jsonFile.addEventListener("change", async (event) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      try {
-        jsonInput.value = await file.text();
-        setStatus(`Loaded ${file.name}`);
-      } catch (e) {
-        setStatus("Could not read file: " + e.message);
-      }
-    });
-
-    imageFiles.addEventListener("change", async (event) => {
-      imageByFileName.clear();
-      const files = Array.from(event.target.files || []);
-      const loadImage = (file) => new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Failed to load ${file.name}`)); };
-        img.src = url;
-      });
-
-      let loaded = 0;
-      for (const file of files) {
-        try {
-          const image = await loadImage(file);
-          imageByFileName.set(file.name, image);
-          loaded++;
-        } catch (_) {
-        }
-      }
-      setStatus(`Loaded ${loaded}/${files.length} screenshot files.`);
-      draw();
-    });
-
-    function findNodeImage(nodeId) {
-      if (imageByNodeId.has(nodeId)) {
-        return imageByNodeId.get(nodeId);
-      }
-      const screenId = (nodeId.split(":").pop() || nodeId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`^${screenId}(?:_.+?)?_\\d+\\.(png|jpg|jpeg|webp)$`, "i");
-      for (const [name, image] of imageByFileName.entries()) {
-        if (regex.test(name)) return image;
-      }
-      return null;
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
     }
 
-    async function hydrateInlineImages(nodes) {
-      imageByNodeId.clear();
-      const loadDataUrl = (nodeId, dataUrl) => new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve({ nodeId, img });
-        img.onerror = () => reject(new Error(`Failed to decode image for ${nodeId}`));
-        img.src = dataUrl;
-      });
-      const jobs = nodes
-        .filter(node => node.imageDataUrl)
-        .map(node => loadDataUrl(node.id, node.imageDataUrl));
-      const loaded = await Promise.allSettled(jobs);
-      for (const r of loaded) {
-        if (r.status === "fulfilled") {
-          imageByNodeId.set(r.value.nodeId, r.value.img);
-        }
+    async function refreshGraphs(selectedGraphId = null) {
+      const res = await fetch("/api/graphs");
+      if (!res.ok) {
+        throw new Error(`Failed to fetch graphs (${res.status})`);
       }
-    }
+      const data = await res.json();
+      const graphIds = Array.isArray(data.graphIds) ? data.graphIds : [];
 
-    function resizeCanvas() {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw();
-    }
-
-    function transformPoint(x, y) {
-      return { x: x * zoom + panX, y: y * zoom + panY };
+      graphSelect.innerHTML = "";
+      if (graphIds.length === 0) {
+        graphSelect.innerHTML = `<option value="">(No graphs found)</option>`;
+        return;
+      }
+      for (const id of graphIds) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        graphSelect.appendChild(opt);
+      }
+      if (selectedGraphId && graphIds.includes(selectedGraphId)) {
+        graphSelect.value = selectedGraphId;
+      }
     }
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
+    }
+
+    function transformPoint(x, y) {
+      return { x: x * zoom + panX, y: y * zoom + panY };
     }
 
     function setViewInstant(newZoom, newPanX, newPanY) {
@@ -162,42 +134,6 @@
       panX = mx - (mx - basePanX) * ratio;
       panY = my - (my - basePanY) * ratio;
       draw();
-    }
-
-    function touchDistance(t1, t2) {
-      const dx = t2.clientX - t1.clientX;
-      const dy = t2.clientY - t1.clientY;
-      return Math.hypot(dx, dy);
-    }
-
-    function touchMidpointOnCanvas(t1, t2) {
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: (t1.clientX + t2.clientX) / 2 - rect.left,
-        y: (t1.clientY + t2.clientY) / 2 - rect.top
-      };
-    }
-
-    function centerOnLeftmostNode() {
-      if (!layout || !layout.nodes || layout.nodes.length === 0) {
-        setViewInstant(1, 40, 40);
-        return;
-      }
-      const leftmost = layout.nodes.reduce((best, node) => {
-        if (!best) return node;
-        if (node.x < best.x) return node;
-        if (node.x === best.x && node.y < best.y) return node;
-        return best;
-      }, null);
-      if (!leftmost) {
-        setViewInstant(1, 40, 40);
-        return;
-      }
-      const viewport = canvas.getBoundingClientRect();
-      const initialZoom = 1;
-      const initialPanX = viewport.width / 2 - leftmost.x * initialZoom;
-      const initialPanY = viewport.height / 2 - leftmost.y * initialZoom;
-      setViewInstant(initialZoom, initialPanX, initialPanY);
     }
 
     function formatNodeLabel(nodeId) {
@@ -272,6 +208,28 @@
       return bestDistance <= 10 ? bestIndex : null;
     }
 
+    function centerOnLeftmostNode() {
+      if (!layout || !layout.nodes || layout.nodes.length === 0) {
+        setViewInstant(1, 40, 40);
+        return;
+      }
+      const leftmost = layout.nodes.reduce((best, node) => {
+        if (!best) return node;
+        if (node.x < best.x) return node;
+        if (node.x === best.x && node.y < best.y) return node;
+        return best;
+      }, null);
+      if (!leftmost) {
+        setViewInstant(1, 40, 40);
+        return;
+      }
+      const viewport = canvas.getBoundingClientRect();
+      const initialZoom = 1;
+      const initialPanX = viewport.width / 2 - leftmost.x * initialZoom;
+      const initialPanY = viewport.height / 2 - leftmost.y * initialZoom;
+      setViewInstant(initialZoom, initialPanX, initialPanY);
+    }
+
     function draw() {
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
@@ -303,15 +261,10 @@
         const x = center.x - w / 2;
         const y = center.y - h / 2;
 
-        const nodeImage = findNodeImage(node.id);
         ctx.fillStyle = "white";
         ctx.strokeStyle = "#cccccc";
         ctx.lineWidth = 1 * zoom;
-        if (nodeImage) {
-          ctx.drawImage(nodeImage, x, y, w, h);
-        } else {
-          ctx.fillRect(x, y, w, h);
-        }
+        ctx.fillRect(x, y, w, h);
         ctx.strokeRect(x, y, w, h);
 
         const labelText = formatNodeLabel(node.id);
@@ -336,59 +289,86 @@
       }
     }
 
-    renderButton.addEventListener("click", async () => {
-      const raw = jsonInput.value.trim();
-      if (!raw) {
-        setStatus("Please paste app-graph.json content.");
-        return;
-      }
-      try {
-        JSON.parse(raw);
-      } catch (e) {
-        setStatus("Invalid JSON: " + e.message);
-        return;
-      }
-      setStatus("Rendering...");
-      const res = await fetch("/api/layout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: raw
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        setStatus(`API error (${res.status}): ${body}`);
-        return;
-      }
-      layout = await res.json();
-      await hydrateInlineImages(layout.nodes);
-      hoveredEdgeIndex = null;
-      centerOnLeftmostNode();
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw();
-      setStatus(`Rendered ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
-    });
+    }
 
-    renderZipButton.addEventListener("click", async () => {
-      const archive = zipArchive.files?.[0];
+    async function uploadGraph() {
+      const archive = zipArchiveInput.files?.[0];
+      const graphName = graphNameInput.value.trim();
       if (!archive) {
-        setStatus("Please choose a ZIP archive first.");
+        setStatus("Select a ZIP archive first.");
         return;
       }
-      setStatus("Uploading ZIP and rendering...");
+      if (!graphName) {
+        setStatus("Provide a graph name first.");
+        return;
+      }
+
+      setStatus("Uploading graph...");
       const form = new FormData();
+      form.append("graphName", graphName);
       form.append("archive", archive);
-      const res = await fetch("/api/layout-zip", { method: "POST", body: form });
+      const res = await fetch("/api/upload-graph", { method: "POST", body: form });
+      const payloadText = await res.text();
+      if (!res.ok) {
+        setStatus(`Upload failed (${res.status}): ${payloadText}`);
+        return;
+      }
+      const payload = JSON.parse(payloadText);
+      await refreshGraphs(payload.graphId);
+      setStatus(`Uploaded graphId: ${escapeHtml(payload.graphId)}`);
+    }
+
+    async function renderSelectedGraph() {
+      const graphId = graphSelect.value;
+      if (!graphId) {
+        setStatus("Select a graph first.");
+        return;
+      }
+      setStatus(`Rendering ${graphId}...`);
+      const res = await fetch(`/api/layout/${encodeURIComponent(graphId)}`);
       if (!res.ok) {
         const body = await res.text();
-        setStatus(`ZIP API error (${res.status}): ${body}`);
+        setStatus(`Layout failed (${res.status}): ${body}`);
         return;
       }
       layout = await res.json();
-      await hydrateInlineImages(layout.nodes);
       hoveredEdgeIndex = null;
       centerOnLeftmostNode();
       draw();
-      setStatus(`Rendered ZIP: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
-    });
+      setStatus(`Rendered ${graphId}: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
+    }
+
+    async function deleteSelectedGraph() {
+      const graphId = graphSelect.value;
+      if (!graphId) {
+        setStatus("Select a graph first.");
+        return;
+      }
+      if (!window.confirm(`Delete graph '${graphId}'?`)) return;
+      setStatus(`Deleting ${graphId}...`);
+      const res = await fetch(`/api/graph/${encodeURIComponent(graphId)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.text();
+        setStatus(`Delete failed (${res.status}): ${body}`);
+        return;
+      }
+      await refreshGraphs();
+      layout = null;
+      draw();
+      setStatus(`Deleted ${graphId}.`);
+    }
+
+    uploadButton.addEventListener("click", () => uploadGraph().catch(e => setStatus(e.message)));
+    refreshButton.addEventListener("click", () => refreshGraphs().then(() => setStatus("Graph list refreshed.")).catch(e => setStatus(e.message)));
+    renderButton.addEventListener("click", () => renderSelectedGraph().catch(e => setStatus(e.message)));
+    deleteButton.addEventListener("click", () => deleteSelectedGraph().catch(e => setStatus(e.message)));
 
     canvas.addEventListener("wheel", (e) => {
       if (!layout) return;
@@ -406,10 +386,12 @@
       lastY = e.clientY;
       canvas.classList.add("dragging");
     });
+
     window.addEventListener("mouseup", () => {
       dragging = false;
       canvas.classList.remove("dragging");
     });
+
     window.addEventListener("mousemove", (e) => {
       if (!dragging) return;
       const dx = e.clientX - lastX;
@@ -439,42 +421,9 @@
       }
     });
 
-    canvas.addEventListener("touchstart", (e) => {
-      if (!layout) return;
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        pinchStartDistance = touchDistance(e.touches[0], e.touches[1]);
-        pinchStartZoom = zoom;
-        pinchStartPanX = panX;
-        pinchStartPanY = panY;
-      }
-    }, { passive: false });
-
-    canvas.addEventListener("touchmove", (e) => {
-      if (!layout) return;
-      if (e.touches.length === 2 && pinchStartDistance) {
-        e.preventDefault();
-        const currentDistance = touchDistance(e.touches[0], e.touches[1]);
-        const rawScale = currentDistance / pinchStartDistance;
-        const smoothedScale = Math.pow(rawScale, PINCH_ZOOM_DAMPING);
-        const midpoint = touchMidpointOnCanvas(e.touches[0], e.touches[1]);
-        applyZoomAtPoint(
-          pinchStartZoom * smoothedScale,
-          midpoint.x,
-          midpoint.y,
-          pinchStartZoom,
-          pinchStartPanX,
-          pinchStartPanY
-        );
-      }
-    }, { passive: false });
-
-    canvas.addEventListener("touchend", () => {
-      pinchStartDistance = null;
-    });
-
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
+    refreshGraphs().then(() => setStatus("Ready.")).catch(e => setStatus(e.message));
   </script>
 </body>
 </html>
