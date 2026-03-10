@@ -5,6 +5,7 @@ import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.serialization.kotlinx.json.json
@@ -18,6 +19,7 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -149,6 +151,20 @@ fun Application.module() {
                     return@post
                 }
 
+                val layout = runCatching {
+                    buildLayoutGraph(appGraph, projectPath = tempDir.toString(), scale = 0.5f)
+                }.getOrElse { e ->
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        ErrorResponse("Failed to build layout", e.message ?: "unknown")
+                    )
+                    return@post
+                }
+
+                val layoutJson = json.encodeToString(LayoutResponse.serializer(), layout.toResponse())
+                val layoutFile = tempDir.resolve("layout.json").toFile()
+                layoutFile.writeText(layoutJson)
+
                 runCatching { storage.uploadDirectory(graphId, tempDir) }.getOrElse { e ->
                     call.respond(
                         HttpStatusCode.InternalServerError,
@@ -183,8 +199,19 @@ fun Application.module() {
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid graphId path parameter"))
                 return@get
             }
+            val existingLayoutJson = runCatching { storage.loadLayoutJson(graphId) }.getOrElse { e ->
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    ErrorResponse("Failed to read layout.json", e.message ?: "unknown")
+                )
+                return@get
+            }
+            if (existingLayoutJson != null) {
+                call.respondText(existingLayoutJson, ContentType.Application.Json)
+                return@get
+            }
 
-            val tempDir = Files.createTempDirectory("appflower-layout-")
+            val tempDir = Files.createTempDirectory("appflower-layout-backfill-")
             try {
                 val downloaded = runCatching { storage.downloadGraphToDirectory(graphId, tempDir) }.getOrElse { e ->
                     call.respond(
@@ -193,7 +220,6 @@ fun Application.module() {
                     )
                     return@get
                 }
-
                 if (!downloaded) {
                     call.respond(HttpStatusCode.NotFound, ErrorResponse("Graph '$graphId' not found"))
                     return@get
@@ -215,7 +241,6 @@ fun Application.module() {
                     )
                     return@get
                 }
-
                 val layout = runCatching {
                     buildLayoutGraph(appGraph, projectPath = tempDir.toString(), scale = 0.5f)
                 }.getOrElse { e ->
@@ -225,7 +250,16 @@ fun Application.module() {
                     )
                     return@get
                 }
-                call.respond(layout.toResponse())
+
+                val generatedLayoutJson = json.encodeToString(LayoutResponse.serializer(), layout.toResponse())
+                runCatching { storage.saveLayoutJson(graphId, generatedLayoutJson) }.getOrElse { e ->
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        ErrorResponse("Failed to store generated layout.json", e.message ?: "unknown")
+                    )
+                    return@get
+                }
+                call.respondText(generatedLayoutJson, ContentType.Application.Json)
             } finally {
                 tempDir.toFile().deleteRecursively()
             }

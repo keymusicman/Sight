@@ -52,6 +52,18 @@ class GraphStorageService(
         return String(blob.getContent())
     }
 
+    fun loadLayoutJson(graphId: String): String? {
+        val blob = storage.get(BlobId.of(bucketName, layoutJsonObjectName(graphId))) ?: return null
+        return String(blob.getContent())
+    }
+
+    fun saveLayoutJson(graphId: String, layoutJson: String) {
+        val blobInfo = BlobInfo.newBuilder(bucketName, layoutJsonObjectName(graphId))
+            .setContentType("application/json")
+            .build()
+        storage.create(blobInfo, layoutJson.toByteArray())
+    }
+
     fun uploadDirectory(graphId: String, sourceDir: Path) {
         Files.walk(sourceDir).use { paths ->
             paths.asSequence()
@@ -96,4 +108,6 @@ class GraphStorageService(
     }
 
     private fun graphJsonObjectName(graphId: String): String = "$rootPrefix/$graphId/app-graph.json"
+
+    private fun layoutJsonObjectName(graphId: String): String = "$rootPrefix/$graphId/layout.json"
 }
