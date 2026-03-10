@@ -16,6 +16,53 @@
     .status { margin-top: 10px; font-size: 13px; opacity: 0.9; white-space: pre-wrap; }
     canvas { width: 100%; height: 100%; display: block; background: #f5f5f5; cursor: grab; }
     canvas.dragging { cursor: grabbing; }
+    .modal.hidden { display: none; }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 20;
+    }
+    .modal-content {
+      width: min(900px, 92vw);
+      max-height: 86vh;
+      overflow: auto;
+      background: #fff;
+      color: #111;
+      border-radius: 10px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+      padding: 14px;
+    }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .modal-header h2 { margin: 0; font-size: 18px; }
+    .close-btn { width: auto; padding: 6px 10px; font-size: 18px; line-height: 1; }
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .state-item {
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fafafa;
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+    }
+    .state-item.selected { border-color: #2196f3; box-shadow: 0 0 0 2px rgba(33,150,243,0.2) inset; }
+    .state-thumb {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      display: block;
+      background: #eee;
+      object-fit: cover;
+    }
+    .state-meta { padding: 8px; font-size: 12px; color: #333; }
   </style>
 </head>
 <body>
@@ -56,6 +103,15 @@
   </div>
 
   <canvas id="graphCanvas"></canvas>
+  <div id="statePickerModal" class="modal hidden" aria-modal="true" role="dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="statePickerTitle">Select image state</h2>
+        <button id="statePickerClose" class="close-btn" title="Close">×</button>
+      </div>
+      <div id="statePickerGrid" class="state-grid"></div>
+    </div>
+  </div>
 
   <script>
     const graphNameInput = document.getElementById("graphName");
@@ -68,6 +124,10 @@
     const statusBox = document.getElementById("status");
     const canvas = document.getElementById("graphCanvas");
     const ctx = canvas.getContext("2d");
+    const statePickerModal = document.getElementById("statePickerModal");
+    const statePickerTitle = document.getElementById("statePickerTitle");
+    const statePickerGrid = document.getElementById("statePickerGrid");
+    const statePickerClose = document.getElementById("statePickerClose");
 
     let layout = null;
     let zoom = 1;
@@ -76,7 +136,9 @@
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
+    let dragMoved = false;
     let hoveredEdgeIndex = null;
+    const imageCache = new Map();
     const ZOOM_MIN = 0.1;
     const ZOOM_MAX = 3;
     const WHEEL_ZOOM_INTENSITY = 0.0018;
@@ -230,6 +292,134 @@
       setViewInstant(initialZoom, initialPanX, initialPanY);
     }
 
+    function getNodeImagePaths(node) {
+      return Array.isArray(node.imagePaths) ? node.imagePaths : [];
+    }
+
+    function normalizeSelectedState(node) {
+      const imagePaths = getNodeImagePaths(node);
+      const raw = Number.isInteger(node.selectedState) ? node.selectedState : 0;
+      if (imagePaths.length === 0) return 0;
+      return clamp(raw, 0, imagePaths.length - 1);
+    }
+
+    function getSelectedImagePath(node) {
+      const imagePaths = getNodeImagePaths(node);
+      if (imagePaths.length === 0) return null;
+      const selectedState = normalizeSelectedState(node);
+      return imagePaths[selectedState] || imagePaths[0] || null;
+    }
+
+    function loadImage(path) {
+      if (!path) return null;
+      const cached = imageCache.get(path);
+      if (cached) return cached;
+      const image = new Image();
+      const entry = { status: "loading", image };
+      imageCache.set(path, entry);
+      image.onload = () => {
+        entry.status = "loaded";
+        draw();
+      };
+      image.onerror = () => {
+        entry.status = "failed";
+        draw();
+      };
+      image.src = path;
+      return entry;
+    }
+
+    function drawImagePlaceholder(x, y, w, h, text) {
+      ctx.fillStyle = "#efefef";
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#8b8b8b";
+      const fontSize = clamp(12 * Math.sqrt(zoom), 7, 20);
+      ctx.font = `${fontSize}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x + w / 2, y + h / 2);
+      ctx.textAlign = "start";
+      ctx.textBaseline = "alphabetic";
+    }
+
+    function drawNodeImage(node, x, y, w, h) {
+      const selectedPath = getSelectedImagePath(node);
+      if (!selectedPath) {
+        drawImagePlaceholder(x, y, w, h, "No image");
+        return;
+      }
+      const entry = loadImage(selectedPath);
+      if (entry && entry.status === "loaded") {
+        ctx.drawImage(entry.image, x, y, w, h);
+        return;
+      }
+      if (entry && entry.status === "failed") {
+        drawImagePlaceholder(x, y, w, h, "Image unavailable");
+        return;
+      }
+      drawImagePlaceholder(x, y, w, h, "Loading...");
+    }
+
+    function findNodeAt(pointerX, pointerY) {
+      if (!layout || !Array.isArray(layout.nodes)) return null;
+      for (let i = layout.nodes.length - 1; i >= 0; i--) {
+        const node = layout.nodes[i];
+        const center = transformPoint(node.x, node.y);
+        const w = node.width * zoom;
+        const h = node.height * zoom;
+        const x = center.x - w / 2;
+        const y = center.y - h / 2;
+        if (pointerX >= x && pointerX <= x + w && pointerY >= y && pointerY <= y + h) {
+          return node;
+        }
+      }
+      return null;
+    }
+
+    function closeStatePicker() {
+      statePickerGrid.innerHTML = "";
+      statePickerModal.classList.add("hidden");
+    }
+
+    function renderStatePicker(node) {
+      const imagePaths = getNodeImagePaths(node);
+      const selectedState = normalizeSelectedState(node);
+      statePickerTitle.textContent = `Select state for ${formatNodeLabel(node.id)}`;
+      statePickerGrid.innerHTML = "";
+
+      imagePaths.forEach((path, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `state-item${index === selectedState ? " selected" : ""}`;
+        button.addEventListener("click", () => {
+          node.selectedState = index;
+          draw();
+          closeStatePicker();
+          setStatus(`Selected state ${index + 1}/${imagePaths.length} for ${formatNodeLabel(node.id)}.`);
+        });
+
+        const img = document.createElement("img");
+        img.className = "state-thumb";
+        img.alt = `State ${index + 1}`;
+        img.src = path;
+        button.appendChild(img);
+
+        const meta = document.createElement("div");
+        meta.className = "state-meta";
+        meta.textContent = `State ${index + 1}`;
+        button.appendChild(meta);
+
+        statePickerGrid.appendChild(button);
+      });
+    }
+
+    function openStatePicker(node) {
+      const imagePaths = getNodeImagePaths(node);
+      if (imagePaths.length <= 1) return;
+      renderStatePicker(node);
+      statePickerModal.classList.remove("hidden");
+    }
+
     function draw() {
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
@@ -261,10 +451,11 @@
         const x = center.x - w / 2;
         const y = center.y - h / 2;
 
-        ctx.fillStyle = "white";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(x, y, w, h);
+        drawNodeImage(node, x, y, w, h);
         ctx.strokeStyle = "#cccccc";
         ctx.lineWidth = 1 * zoom;
-        ctx.fillRect(x, y, w, h);
         ctx.strokeRect(x, y, w, h);
 
         const labelText = formatNodeLabel(node.id);
@@ -339,7 +530,13 @@
         return;
       }
       layout = await res.json();
+      layout.nodes = Array.isArray(layout.nodes) ? layout.nodes.map(node => ({
+        ...node,
+        imagePaths: Array.isArray(node.imagePaths) ? node.imagePaths : [],
+        selectedState: Number.isInteger(node.selectedState) ? node.selectedState : 0
+      })) : [];
       hoveredEdgeIndex = null;
+      closeStatePicker();
       centerOnLeftmostNode();
       draw();
       setStatus(`Rendered ${graphId}: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
@@ -361,6 +558,7 @@
       }
       await refreshGraphs();
       layout = null;
+      closeStatePicker();
       draw();
       setStatus(`Deleted ${graphId}.`);
     }
@@ -382,6 +580,7 @@
 
     canvas.addEventListener("mousedown", (e) => {
       dragging = true;
+      dragMoved = false;
       lastX = e.clientX;
       lastY = e.clientY;
       canvas.classList.add("dragging");
@@ -396,10 +595,23 @@
       if (!dragging) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        dragMoved = true;
+      }
       setViewInstant(zoom, panX + dx, panY + dy);
       lastX = e.clientX;
       lastY = e.clientY;
       draw();
+    });
+
+    canvas.addEventListener("click", (e) => {
+      if (!layout || dragMoved) return;
+      const rect = canvas.getBoundingClientRect();
+      const pointerX = e.clientX - rect.left;
+      const pointerY = e.clientY - rect.top;
+      const node = findNodeAt(pointerX, pointerY);
+      if (!node) return;
+      openStatePicker(node);
     });
 
     canvas.addEventListener("mousemove", (e) => {
@@ -418,6 +630,13 @@
       if (hoveredEdgeIndex !== null) {
         hoveredEdgeIndex = null;
         draw();
+      }
+    });
+
+    statePickerClose.addEventListener("click", closeStatePicker);
+    statePickerModal.addEventListener("click", (event) => {
+      if (event.target === statePickerModal) {
+        closeStatePicker();
       }
     });
 

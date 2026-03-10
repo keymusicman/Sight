@@ -335,7 +335,8 @@ private data class LayoutNodeResponse(
     val y: Float,
     val width: Float,
     val height: Float,
-    val imagePaths: List<String>
+    val imagePaths: List<String>,
+    val selectedState: Int
 )
 
 @Serializable
@@ -415,7 +416,8 @@ private fun LayoutGraph.toResponse(graphId: String, extractionRoot: Path?, stora
                             extractionRoot = extractionRoot,
                             storage = storage
                         )
-                    }
+                    },
+                    selectedState = node.selectedState
                 )
             },
         edges = edges.map { edge ->
