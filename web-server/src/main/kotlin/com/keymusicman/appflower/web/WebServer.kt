@@ -28,6 +28,7 @@ import io.ktor.utils.io.core.readAvailable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.BufferedInputStream
+import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -152,7 +153,11 @@ fun Application.module() {
                 }
 
                 val layout = runCatching {
-                    buildLayoutGraph(appGraph, projectPath = tempDir.toString(), scale = 0.5f)
+                    buildLayoutGraph(
+                        appGraph = appGraph,
+                        projectPath = Path.of(tempDir.toString(), "screenshots").toString(),
+                        scale = 0.5f,
+                    )
                 }.getOrElse { e ->
                     call.respond(
                         HttpStatusCode.InternalServerError,
@@ -242,7 +247,11 @@ fun Application.module() {
                     return@get
                 }
                 val layout = runCatching {
-                    buildLayoutGraph(appGraph, projectPath = tempDir.toString(), scale = 0.5f)
+                    buildLayoutGraph(
+                        appGraph = appGraph,
+                        projectPath = Path.of(tempDir.toString(), "screenshots").toString(),
+                        scale = 0.5f,
+                    )
                 }.getOrElse { e ->
                     call.respond(
                         HttpStatusCode.InternalServerError,
