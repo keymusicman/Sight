@@ -15,7 +15,11 @@ import kotlin.streams.asSequence
 class GraphStorageService(
     private val storage: Storage = StorageOptions.getDefaultInstance().service,
     private val bucketName: String = System.getenv("GCS_BUCKET") ?: "your-gcs-bucket",
-    private val rootPrefix: String = "app-graph"
+    private val rootPrefix: String = "app-graph",
+    private val publicBaseUrl: String = (
+        System.getenv("GRAPH_CDN_BASE_URL")?.trim()?.trimEnd('/')
+            ?: "https://storage.googleapis.com/$bucketName/$rootPrefix"
+        )
 ) {
     fun normalizeGraphId(graphName: String): String {
         val normalized = graphName
@@ -62,6 +66,11 @@ class GraphStorageService(
             .setContentType("application/json")
             .build()
         storage.create(blobInfo, layoutJson.toByteArray())
+    }
+
+    fun buildPublicAssetUrl(graphId: String, relativePath: String): String {
+        val normalizedPath = relativePath.trim().trimStart('/').replace('\\', '/')
+        return "$publicBaseUrl/$graphId/$normalizedPath"
     }
 
     fun uploadDirectory(graphId: String, sourceDir: Path) {

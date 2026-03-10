@@ -32,6 +32,7 @@ import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.io.path.invariantSeparatorsPathString
 import java.util.zip.ZipInputStream
 
 fun main() {
@@ -166,7 +167,10 @@ fun Application.module() {
                     return@post
                 }
 
-                val layoutJson = json.encodeToString(LayoutResponse.serializer(), layout.toResponse())
+                val layoutJson = json.encodeToString(
+                    LayoutResponse.serializer(),
+                    layout.toResponse(graphId = graphId, extractionRoot = tempDir, storage = storage)
+                )
                 val layoutFile = tempDir.resolve("layout.json").toFile()
                 layoutFile.writeText(layoutJson)
 
@@ -260,7 +264,10 @@ fun Application.module() {
                     return@get
                 }
 
-                val generatedLayoutJson = json.encodeToString(LayoutResponse.serializer(), layout.toResponse())
+                val generatedLayoutJson = json.encodeToString(
+                    LayoutResponse.serializer(),
+                    layout.toResponse(graphId = graphId, extractionRoot = tempDir, storage = storage)
+                )
                 runCatching { storage.saveLayoutJson(graphId, generatedLayoutJson) }.getOrElse { e ->
                     call.respond(
                         HttpStatusCode.InternalServerError,
@@ -391,7 +398,7 @@ private fun extractZipToDirectory(input: InputStream, destinationDir: Path): Zip
 
 private fun isValidGraphId(graphId: String): Boolean = graphId.matches(Regex("^[a-z0-9]+(?:-[a-z0-9]+)*$"))
 
-private fun LayoutGraph.toResponse(): LayoutResponse =
+private fun LayoutGraph.toResponse(graphId: String, extractionRoot: Path?, storage: GraphStorageService): LayoutResponse =
     LayoutResponse(
         nodes = nodes.values
             .sortedWith(compareBy({ it.x }, { it.y }, { it.id }))
@@ -402,7 +409,13 @@ private fun LayoutGraph.toResponse(): LayoutResponse =
                     y = node.y,
                     width = node.width,
                     height = node.height,
-                    imagePaths = node.imagePaths
+                    imagePaths = node.imagePaths.map { path ->
+                        path.toPublicImagePathOrKeep(
+                            graphId = graphId,
+                            extractionRoot = extractionRoot,
+                            storage = storage
+                        )
+                    }
                 )
             },
         edges = edges.map { edge ->
@@ -413,3 +426,37 @@ private fun LayoutGraph.toResponse(): LayoutResponse =
             )
         }
     )
+
+private fun String.toPublicImagePathOrKeep(
+    graphId: String,
+    extractionRoot: Path?,
+    storage: GraphStorageService
+): String {
+    val normalized = trim().replace('\\', '/')
+    if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+        return normalized
+    }
+
+    val relative = when {
+        normalized.startsWith("screenshots/") -> normalized
+        normalized.contains("/screenshots/") -> "screenshots/${normalized.substringAfter("/screenshots/")}"
+        !normalized.startsWith("/") && !normalized.contains(":/") -> "screenshots/${normalized.trimStart('/')}"
+        extractionRoot != null -> {
+            runCatching {
+                val absolutePath = Path.of(normalized).normalize()
+                val root = extractionRoot.normalize()
+                if (absolutePath.startsWith(root)) {
+                    root.relativize(absolutePath).invariantSeparatorsPathString
+                } else {
+                    null
+                }
+            }.getOrNull()
+        }
+        else -> null
+    } ?: return storage.buildPublicAssetUrl(
+        graphId = graphId,
+        relativePath = "screenshots/${File(normalized).name}"
+    )
+
+    return storage.buildPublicAssetUrl(graphId, relative)
+}
