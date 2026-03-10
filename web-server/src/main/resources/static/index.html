@@ -57,10 +57,11 @@
     .state-item.selected { border-color: #2196f3; box-shadow: 0 0 0 2px rgba(33,150,243,0.2) inset; }
     .state-thumb {
       width: 100%;
-      aspect-ratio: 4 / 3;
+      height: 180px;
       display: block;
       background: #eee;
-      object-fit: cover;
+      object-fit: contain;
+      object-position: center;
     }
     .state-meta { padding: 8px; font-size: 12px; color: #333; }
   </style>
@@ -138,7 +139,17 @@
     let lastY = 0;
     let dragMoved = false;
     let hoveredEdgeIndex = null;
+    let hoveredNodeId = null;
+    let hoveredIconNodeId = null;
     const imageCache = new Map();
+    let modalLastClickAt = 0;
+    const stateIconImage = new Image();
+    let stateIconLoaded = false;
+    stateIconImage.onload = () => {
+      stateIconLoaded = true;
+      draw();
+    };
+    stateIconImage.src = "/img_states_24.png";
     const ZOOM_MIN = 0.1;
     const ZOOM_MAX = 3;
     const WHEEL_ZOOM_INTENSITY = 0.0018;
@@ -376,9 +387,46 @@
       return null;
     }
 
+    function getStateIconRect(node) {
+      const center = transformPoint(node.x, node.y);
+      const w = node.width * zoom;
+      const h = node.height * zoom;
+      const x = center.x - w / 2;
+      const y = center.y - h / 2;
+      const iconSize = clamp(24 * zoom, 24, 32);
+      const iconPadding = clamp(4 * zoom, 4, 8);
+      return {
+        x: x + w - iconSize - iconPadding,
+        y: y + iconPadding,
+        size: iconSize
+      };
+    }
+
+    function findHoveredIconNodeId(pointerX, pointerY, node) {
+      if (!node) return null;
+      const imagePaths = getNodeImagePaths(node);
+      if (imagePaths.length <= 1) return null;
+      const rect = getStateIconRect(node);
+      const insideX = pointerX >= rect.x && pointerX <= rect.x + rect.size;
+      const insideY = pointerY >= rect.y && pointerY <= rect.y + rect.size;
+      return insideX && insideY ? node.id : null;
+    }
+
+    function drawStateIcon(node) {
+      if (!stateIconLoaded) return;
+      const imagePaths = getNodeImagePaths(node);
+      if (imagePaths.length <= 1 || hoveredNodeId !== node.id) return;
+      const rect = getStateIconRect(node);
+      ctx.save();
+      ctx.globalAlpha = hoveredIconNodeId === node.id ? 0.9 : 0.5;
+      ctx.drawImage(stateIconImage, rect.x, rect.y, rect.size, rect.size);
+      ctx.restore();
+    }
+
     function closeStatePicker() {
       statePickerGrid.innerHTML = "";
       statePickerModal.classList.add("hidden");
+      modalLastClickAt = 0;
     }
 
     function renderStatePicker(node) {
@@ -394,7 +442,7 @@
         button.addEventListener("click", () => {
           node.selectedState = index;
           draw();
-          closeStatePicker();
+          renderStatePicker(node);
           setStatus(`Selected state ${index + 1}/${imagePaths.length} for ${formatNodeLabel(node.id)}.`);
         });
 
@@ -417,6 +465,7 @@
       const imagePaths = getNodeImagePaths(node);
       if (imagePaths.length <= 1) return;
       renderStatePicker(node);
+      modalLastClickAt = 0;
       statePickerModal.classList.remove("hidden");
     }
 
@@ -457,6 +506,7 @@
         ctx.strokeStyle = "#cccccc";
         ctx.lineWidth = 1 * zoom;
         ctx.strokeRect(x, y, w, h);
+        drawStateIcon(node);
 
         const labelText = formatNodeLabel(node.id);
         const labelFontSize = clamp(20 * Math.sqrt(zoom), 6, 40);
@@ -536,6 +586,8 @@
         selectedState: Number.isInteger(node.selectedState) ? node.selectedState : 0
       })) : [];
       hoveredEdgeIndex = null;
+      hoveredNodeId = null;
+      hoveredIconNodeId = null;
       closeStatePicker();
       centerOnLeftmostNode();
       draw();
@@ -558,6 +610,9 @@
       }
       await refreshGraphs();
       layout = null;
+      hoveredEdgeIndex = null;
+      hoveredNodeId = null;
+      hoveredIconNodeId = null;
       closeStatePicker();
       draw();
       setStatus(`Deleted ${graphId}.`);
@@ -611,6 +666,11 @@
       const pointerY = e.clientY - rect.top;
       const node = findNodeAt(pointerX, pointerY);
       if (!node) return;
+      const hoveredIconNode = findHoveredIconNodeId(pointerX, pointerY, node);
+      if (hoveredIconNode === node.id) {
+        openStatePicker(node);
+        return;
+      }
       openStatePicker(node);
     });
 
@@ -619,23 +679,47 @@
       const rect = canvas.getBoundingClientRect();
       const pointerX = e.clientX - rect.left;
       const pointerY = e.clientY - rect.top;
+      const hoveredNode = findNodeAt(pointerX, pointerY);
+      const nextHoveredNodeId = hoveredNode ? hoveredNode.id : null;
+      const nextHoveredIconNodeId = findHoveredIconNodeId(pointerX, pointerY, hoveredNode);
       const nextHovered = findHoveredEdgeIndex(pointerX, pointerY);
-      if (nextHovered !== hoveredEdgeIndex) {
+      if (
+        nextHovered !== hoveredEdgeIndex ||
+        nextHoveredNodeId !== hoveredNodeId ||
+        nextHoveredIconNodeId !== hoveredIconNodeId
+      ) {
         hoveredEdgeIndex = nextHovered;
+        hoveredNodeId = nextHoveredNodeId;
+        hoveredIconNodeId = nextHoveredIconNodeId;
         draw();
       }
     });
 
     canvas.addEventListener("mouseleave", () => {
-      if (hoveredEdgeIndex !== null) {
+      if (hoveredEdgeIndex !== null || hoveredNodeId !== null || hoveredIconNodeId !== null) {
         hoveredEdgeIndex = null;
+        hoveredNodeId = null;
+        hoveredIconNodeId = null;
         draw();
       }
     });
 
     statePickerClose.addEventListener("click", closeStatePicker);
+    window.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (statePickerModal.classList.contains("hidden")) return;
+      event.preventDefault();
+      closeStatePicker();
+    });
     statePickerModal.addEventListener("click", (event) => {
       if (event.target === statePickerModal) {
+        closeStatePicker();
+        return;
+      }
+      const now = Date.now();
+      const isSecondClick = modalLastClickAt > 0 && (now - modalLastClickAt) <= 300;
+      modalLastClickAt = now;
+      if (isSecondClick) {
         closeStatePicker();
       }
     });
