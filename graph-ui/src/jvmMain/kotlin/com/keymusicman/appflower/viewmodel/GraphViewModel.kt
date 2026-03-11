@@ -24,6 +24,7 @@ class GraphViewModel {
         CoroutineScope(Dispatchers.IO + SupervisorJob() + CoroutineName("GraphViewModel"))
 
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
+    val appGraphState: MutableState<AppGraph?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
     private val selectedStateByNodeId: MutableState<Map<String, Int>> = mutableStateOf(emptyMap())
@@ -63,7 +64,17 @@ class GraphViewModel {
         zoomState.value = clamped
     }
 
+    fun panToNode(nodeId: String) {
+        val node = layoutGraphState.value?.nodes?.get(nodeId) ?: return
+        val zoom = zoomState.value
+        panState.value = Offset(
+            viewportWidth / 2f - node.x * zoom,
+            viewportHeight / 2f - node.y * zoom
+        )
+    }
+
     fun buildFromAppGraphV2(appGraph: AppGraph, projectPath: String? = null) {
+        appGraphState.value = appGraph
         scope.launch {
             val startedAtNanos = System.nanoTime()
             val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)

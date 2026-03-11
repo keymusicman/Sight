@@ -8,7 +8,7 @@ import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMo
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.keymusicman.appflower.loader.GraphLoader
-import com.keymusicman.appflower.ui.GraphVisualizer
+import com.keymusicman.appflower.ui.GraphPanel
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import org.jetbrains.plugins.gradle.util.GradleConstants
 import java.awt.BorderLayout
@@ -42,13 +42,10 @@ class ModuleGraphPanel(
     private val statusLabel = JLabel()
     private val viewModel = GraphViewModel()
 
-    /** Compose panel hosting GraphVisualizer; created once and reused across refreshes. */
+    /** Compose panel hosting GraphPanel; created once and reused across refreshes. */
     private val composePanel = ComposePanel().apply {
         setContent {
-            GraphVisualizer(
-                appBasePath = moduleInfo.modulePath,
-                viewModel = viewModel
-            )
+            GraphPanel(viewModel = viewModel)
         }
     }
 

@@ -851,7 +851,7 @@ private fun distanceToSegment(p: Offset, a: Offset, b: Offset): Float {
         .toFloat()
 }
 
-private fun formatNodeLabel(nodeId: String): String {
+internal fun formatNodeLabel(nodeId: String): String {
     val leaf = (nodeId.substringAfterLast(':', nodeId))
         .replace(
             Regex("(Screen|Route|Fragment|Activity|Destination)$", RegexOption.IGNORE_CASE),
