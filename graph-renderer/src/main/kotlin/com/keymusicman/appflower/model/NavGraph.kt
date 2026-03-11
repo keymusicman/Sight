@@ -112,6 +112,12 @@ data class LayoutGraph(
     val edges: List<LayoutEdge>
 )
 
+fun LayoutGraph.filterToView(nodeIds: Set<String>): LayoutGraph {
+    val filteredNodes = nodes.filterKeys { it in nodeIds }
+    val filteredEdges = edges.filter { it.from in nodeIds && it.to in nodeIds }
+    return LayoutGraph(filteredNodes, filteredEdges)
+}
+
 // Backward compatibility: keep old function signature for now
 suspend fun buildLayoutGraph(
     appGraph: AppGraph,

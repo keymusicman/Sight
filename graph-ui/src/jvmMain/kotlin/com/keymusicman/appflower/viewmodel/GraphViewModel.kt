@@ -7,11 +7,15 @@ import co.touchlab.kermit.Logger
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
+import com.keymusicman.appflower.model.filterToView
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 /**
  * View model to construct and expose the LayoutGraph for the UI.
@@ -31,6 +35,19 @@ class GraphViewModel {
     val statePickerNodeId: MutableState<String?> = mutableStateOf(null)
     var viewportWidth: Float = 0f
     var viewportHeight: Float = 0f
+
+    val selectedNodeIds: MutableState<Set<String>> = mutableStateOf(emptySet())
+    val views: MutableState<List<GraphView>> = mutableStateOf(emptyList())
+    val activeViewId: MutableState<String?> = mutableStateOf(null)
+    private var currentProjectPath: String? = null
+
+    val activeDisplayGraph: LayoutGraph?
+        get() {
+            val full = layoutGraphState.value ?: return null
+            val viewId = activeViewId.value ?: return full
+            val view = views.value.find { it.id == viewId } ?: return full
+            return full.filterToView(view.nodeIds)
+        }
 
     companion object {
         const val ZOOM_MIN = 0.1f
@@ -74,7 +91,12 @@ class GraphViewModel {
     }
 
     fun buildFromAppGraphV2(appGraph: AppGraph, projectPath: String? = null) {
+        currentProjectPath = projectPath
         appGraphState.value = appGraph
+        views.value = emptyList()
+        activeViewId.value = null
+        selectedNodeIds.value = emptySet()
+        if (projectPath != null) loadViews(projectPath)
         scope.launch {
             val startedAtNanos = System.nanoTime()
             val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
@@ -85,6 +107,81 @@ class GraphViewModel {
             val elapsedMilliseconds = (System.nanoTime() - startedAtNanos) / 1_000_000
 
             Logger.d { "Graph layout completed in $elapsedMilliseconds ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges" }
+        }
+    }
+
+    fun toggleNodeSelection(nodeId: String) {
+        val current = selectedNodeIds.value
+        selectedNodeIds.value = if (nodeId in current) current - nodeId else current + nodeId
+    }
+
+    fun clearSelection() {
+        selectedNodeIds.value = emptySet()
+    }
+
+    fun createView(name: String) {
+        val nodeIds = selectedNodeIds.value
+        if (nodeIds.isEmpty()) return
+        val view = GraphView(name = name, nodeIds = nodeIds)
+        views.value = views.value + view
+        activeViewId.value = view.id
+        selectedNodeIds.value = emptySet()
+        saveViews()
+    }
+
+    fun createPathView(name: String) {
+        val selected = selectedNodeIds.value.toList()
+        if (selected.size != 2) return
+        val edges = layoutGraphState.value?.edges ?: return
+        val pathNodes = GraphPathFinder.findPathNodes(selected[0], selected[1], edges)
+        val view = GraphView(name = name, nodeIds = pathNodes)
+        views.value = views.value + view
+        activeViewId.value = view.id
+        selectedNodeIds.value = emptySet()
+        saveViews()
+    }
+
+    fun createSubgraphView(subgraphKey: String) {
+        val layoutGraph = layoutGraphState.value ?: return
+        val nodeIds = layoutGraph.nodes.keys.filter { it.startsWith("$subgraphKey:") }.toSet()
+        if (nodeIds.isEmpty()) return
+        val view = GraphView(name = subgraphKey, nodeIds = nodeIds)
+        views.value = views.value + view
+        activeViewId.value = view.id
+        saveViews()
+    }
+
+    fun activateView(id: String?) {
+        activeViewId.value = id
+        selectedNodeIds.value = emptySet()
+    }
+
+    fun deleteView(id: String) {
+        views.value = views.value.filter { it.id != id }
+        if (activeViewId.value == id) activeViewId.value = null
+        saveViews()
+    }
+
+    private fun viewsFile(projectPath: String) =
+        java.io.File(projectPath, ".appflower/views.json")
+
+    private fun saveViews() {
+        val path = currentProjectPath ?: return
+        scope.launch {
+            val json = Json.encodeToString(views.value)
+            val file = viewsFile(path)
+            file.parentFile?.mkdirs()
+            file.writeText(json)
+        }
+    }
+
+    private fun loadViews(projectPath: String) {
+        val file = viewsFile(projectPath)
+        if (!file.exists()) return
+        try {
+            views.value = Json.decodeFromString(file.readText())
+        } catch (e: Exception) {
+            Logger.w { "Failed to load views: ${e.message}" }
         }
     }
 

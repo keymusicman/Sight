@@ -6,9 +6,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -56,6 +59,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -99,7 +103,7 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     viewModel: GraphViewModel,
 ) {
-    val layoutGraph by viewModel.layoutGraphState
+    val layoutGraph = viewModel.activeDisplayGraph
 
     val colors = LocalAppColors.current
     BoxWithConstraints(
@@ -218,6 +222,9 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures { viewModel.clearSelection() }
+                        }
                         .onPointerEvent(PointerEventType.Move) { event ->
                             hoveredEdgeIndex = findHoveredEdgeIndex(
                                 layoutGraph = layoutGraph,
@@ -257,9 +264,14 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     val labelText = formatNodeLabel(ln.id)
                     val hasMultipleStates = imagePaths.size > 1
                     val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
+                    val isSelected = viewModel.selectedNodeIds.value.contains(ln.id)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .then(
+                                if (isSelected) Modifier.border(2.dp, colors.nodeSelected, RoundedCornerShape(4.dp))
+                                else Modifier
+                            )
                             .onPointerEvent(PointerEventType.Enter) {
                                 hoveredNodeId = ln.id
                             }
@@ -269,6 +281,16 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                 }
                                 if (hoveredIconNodeId == ln.id) {
                                     hoveredIconNodeId = null
+                                }
+                            }
+                            .pointerInput(ln.id) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    val isShift = currentEvent.keyboardModifiers.isShiftPressed
+                                    val up = waitForUpOrCancellation()
+                                    if (up != null && isShift) {
+                                        viewModel.toggleNodeSelection(ln.id)
+                                    }
                                 }
                             }
                     ) {
