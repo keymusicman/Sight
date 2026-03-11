@@ -19,6 +19,7 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -299,6 +300,13 @@ fun Application.module() {
                 return@delete
             }
             call.respond(mapOf("status" to "deleted", "graphId" to graphId))
+        }
+
+        get("/graph/{graphId}") {
+            val bytes = this::class.java.classLoader
+                .getResourceAsStream("static/index.html")
+                ?: return@get call.respond(HttpStatusCode.NotFound)
+            call.respondBytes(bytes.readBytes(), ContentType.Text.Html)
         }
 
         staticResources("/", "static")

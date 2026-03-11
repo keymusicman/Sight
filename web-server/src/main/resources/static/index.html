@@ -6,16 +6,27 @@
   <title>AppFlower Web Graph Viewer</title>
   <style>
     :root { color-scheme: light dark; }
-    body { margin: 0; font-family: system-ui, sans-serif; display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
-    .panel { padding: 16px; border-right: 1px solid #ccc; overflow: auto; }
-    .panel h1 { margin-top: 0; font-size: 18px; }
-    .field { margin-bottom: 12px; }
-    label { display: block; margin-bottom: 6px; font-size: 13px; }
-    input, select, button { width: 100%; box-sizing: border-box; padding: 8px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .status { margin-top: 10px; font-size: 13px; opacity: 0.9; white-space: pre-wrap; }
+    body { margin: 0; font-family: system-ui, sans-serif; display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+    .sidebar { border-right: 1px solid #ccc; overflow: hidden; display: flex; flex-direction: column; }
+    .sidebar-top { padding: 12px; flex-shrink: 0; }
+    .sidebar-heading { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+    .sidebar-top select { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-bottom: 6px; }
+    .btn-delete { width: auto; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+    .status { margin-top: 8px; font-size: 12px; opacity: 0.8; white-space: pre-wrap; }
+    .sidebar-divider { margin: 0; border: none; border-top: 1px solid #ddd; flex-shrink: 0; }
     canvas { width: 100%; height: 100%; display: block; background: #f5f5f5; cursor: grab; }
     canvas.dragging { cursor: grabbing; }
+    .nav-search-wrap { display: flex; align-items: center; padding: 8px; gap: 4px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+    .nav-search-wrap input { flex: 1; padding: 5px 7px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    .nav-clear-btn { padding: 4px 7px; font-size: 14px; cursor: pointer; border: none; background: none; color: #888; }
+    .nav-header { padding: 6px 12px; font-size: 12px; font-weight: 600; color: #555; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .nav-count { background: #ddd; border-radius: 8px; padding: 1px 6px; font-size: 11px; color: #666; }
+    #navTree { flex: 1; overflow-y: auto; }
+    .nav-sg-row { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: #eee; cursor: pointer; font-size: 12px; user-select: none; }
+    .nav-sg-row:hover { background: #e3f2fd; }
+    .nav-sg-count { color: #888; margin-left: auto; }
+    .nav-screen-row { padding: 5px 12px 5px 28px; font-size: 12px; cursor: pointer; }
+    .nav-screen-row:hover { background: #e3f2fd; }
     .modal.hidden { display: none; }
     .modal {
       position: fixed;
@@ -37,6 +48,12 @@
       box-shadow: 0 20px 40px rgba(0,0,0,0.35);
       padding: 14px;
     }
+    .upload-modal-content {
+      width: min(480px, 92vw);
+    }
+    .upload-modal-content .field { margin-bottom: 12px; }
+    .upload-modal-content label { display: block; margin-bottom: 6px; font-size: 13px; }
+    .upload-modal-content input, .upload-modal-content button { width: 100%; box-sizing: border-box; padding: 8px; }
     .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .modal-header h2 { margin: 0; font-size: 18px; }
     .close-btn { width: auto; padding: 6px 10px; font-size: 18px; line-height: 1; }
@@ -67,43 +84,51 @@
   </style>
 </head>
 <body>
-  <div class="panel">
-    <h1>AppFlower Graph Viewer</h1>
-
-    <div class="field">
-      <label for="graphName">Graph name (used to generate graph-id)</label>
-      <input id="graphName" type="text" placeholder="My Feature Graph" />
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-heading">Graph</div>
+      <select id="graphSelect">
+        <option value="__upload__">+ Upload graph…</option>
+        <option disabled class="select-sep">──────────────</option>
+      </select>
+      <button id="deleteButton" class="btn-delete">Delete</button>
+      <div class="status" id="status"></div>
     </div>
-
-    <div class="field">
-      <label for="zipArchive">Upload ZIP (<code>app-graph.json</code> + <code>screenshots/</code>)</label>
-      <input id="zipArchive" type="file" accept=".zip,application/zip" />
+    <hr class="sidebar-divider" />
+    <div class="nav-search-wrap">
+      <input type="text" id="navSearch" placeholder="Search…" autocomplete="off" />
+      <button id="navSearchClear" class="nav-clear-btn" style="display:none">×</button>
     </div>
-
-    <div class="field">
-      <button id="uploadButton">Upload Graph ZIP</button>
+    <div class="nav-header">
+      <span>Subgraphs</span>
+      <span class="nav-count" id="navCount"></span>
     </div>
-
-    <hr />
-
-    <div class="field">
-      <label for="graphSelect">Available graphs</label>
-      <select id="graphSelect"></select>
-    </div>
-
-    <div class="row">
-      <button id="refreshButton">Refresh List</button>
-      <button id="renderButton">Render Selected</button>
-    </div>
-
-    <div class="field">
-      <button id="deleteButton">Delete Selected</button>
-    </div>
-
-    <div class="status" id="status">Ready.</div>
+    <div id="navTree"></div>
   </div>
 
   <canvas id="graphCanvas"></canvas>
+
+  <div id="uploadModal" class="modal hidden" aria-modal="true" role="dialog">
+    <div class="modal-content upload-modal-content">
+      <div class="modal-header">
+        <h2>Upload Graph</h2>
+        <button id="uploadModalClose" class="close-btn">×</button>
+      </div>
+      <div class="field">
+        <label for="graphName">Graph name</label>
+        <input id="graphName" type="text" placeholder="My Feature Graph" />
+      </div>
+      <div class="field">
+        <label for="zipArchive">ZIP archive (<code>app-graph.json</code> + <code>screenshots/</code>)</label>
+        <input id="zipArchive" type="file" accept=".zip,application/zip" />
+      </div>
+      <div class="field">
+        <button id="uploadButton">Upload</button>
+      </div>
+      <div id="uploadStatus" class="status"></div>
+    </div>
+  </div>
+
   <div id="statePickerModal" class="modal hidden" aria-modal="true" role="dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -119,8 +144,9 @@
     const zipArchiveInput = document.getElementById("zipArchive");
     const graphSelect = document.getElementById("graphSelect");
     const uploadButton = document.getElementById("uploadButton");
-    const refreshButton = document.getElementById("refreshButton");
-    const renderButton = document.getElementById("renderButton");
+    const uploadModal = document.getElementById("uploadModal");
+    const uploadModalClose = document.getElementById("uploadModalClose");
+    const uploadStatus = document.getElementById("uploadStatus");
     const deleteButton = document.getElementById("deleteButton");
     const statusBox = document.getElementById("status");
     const canvas = document.getElementById("graphCanvas");
@@ -129,8 +155,15 @@
     const statePickerTitle = document.getElementById("statePickerTitle");
     const statePickerGrid = document.getElementById("statePickerGrid");
     const statePickerClose = document.getElementById("statePickerClose");
+    const navSearch = document.getElementById("navSearch");
+    const navSearchClear = document.getElementById("navSearchClear");
+    const navCount = document.getElementById("navCount");
+    const navTree = document.getElementById("navTree");
 
     let layout = null;
+    let currentGraphId = null;
+    let navSubgraphs = null; // Map<key, [{nodeId, label}]> built when graph is rendered
+    const expandedSubgraphs = new Set();
     let zoom = 1;
     let panX = 0;
     let panY = 0;
@@ -170,10 +203,9 @@
       const data = await res.json();
       const graphIds = Array.isArray(data.graphIds) ? data.graphIds : [];
 
-      graphSelect.innerHTML = "";
-      if (graphIds.length === 0) {
-        graphSelect.innerHTML = `<option value="">(No graphs found)</option>`;
-        return;
+      // Keep first 2 options (upload + separator), repopulate from index 2
+      while (graphSelect.options.length > 2) {
+        graphSelect.remove(2);
       }
       for (const id of graphIds) {
         const opt = document.createElement("option");
@@ -183,8 +215,29 @@
       }
       if (selectedGraphId && graphIds.includes(selectedGraphId)) {
         graphSelect.value = selectedGraphId;
+      } else {
+        graphSelect.value = "__upload__";
       }
     }
+
+    function openUploadModal() {
+      uploadModal.classList.remove("hidden");
+    }
+
+    function closeUploadModal() {
+      uploadModal.classList.add("hidden");
+      uploadStatus.textContent = "";
+    }
+
+    graphSelect.addEventListener("change", () => {
+      const val = graphSelect.value;
+      if (val === "__upload__") {
+        openUploadModal();
+        graphSelect.value = currentGraphId || "__upload__";
+        return;
+      }
+      if (val) loadGraph(val).catch(e => setStatus(e.message));
+    });
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -218,6 +271,89 @@
         .trim();
       return leaf || nodeId;
     }
+
+    function panToNode(nodeId) {
+      const node = layout && layout.nodes.find(n => n.id === nodeId);
+      if (!node) return;
+      const rect = canvas.getBoundingClientRect();
+      panX = rect.width / 2 - node.x * zoom;
+      panY = rect.height / 2 - node.y * zoom;
+      draw();
+    }
+
+    function renderNavTree(subgraphs, query) {
+      navTree.innerHTML = '';
+      const q = query.trim().toLowerCase();
+      for (const [key, screens] of subgraphs) {
+        let visibleScreens = screens;
+        let forceExpand = false;
+        if (q) {
+          if (key.toLowerCase().includes(q)) {
+            forceExpand = true;
+          } else {
+            visibleScreens = screens.filter(s => s.label.toLowerCase().includes(q));
+            if (visibleScreens.length === 0) continue;
+            forceExpand = true;
+          }
+        }
+        const isExpanded = forceExpand || expandedSubgraphs.has(key);
+        const sgRow = document.createElement('div');
+        sgRow.className = 'nav-sg-row';
+        sgRow.innerHTML = `<span>${isExpanded ? '▾' : '▸'}</span><span style="flex:1">${escapeHtml(key)}</span><span class="nav-sg-count">${visibleScreens.length}</span>`;
+        if (!forceExpand) {
+          sgRow.addEventListener('click', () => {
+            expandedSubgraphs.has(key) ? expandedSubgraphs.delete(key) : expandedSubgraphs.add(key);
+            renderNavTree(subgraphs, navSearch.value);
+          });
+        }
+        navTree.appendChild(sgRow);
+        if (isExpanded) {
+          for (const { nodeId, label } of visibleScreens) {
+            const screenRow = document.createElement('div');
+            screenRow.className = 'nav-screen-row';
+            screenRow.textContent = label;
+            screenRow.addEventListener('click', () => panToNode(nodeId));
+            navTree.appendChild(screenRow);
+          }
+        }
+      }
+    }
+
+    function buildNavTree() {
+      navSubgraphs = new Map();
+      for (const node of layout.nodes) {
+        const key = node.id.includes(':') ? node.id.slice(0, node.id.indexOf(':')) : '';
+        const label = formatNodeLabel(node.id);
+        if (!navSubgraphs.has(key)) navSubgraphs.set(key, []);
+        navSubgraphs.get(key).push({ nodeId: node.id, label });
+      }
+      navCount.textContent = navSubgraphs.size;
+      navSearch.value = '';
+      navSearchClear.style.display = 'none';
+      expandedSubgraphs.clear();
+      renderNavTree(navSubgraphs, '');
+    }
+
+    function clearNavTree() {
+      navSubgraphs = null;
+      navTree.innerHTML = '';
+      navCount.textContent = '';
+      navSearch.value = '';
+      navSearchClear.style.display = 'none';
+      expandedSubgraphs.clear();
+    }
+
+    navSearch.addEventListener('input', () => {
+      const q = navSearch.value;
+      navSearchClear.style.display = q ? 'block' : 'none';
+      if (navSubgraphs) renderNavTree(navSubgraphs, q);
+    });
+
+    navSearchClear.addEventListener('click', () => {
+      navSearch.value = '';
+      navSearchClear.style.display = 'none';
+      if (navSubgraphs) renderNavTree(navSubgraphs, '');
+    });
 
     function distanceToSegment(px, py, ax, ay, bx, by) {
       const abx = bx - ax;
@@ -539,45 +675,12 @@
       draw();
     }
 
-    async function uploadGraph() {
-      const archive = zipArchiveInput.files?.[0];
-      const graphName = graphNameInput.value.trim();
-      if (!archive) {
-        setStatus("Select a ZIP archive first.");
-        return;
-      }
-      if (!graphName) {
-        setStatus("Provide a graph name first.");
-        return;
-      }
-
-      setStatus("Uploading graph...");
-      const form = new FormData();
-      form.append("graphName", graphName);
-      form.append("archive", archive);
-      const res = await fetch("/api/upload-graph", { method: "POST", body: form });
-      const payloadText = await res.text();
-      if (!res.ok) {
-        setStatus(`Upload failed (${res.status}): ${payloadText}`);
-        return;
-      }
-      const payload = JSON.parse(payloadText);
-      await refreshGraphs(payload.graphId);
-      setStatus(`Uploaded graphId: ${escapeHtml(payload.graphId)}`);
-    }
-
-    async function renderSelectedGraph() {
-      const graphId = graphSelect.value;
-      if (!graphId) {
-        setStatus("Select a graph first.");
-        return;
-      }
-      setStatus(`Rendering ${graphId}...`);
+    async function loadGraph(graphId) {
+      setStatus(`Loading ${graphId}...`);
       const res = await fetch(`/api/layout/${encodeURIComponent(graphId)}`);
       if (!res.ok) {
         const body = await res.text();
-        setStatus(`Layout failed (${res.status}): ${body}`);
-        return;
+        throw new Error(`Layout failed (${res.status}): ${body}`);
       }
       layout = await res.json();
       layout.nodes = Array.isArray(layout.nodes) ? layout.nodes.map(node => ({
@@ -591,12 +694,44 @@
       closeStatePicker();
       centerOnLeftmostNode();
       draw();
-      setStatus(`Rendered ${graphId}: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
+      buildNavTree();
+      currentGraphId = graphId;
+      graphSelect.value = graphId;
+      history.pushState(null, '', '/graph/' + encodeURIComponent(graphId));
+      setStatus(`Loaded ${graphId}: ${layout.nodes.length} nodes, ${layout.edges.length} edges.`);
+    }
+
+    async function uploadGraph() {
+      const archive = zipArchiveInput.files?.[0];
+      const graphName = graphNameInput.value.trim();
+      if (!archive) {
+        uploadStatus.textContent = "Select a ZIP archive first.";
+        return;
+      }
+      if (!graphName) {
+        uploadStatus.textContent = "Provide a graph name first.";
+        return;
+      }
+
+      uploadStatus.textContent = "Uploading graph...";
+      const form = new FormData();
+      form.append("graphName", graphName);
+      form.append("archive", archive);
+      const res = await fetch("/api/upload-graph", { method: "POST", body: form });
+      const payloadText = await res.text();
+      if (!res.ok) {
+        uploadStatus.textContent = `Upload failed (${res.status}): ${payloadText}`;
+        return;
+      }
+      const payload = JSON.parse(payloadText);
+      closeUploadModal();
+      await refreshGraphs(payload.graphId);
+      await loadGraph(payload.graphId);
     }
 
     async function deleteSelectedGraph() {
-      const graphId = graphSelect.value;
-      if (!graphId) {
+      const graphId = currentGraphId || graphSelect.value;
+      if (!graphId || graphId === "__upload__") {
         setStatus("Select a graph first.");
         return;
       }
@@ -608,19 +743,24 @@
         setStatus(`Delete failed (${res.status}): ${body}`);
         return;
       }
-      await refreshGraphs();
+      history.pushState(null, '', '/');
+      currentGraphId = null;
       layout = null;
       hoveredEdgeIndex = null;
       hoveredNodeId = null;
       hoveredIconNodeId = null;
       closeStatePicker();
+      clearNavTree();
       draw();
+      await refreshGraphs();
       setStatus(`Deleted ${graphId}.`);
     }
 
-    uploadButton.addEventListener("click", () => uploadGraph().catch(e => setStatus(e.message)));
-    refreshButton.addEventListener("click", () => refreshGraphs().then(() => setStatus("Graph list refreshed.")).catch(e => setStatus(e.message)));
-    renderButton.addEventListener("click", () => renderSelectedGraph().catch(e => setStatus(e.message)));
+    uploadButton.addEventListener("click", () => uploadGraph().catch(e => { uploadStatus.textContent = e.message; }));
+    uploadModalClose.addEventListener("click", closeUploadModal);
+    uploadModal.addEventListener("click", (event) => {
+      if (event.target === uploadModal) closeUploadModal();
+    });
     deleteButton.addEventListener("click", () => deleteSelectedGraph().catch(e => setStatus(e.message)));
 
     canvas.addEventListener("wheel", (e) => {
@@ -707,9 +847,15 @@
     statePickerClose.addEventListener("click", closeStatePicker);
     window.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      if (statePickerModal.classList.contains("hidden")) return;
-      event.preventDefault();
-      closeStatePicker();
+      if (!uploadModal.classList.contains("hidden")) {
+        event.preventDefault();
+        closeUploadModal();
+        return;
+      }
+      if (!statePickerModal.classList.contains("hidden")) {
+        event.preventDefault();
+        closeStatePicker();
+      }
     });
     statePickerModal.addEventListener("click", (event) => {
       if (event.target === statePickerModal) {
@@ -724,9 +870,20 @@
       }
     });
 
+    window.addEventListener("popstate", () => {
+      const m2 = location.pathname.match(/^\/graph\/([^/]+)$/);
+      if (m2) loadGraph(decodeURIComponent(m2[1])).catch(e => setStatus(e.message));
+    });
+
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
-    refreshGraphs().then(() => setStatus("Ready.")).catch(e => setStatus(e.message));
+
+    const m = location.pathname.match(/^\/graph\/([^/]+)$/);
+    const initialGraphId = m ? decodeURIComponent(m[1]) : null;
+    refreshGraphs(initialGraphId).then(() => {
+      if (initialGraphId) return loadGraph(initialGraphId).catch(e => setStatus(e.message));
+      else setStatus("Ready.");
+    }).catch(e => setStatus(e.message));
   </script>
 </body>
 </html>
