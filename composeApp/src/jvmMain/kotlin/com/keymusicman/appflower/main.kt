@@ -5,8 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
@@ -20,7 +18,6 @@ import co.touchlab.kermit.Tag
 import co.touchlab.kermit.platformLogWriter
 import com.keymusicman.appflower.recents.RecentGraphsManager
 import com.keymusicman.appflower.recents.deriveDisplayName
-import com.keymusicman.appflower.utils.openGraphFilePicker
 import java.io.File
 import kotlin.time.Clock
 
@@ -61,37 +58,12 @@ fun main(args: Array<String>) {
                     placement = WindowPlacement.Maximized
                 )
             ) {
-                MenuBar {
-                    Menu("File") {
-                        Item(
-                            "Open…",
-                            shortcut = androidx.compose.ui.input.key.KeyShortcut(Key.O, meta = true)
-                        ) {
-                            openGraphFilePicker()?.let { openFile(it) }
-                        }
-                        Item(
-                            "Close",
-                            shortcut = androidx.compose.ui.input.key.KeyShortcut(Key.W, meta = true)
-                        ) {
-                            currentFile = null
-                        }
-                        Separator()
-                        Menu("Recent Graphs") {
-                            if (recents.isEmpty()) {
-                                Item("No recent graphs", enabled = false, onClick = {})
-                            } else {
-                                recents.forEach { recent ->
-                                    Item(recent.displayName) {
-                                        val file = File(recent.path)
-                                        if (file.exists()) openFile(file)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                App(graphFile = graphFile)
+                App(
+                    graphFile = graphFile,
+                    recents = recents,
+                    onOpenFile = { openFile(it) },
+                    onClose = { currentFile = null }
+                )
             }
         }
     }
