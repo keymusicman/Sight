@@ -69,6 +69,12 @@ fun main(args: Array<String>) {
                         ) {
                             openGraphFilePicker()?.let { openFile(it) }
                         }
+                        Item(
+                            "Close",
+                            shortcut = androidx.compose.ui.input.key.KeyShortcut(Key.W, meta = true)
+                        ) {
+                            currentFile = null
+                        }
                         Separator()
                         Menu("Recent Graphs") {
                             if (recents.isEmpty()) {
