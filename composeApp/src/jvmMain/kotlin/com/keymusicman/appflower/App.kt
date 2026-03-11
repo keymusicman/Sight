@@ -82,22 +82,22 @@ fun FrameWindowScope.App(
             Separator()
             Menu("Export") {
                 Item("Save as Image", enabled = appGraph != null) {
-                    val graph = appGraph ?: return@Item
                     coroutineScope.launch {
-                        exportGraphAsImage(viewModel.applySelectedStates(graph), projectPath)
+                        val graph = viewModel.appGraphForExport() ?: return@launch
+                        exportGraphAsImage(graph, projectPath)
                     }
                 }
                 Item("Export to draw.io", enabled = appGraph != null) {
-                    val graph = appGraph ?: return@Item
                     coroutineScope.launch {
-                        exportGraphAsDrawio(viewModel.applySelectedStates(graph), projectPath)
+                        val graph = viewModel.appGraphForExport() ?: return@launch
+                        exportGraphAsDrawio(graph, projectPath)
                     }
                 }
                 Item("Prepare ZIP for Web", enabled = appGraph != null) {
-                    val graph = appGraph ?: return@Item
                     coroutineScope.launch {
                         try {
-                            prepareGraphZipArchive(viewModel.applySelectedStates(graph), projectPath)
+                            val graph = viewModel.appGraphForExport() ?: return@launch
+                            prepareGraphZipArchive(graph, projectPath)
                         } catch (_: Exception) { }
                     }
                 }

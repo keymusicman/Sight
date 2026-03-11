@@ -242,6 +242,18 @@ class GraphViewModel {
         statePickerNodeId.value = null
     }
 
+    fun appGraphForExport(): AppGraph? {
+        val appGraph = appGraphState.value ?: return null
+        val viewId = activeViewId.value
+        val baseGraph = if (viewId != null) {
+            val view = views.value.find { it.id == viewId }
+            if (view != null) appGraph.filterToView(view.nodeIds) else appGraph
+        } else {
+            appGraph
+        }
+        return applySelectedStates(baseGraph)
+    }
+
     fun applySelectedStates(appGraph: AppGraph): AppGraph {
         val selectedById = layoutGraphState.value
             ?.nodes
