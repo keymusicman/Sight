@@ -19,15 +19,19 @@ import kotlinx.serialization.json.Json
 
 /**
  * View model to construct and expose the LayoutGraph for the UI.
- * - layoutGraphState: current built LayoutGraph or null
- * - zoomState: simple zoom holder shared with UI
+ * - layoutGraphState: full LayoutGraph (all nodes)
+ * - displayLayoutGraphState: currently displayed graph (full or view-filtered, re-laid-out)
  * - buildFromAppGraphV2: load and layout from AppGraph asynchronously
  */
 class GraphViewModel {
     private val scope =
         CoroutineScope(Dispatchers.IO + SupervisorJob() + CoroutineName("GraphViewModel"))
 
+    /** Full graph — always the complete layout. */
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
+    /** Currently displayed graph — either the full layout or a view-filtered re-layout. */
+    val displayLayoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
+
     val appGraphState: MutableState<AppGraph?> = mutableStateOf(null)
     val zoomState: MutableState<Float> = mutableStateOf(0.5f)
     val panState: MutableState<Offset> = mutableStateOf(Offset.Zero)
@@ -41,17 +45,10 @@ class GraphViewModel {
     val activeViewId: MutableState<String?> = mutableStateOf(null)
     private var currentProjectPath: String? = null
 
-    val activeDisplayGraph: LayoutGraph?
-        get() {
-            val full = layoutGraphState.value ?: return null
-            val viewId = activeViewId.value ?: return full
-            val view = views.value.find { it.id == viewId } ?: return full
-            return full.filterToView(view.nodeIds)
-        }
-
     companion object {
         const val ZOOM_MIN = 0.1f
         const val ZOOM_MAX = 3.0f
+        private const val DEFAULT_ZOOM = 0.5f
     }
 
     fun zoom(factor: Float) {
@@ -67,7 +64,6 @@ class GraphViewModel {
         zoomState.value = newZoom
     }
 
-    /** Set zoom to an absolute value, keeping the viewport center fixed. */
     fun setZoom(newZoom: Float) {
         val clamped = newZoom.coerceIn(ZOOM_MIN, ZOOM_MAX)
         val cx = viewportWidth / 2f
@@ -82,7 +78,7 @@ class GraphViewModel {
     }
 
     fun panToNode(nodeId: String) {
-        val node = layoutGraphState.value?.nodes?.get(nodeId) ?: return
+        val node = displayLayoutGraphState.value?.nodes?.get(nodeId) ?: return
         val zoom = zoomState.value
         panState.value = Offset(
             viewportWidth / 2f - node.x * zoom,
@@ -96,17 +92,19 @@ class GraphViewModel {
         views.value = emptyList()
         activeViewId.value = null
         selectedNodeIds.value = emptySet()
+        layoutGraphState.value = null
+        displayLayoutGraphState.value = null
         if (projectPath != null) loadViews(projectPath)
         scope.launch {
             val startedAtNanos = System.nanoTime()
             val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
             layoutGraphState.value = layoutGraph
+            displayLayoutGraphState.value = layoutGraph
             selectedStateByNodeId.value = layoutGraph.nodes.values.associate { node ->
                 node.id to node.selectedState.coerceAtLeast(0)
             }
             val elapsedMilliseconds = (System.nanoTime() - startedAtNanos) / 1_000_000
-
-            Logger.d { "Graph layout completed in $elapsedMilliseconds ms for ${layoutGraphState.value?.nodes?.size ?: 0} nodes and ${layoutGraphState.value?.edges?.size ?: 0} edges" }
+            Logger.d { "Graph layout completed in $elapsedMilliseconds ms for ${layoutGraph.nodes.size} nodes and ${layoutGraph.edges.size} edges" }
         }
     }
 
@@ -124,8 +122,7 @@ class GraphViewModel {
         if (nodeIds.isEmpty()) return
         val view = GraphView(name = name, nodeIds = nodeIds)
         views.value = views.value + view
-        activeViewId.value = view.id
-        selectedNodeIds.value = emptySet()
+        activateView(view.id)
         saveViews()
     }
 
@@ -136,30 +133,59 @@ class GraphViewModel {
         val pathNodes = GraphPathFinder.findPathNodes(selected[0], selected[1], edges)
         val view = GraphView(name = name, nodeIds = pathNodes)
         views.value = views.value + view
-        activeViewId.value = view.id
-        selectedNodeIds.value = emptySet()
+        activateView(view.id)
         saveViews()
     }
 
     fun createSubgraphView(subgraphKey: String) {
-        val layoutGraph = layoutGraphState.value ?: return
-        val nodeIds = layoutGraph.nodes.keys.filter { it.startsWith("$subgraphKey:") }.toSet()
+        val appGraph = appGraphState.value ?: return
+        val subgraph = appGraph.subgraphs[subgraphKey] ?: return
+        val nodeIds = subgraph.screens.map { "$subgraphKey:${it.id}" }.toSet()
         if (nodeIds.isEmpty()) return
         val view = GraphView(name = subgraphKey, nodeIds = nodeIds)
         views.value = views.value + view
-        activeViewId.value = view.id
+        activateView(view.id)
         saveViews()
     }
 
     fun activateView(id: String?) {
         activeViewId.value = id
         selectedNodeIds.value = emptySet()
+        zoomState.value = DEFAULT_ZOOM
+        panState.value = Offset.Zero
+
+        val appGraph = appGraphState.value ?: return
+
+        if (id == null) {
+            // Restore full layout — already available synchronously
+            val fullLayout = layoutGraphState.value
+            displayLayoutGraphState.value = fullLayout
+            centerOnEntryNode(fullLayout)
+        } else {
+            val view = views.value.find { it.id == id } ?: return
+            displayLayoutGraphState.value = null // show loading while building
+            scope.launch {
+                val filteredAppGraph = appGraph.filterToView(view.nodeIds)
+                val filteredLayout = buildLayoutGraph(filteredAppGraph, currentProjectPath, scale = .5f)
+                displayLayoutGraphState.value = filteredLayout
+                centerOnEntryNode(filteredLayout)
+            }
+        }
     }
 
     fun deleteView(id: String) {
         views.value = views.value.filter { it.id != id }
-        if (activeViewId.value == id) activeViewId.value = null
+        if (activeViewId.value == id) activateView(null)
         saveViews()
+    }
+
+    private fun centerOnEntryNode(layout: LayoutGraph?) {
+        val entryNode = layout?.nodes?.values?.minByOrNull { it.x } ?: return
+        val zoom = zoomState.value
+        panState.value = Offset(
+            viewportWidth / 2f - entryNode.x * zoom,
+            viewportHeight / 2f - entryNode.y * zoom
+        )
     }
 
     private fun viewsFile(projectPath: String) =
@@ -187,22 +213,21 @@ class GraphViewModel {
 
     fun selectState(nodeId: String, selectedState: Int, statesCount: Int) {
         Logger.d { "Selecting state $selectedState for node $nodeId with statesCount $statesCount" }
-
         val startedAtNanos = System.nanoTime()
         val normalized = selectedState
             .coerceAtLeast(0)
             .coerceAtMost((statesCount - 1).coerceAtLeast(0))
         selectedStateByNodeId.value += (nodeId to normalized)
-        val currentGraph = layoutGraphState.value ?: return
-        val currentNode = currentGraph.nodes[nodeId] ?: return
-        val updatedNodes =
-            currentGraph.nodes + (nodeId to currentNode.copy(selectedState = normalized))
-        layoutGraphState.value = currentGraph.copy(nodes = updatedNodes)
-        val elapsedMilliseconds = (System.nanoTime() - startedAtNanos) / 1_000_000
 
-        Logger.d {
-            "Changed state of node $nodeId to $selectedState in $elapsedMilliseconds ms"
+        fun updateGraph(graph: LayoutGraph): LayoutGraph {
+            val node = graph.nodes[nodeId] ?: return graph
+            return graph.copy(nodes = graph.nodes + (nodeId to node.copy(selectedState = normalized)))
         }
+        layoutGraphState.value = layoutGraphState.value?.let { updateGraph(it) }
+        displayLayoutGraphState.value = displayLayoutGraphState.value?.let { updateGraph(it) }
+
+        val elapsedMilliseconds = (System.nanoTime() - startedAtNanos) / 1_000_000
+        Logger.d { "Changed state of node $nodeId to $selectedState in $elapsedMilliseconds ms" }
     }
 
     fun openStatePicker(nodeId: String) {
@@ -230,5 +255,4 @@ class GraphViewModel {
             }
         )
     }
-
 }

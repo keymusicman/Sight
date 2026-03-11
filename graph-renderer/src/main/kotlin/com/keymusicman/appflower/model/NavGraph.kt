@@ -112,10 +112,22 @@ data class LayoutGraph(
     val edges: List<LayoutEdge>
 )
 
-fun LayoutGraph.filterToView(nodeIds: Set<String>): LayoutGraph {
-    val filteredNodes = nodes.filterKeys { it in nodeIds }
-    val filteredEdges = edges.filter { it.from in nodeIds && it.to in nodeIds }
-    return LayoutGraph(filteredNodes, filteredEdges)
+fun AppGraph.filterToView(nodeIds: Set<String>): AppGraph {
+    fun ConnectionEndpoint.isInView(): Boolean = when (type) {
+        "screen" -> screen_id != null && "$subgraph:$screen_id" in nodeIds
+        "subgraph" -> nodeIds.any { it.startsWith("$subgraph:") }
+        else -> false
+    }
+    val filteredSubgraphs = subgraphs.mapValues { (subgraphKey, subgraph) ->
+        val filteredScreens = subgraph.screens.filter { screen ->
+            "$subgraphKey:${screen.id}" in nodeIds
+        }
+        val filteredConnections = subgraph.connections.filter { conn ->
+            conn.from.isInView() && conn.to.isInView()
+        }
+        subgraph.copy(screens = filteredScreens, connections = filteredConnections)
+    }.filter { (_, subgraph) -> subgraph.screens.isNotEmpty() }
+    return copy(subgraphs = filteredSubgraphs)
 }
 
 // Backward compatibility: keep old function signature for now

@@ -103,7 +103,7 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     viewModel: GraphViewModel,
 ) {
-    val layoutGraph = viewModel.activeDisplayGraph
+    val layoutGraph by viewModel.displayLayoutGraphState
 
     val colors = LocalAppColors.current
     BoxWithConstraints(
