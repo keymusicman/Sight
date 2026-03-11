@@ -24,7 +24,7 @@ import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 /**
- * Per-module Swing panel that embeds [GraphVisualizer] (Compose) for the navigation graph
+ * Per-module Swing panel that embeds [com.keymusicman.appflower.ui.GraphVisualizer] (Compose) for the navigation graph
  * and provides a "Build graph" button to run the exportGraph Gradle task.
  *
  * States:

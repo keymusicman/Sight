@@ -13,7 +13,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -29,6 +28,7 @@ class GraphViewModel {
 
     /** Full graph — always the complete layout. */
     val layoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
+
     /** Currently displayed graph — either the full layout or a view-filtered re-layout. */
     val displayLayoutGraphState: MutableState<LayoutGraph?> = mutableStateOf(null)
 
@@ -140,7 +140,8 @@ class GraphViewModel {
     fun createSubgraphView(subgraphKey: String) {
         val appGraph = appGraphState.value ?: return
         val subgraph = appGraph.subgraphs[subgraphKey] ?: return
-        val nodeIds = subgraph.screens.map { "$subgraphKey:${it.id}" }.toSet()
+        val nodeIds = subgraph.screens.map { "$subgraphKey:${it.id}" }
+            .toSet()
         if (nodeIds.isEmpty()) return
         val view = GraphView(name = subgraphKey, nodeIds = nodeIds)
         views.value = views.value + view
@@ -149,6 +150,8 @@ class GraphViewModel {
     }
 
     fun activateView(id: String?) {
+        if (activeViewId.value == id) return
+
         activeViewId.value = id
         selectedNodeIds.value = emptySet()
         zoomState.value = DEFAULT_ZOOM
@@ -166,7 +169,8 @@ class GraphViewModel {
             displayLayoutGraphState.value = null // show loading while building
             scope.launch {
                 val filteredAppGraph = appGraph.filterToView(view.nodeIds)
-                val filteredLayout = buildLayoutGraph(filteredAppGraph, currentProjectPath, scale = .5f)
+                val filteredLayout =
+                    buildLayoutGraph(filteredAppGraph, currentProjectPath, scale = .5f)
                 displayLayoutGraphState.value = filteredLayout
                 centerOnEntryNode(filteredLayout)
             }

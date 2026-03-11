@@ -187,18 +187,18 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                 .onPointerEvent(PointerEventType.Scroll) { event ->
                     val scroll = event.changes.firstOrNull()?.scrollDelta ?: return@onPointerEvent
                     val cursorPos = event.changes.firstOrNull()?.position ?: return@onPointerEvent
-                    
+
                     val scrollDeltaY = scroll.y
                     val sensitivity = 0.05f
                     val zoomFactor = 1.0f + (scrollDeltaY * sensitivity)
-                    
+
                     val oldZoom = zoomState.value
                     val newZoom = (oldZoom * zoomFactor).coerceIn(
                         GraphViewModel.ZOOM_MIN,
                         GraphViewModel.ZOOM_MAX
                     )
                     val actualZoomFactor = newZoom / oldZoom
-                    
+
                     // Calculate pan to keep cursor position fixed relative to graph content
                     val oldPan = pan.value
                     val newPan = cursorPos - (cursorPos - oldPan) * actualZoomFactor
@@ -269,7 +269,11 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                         modifier = Modifier
                             .fillMaxSize()
                             .then(
-                                if (isSelected) Modifier.border(2.dp, colors.nodeSelected, RoundedCornerShape(4.dp))
+                                if (isSelected) Modifier.border(
+                                    2.dp,
+                                    colors.nodeSelected,
+                                    RoundedCornerShape(4.dp)
+                                )
                                 else Modifier
                             )
                             .onPointerEvent(PointerEventType.Enter) {
@@ -503,7 +507,10 @@ private fun StatePickerDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(220.dp)
-                                        .background(colors.imagePlaceholder, RoundedCornerShape(6.dp))
+                                        .background(
+                                            colors.imagePlaceholder,
+                                            RoundedCornerShape(6.dp)
+                                        )
                                         .padding(6.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
