@@ -180,6 +180,27 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
         Layout(
             modifier = Modifier
                 .fillMaxSize()
+                .onPointerEvent(PointerEventType.Scroll) { event ->
+                    val scroll = event.changes.firstOrNull()?.scrollDelta ?: return@onPointerEvent
+                    val cursorPos = event.changes.firstOrNull()?.position ?: return@onPointerEvent
+                    
+                    val scrollDeltaY = scroll.y
+                    val sensitivity = 0.05f
+                    val zoomFactor = 1.0f + (scrollDeltaY * sensitivity)
+                    
+                    val oldZoom = zoomState.value
+                    val newZoom = (oldZoom * zoomFactor).coerceIn(
+                        GraphViewModel.ZOOM_MIN,
+                        GraphViewModel.ZOOM_MAX
+                    )
+                    val actualZoomFactor = newZoom / oldZoom
+                    
+                    // Calculate pan to keep cursor position fixed relative to graph content
+                    val oldPan = pan.value
+                    val newPan = cursorPos - (cursorPos - oldPan) * actualZoomFactor
+                    pan.value = newPan
+                    zoomState.value = newZoom
+                }
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, panDelta, zoomFactor, _ ->
                         val oldZoom = zoomState.value
