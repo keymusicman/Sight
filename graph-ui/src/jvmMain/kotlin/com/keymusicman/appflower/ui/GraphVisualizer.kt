@@ -92,13 +92,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-private val ColorBackground = Color(0xFFF5F5F5)
-private val ColorOnBackground = Color(0xFF212121)
-private val ColorSurface = Color(0xFFFFFFFF)
-private val ColorPrimary = Color(0xFF2196F3)
-private val ColorLabelBackground = Color(0xE6F5F5F5)
-private val ColorStateSelected = Color(0xFFFFB3B3)
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GraphVisualizer(
@@ -108,15 +101,16 @@ fun GraphVisualizer(
 ) {
     val layoutGraph by viewModel.layoutGraphState
 
+    val colors = LocalAppColors.current
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(ColorBackground),
+            .background(colors.background),
         contentAlignment = Alignment.TopStart,
     ) {
         when (val layoutGraph = layoutGraph) {
             null -> {
-                BasicText("No graph loaded", style = TextStyle(color = ColorOnBackground))
+                BasicText("No graph loaded", style = TextStyle(color = colors.onBackground))
             }
 
             else -> {
@@ -133,8 +127,9 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     viewModel: GraphViewModel
 ) {
     var loadedOnce by rememberSaveable { mutableStateOf(false) }
+    val colors = LocalAppColors.current
     if (layoutGraph.nodes.isEmpty()) {
-        BasicText("Graph is empty", style = TextStyle(color = ColorOnBackground))
+        BasicText("Graph is empty", style = TextStyle(color = colors.onBackground))
         return
     }
 
@@ -219,7 +214,9 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                         layoutGraph = layoutGraph,
                         pan = pan.value,
                         zoom = zoomState.value,
-                        hoveredEdgeIndex = hoveredEdgeIndex
+                        hoveredEdgeIndex = hoveredEdgeIndex,
+                        defaultColor = colors.edgeDefault,
+                        hoverColor = colors.edgeHover,
                     )
                 }
 
@@ -229,8 +226,8 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                 nodeList.forEach { ln ->
                     val labelFontSize =
                         (14f * sqrt(zoomState.value.toDouble()).toFloat()).coerceIn(6f, 40f)
-                    val labelTextStyle = remember(labelFontSize) {
-                        TextStyle(color = ColorOnBackground, fontSize = labelFontSize.sp)
+                    val labelTextStyle = remember(labelFontSize, colors.onBackground) {
+                        TextStyle(color = colors.onBackground, fontSize = labelFontSize.sp)
                     }
 
                     val imagePaths = imagePathsById[ln.id] ?: emptyList()
@@ -308,7 +305,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                 .align(Alignment.TopCenter)
                                 .offset(y = with(LocalDensity.current) { (-labelTextStyle.fontSize * 1.8).toDp() })
                                 .graphicsLayer { clip = false }
-                                .background(ColorLabelBackground)
+                                .background(colors.labelBackground)
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             BasicText(
@@ -415,16 +412,17 @@ private fun StatePickerDialog(
         state = rememberDialogState(size = DpSize(screenWidth, screenHeight)),
     ) {
 
+        val colors = LocalAppColors.current
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ColorSurface, RoundedCornerShape(12.dp))
+                .background(colors.surface, RoundedCornerShape(12.dp))
                 .padding(16.dp),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 BasicText(
                     text = "Select state for ${formatNodeLabel(nodeId)}",
-                    style = TextStyle(color = ColorOnBackground, fontSize = 16.sp)
+                    style = TextStyle(color = colors.onBackground, fontSize = 16.sp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 LazyVerticalGrid(
@@ -439,7 +437,7 @@ private fun StatePickerDialog(
                                 .padding(8.dp)
                                 .border(
                                     width = 2.dp,
-                                    color = if (isSelected) ColorStateSelected else Color.Transparent,
+                                    color = if (isSelected) colors.stateSelected else Color.Transparent,
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .padding(6.dp)
@@ -462,7 +460,7 @@ private fun StatePickerDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(220.dp)
-                                        .background(Color(0xFFF0F0F0), RoundedCornerShape(6.dp))
+                                        .background(colors.imagePlaceholder, RoundedCornerShape(6.dp))
                                         .padding(6.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -488,7 +486,7 @@ private fun StatePickerDialog(
                 Box(
                     modifier = Modifier
                         .align(Alignment.End)
-                        .background(ColorPrimary, RoundedCornerShape(8.dp))
+                        .background(colors.primary, RoundedCornerShape(8.dp))
                         .clickable { onClose() }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
@@ -522,7 +520,7 @@ private fun ZoomControls(
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
             .clip(CircleShape)
-            .background(ColorSurface),
+            .background(LocalAppColors.current.surface),
     ) {
         Row(
             modifier = Modifier,
@@ -567,6 +565,7 @@ private fun ZoomSlider(
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start))
         .coerceIn(0f, 1f)
+    val primary = LocalAppColors.current.primary
     Box(
         modifier = modifier
             .pointerInput(valueRange) {
@@ -597,12 +596,12 @@ private fun ZoomSlider(
                 strokeWidth = trackH
             )
             drawLine(
-                ColorPrimary,
+                primary,
                 Offset(trackStart, trackY),
                 Offset(thumbX, trackY),
                 strokeWidth = trackH
             )
-            drawCircle(ColorPrimary, radius = thumbR, center = Offset(thumbX, trackY))
+            drawCircle(primary, radius = thumbR, center = Offset(thumbX, trackY))
         }
     }
 }
@@ -720,10 +719,10 @@ private fun DrawScope.drawGraphEdgesLayout(
     layoutGraph: LayoutGraph,
     pan: Offset,
     zoom: Float,
-    hoveredEdgeIndex: Int?
+    hoveredEdgeIndex: Int?,
+    defaultColor: Color,
+    hoverColor: Color,
 ) {
-    val defaultColor = Color(0x66888888)
-    val hoverColor = Color(0xFF2196F3)
     layoutGraph.edges.forEachIndexed { edgeIndex, edge ->
         val points = edge.points.map { Offset(it.x * zoom + pan.x, it.y * zoom + pan.y) }
         if (points.size >= 4) {

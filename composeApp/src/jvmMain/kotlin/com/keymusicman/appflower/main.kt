@@ -18,6 +18,8 @@ import co.touchlab.kermit.Tag
 import co.touchlab.kermit.platformLogWriter
 import com.keymusicman.appflower.recents.RecentGraphsManager
 import com.keymusicman.appflower.recents.deriveDisplayName
+import com.keymusicman.appflower.settings.ThemePreference
+import com.keymusicman.appflower.settings.ThemePreferenceManager
 import java.io.File
 import kotlin.time.Clock
 
@@ -30,9 +32,13 @@ fun main(args: Array<String>) {
         else -> RecentGraphsManager.getLast()?.let { File(it.path) }?.takeIf { it.exists() }
     }
 
+    val initialTheme = ThemePreferenceManager.load()
+
     application {
         var recents by remember { mutableStateOf(RecentGraphsManager.getAll()) }
         var currentFile by remember { mutableStateOf(initialFile) }
+        var themePreference by remember { mutableStateOf(initialTheme) }
+        val isDark = resolveIsDark(themePreference)
 
         fun openFile(file: File) {
             RecentGraphsManager.add(file)
@@ -62,10 +68,35 @@ fun main(args: Array<String>) {
                     graphFile = graphFile,
                     recents = recents,
                     onOpenFile = { openFile(it) },
-                    onClose = { currentFile = null }
+                    onClose = { currentFile = null },
+                    isDark = isDark,
+                    themePreference = themePreference,
+                    onThemeChange = { pref ->
+                        themePreference = pref
+                        ThemePreferenceManager.save(pref)
+                    },
                 )
             }
         }
+    }
+}
+
+private fun resolveIsDark(pref: ThemePreference): Boolean = when (pref) {
+    ThemePreference.LIGHT -> false
+    ThemePreference.DARK -> true
+    ThemePreference.SYSTEM -> isSystemDark()
+}
+
+private fun isSystemDark(): Boolean {
+    return try {
+        val process = ProcessBuilder("defaults", "read", "-g", "AppleInterfaceStyle")
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        process.waitFor()
+        output.equals("Dark", ignoreCase = true)
+    } catch (_: Exception) {
+        false
     }
 }
 

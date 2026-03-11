@@ -27,13 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 
-private val ColorPanelBackground = Color(0xFFF8F8F8)
-private val ColorPanelText = Color(0xFF212121)
-private val ColorMuted = Color(0xFF888888)
-private val ColorHover = Color(0xFFE3F2FD)
-private val ColorSubgraphRow = Color(0xFFEEEEEE)
-private val ColorDivider = Color(0xFFDDDDDD)
-
 @Composable
 fun GraphNavigationPanel(
     viewModel: GraphViewModel,
@@ -41,23 +34,24 @@ fun GraphNavigationPanel(
 ) {
     val appGraph = viewModel.appGraphState.value
 
+    val colors = LocalAppColors.current
     var searchQuery by remember { mutableStateOf("") }
     var expandedSubgraphs by remember { mutableStateOf(emptySet<String>()) }
 
-    Column(modifier = modifier.background(ColorPanelBackground)) {
+    Column(modifier = modifier.background(colors.panelBackground)) {
         // Search field
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
-                .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                .background(colors.surface, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
                 .padding(horizontal = 8.dp, vertical = 6.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    textStyle = TextStyle(color = ColorPanelText, fontSize = 13.sp),
+                    textStyle = TextStyle(color = colors.panelText, fontSize = 13.sp),
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                     decorationBox = { inner ->
@@ -65,7 +59,7 @@ fun GraphNavigationPanel(
                             if (searchQuery.isEmpty()) {
                                 BasicText(
                                     "Search\u2026",
-                                    style = TextStyle(color = ColorMuted, fontSize = 13.sp)
+                                    style = TextStyle(color = colors.muted, fontSize = 13.sp)
                                 )
                             }
                             inner()
@@ -76,7 +70,7 @@ fun GraphNavigationPanel(
                     Spacer(Modifier.width(4.dp))
                     BasicText(
                         "\u00D7",
-                        style = TextStyle(color = ColorMuted, fontSize = 14.sp),
+                        style = TextStyle(color = colors.muted, fontSize = 14.sp),
                         modifier = Modifier.clickable { searchQuery = "" }
                     )
                 }
@@ -85,7 +79,7 @@ fun GraphNavigationPanel(
 
         if (appGraph == null) {
             Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                BasicText("No graph loaded", style = TextStyle(color = ColorMuted, fontSize = 12.sp))
+                BasicText("No graph loaded", style = TextStyle(color = colors.muted, fontSize = 12.sp))
             }
             return@Column
         }
@@ -99,17 +93,17 @@ fun GraphNavigationPanel(
         ) {
             BasicText(
                 "Subgraphs",
-                style = TextStyle(color = ColorPanelText, fontSize = 12.sp)
+                style = TextStyle(color = colors.panelText, fontSize = 12.sp)
             )
             Spacer(Modifier.width(6.dp))
             Box(
                 modifier = Modifier
-                    .background(ColorDivider, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .background(colors.divider, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp, vertical = 1.dp)
             ) {
                 BasicText(
                     "${appGraph.subgraphs.size}",
-                    style = TextStyle(color = ColorMuted, fontSize = 11.sp)
+                    style = TextStyle(color = colors.muted, fontSize = 11.sp)
                 )
             }
         }
@@ -198,29 +192,30 @@ private fun SubgraphRow(
     isExpanded: Boolean,
     onToggle: () -> Unit,
 ) {
+    val colors = LocalAppColors.current
     var hovered by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (hovered) ColorHover else ColorSubgraphRow)
+            .background(if (hovered) colors.hover else colors.subgraphRow)
             .clickable { onToggle() }
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicText(
             text = if (isExpanded) "\u25BE" else "\u25B8",
-            style = TextStyle(color = ColorMuted, fontSize = 11.sp),
+            style = TextStyle(color = colors.muted, fontSize = 11.sp),
             modifier = Modifier.size(14.dp)
         )
         Spacer(Modifier.width(6.dp))
         BasicText(
             text = subgraphKey,
-            style = TextStyle(color = ColorPanelText, fontSize = 12.sp),
+            style = TextStyle(color = colors.panelText, fontSize = 12.sp),
             modifier = Modifier.weight(1f)
         )
         BasicText(
             text = "$screenCount",
-            style = TextStyle(color = ColorMuted, fontSize = 11.sp),
+            style = TextStyle(color = colors.muted, fontSize = 11.sp),
         )
     }
 }
@@ -230,18 +225,19 @@ private fun ScreenRow(
     label: String,
     onClick: () -> Unit,
 ) {
+    val colors = LocalAppColors.current
     var hovered by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (hovered) ColorHover else Color.Transparent)
+            .background(if (hovered) colors.hover else Color.Transparent)
             .clickable { onClick() }
             .padding(start = 28.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicText(
             text = label,
-            style = TextStyle(color = ColorPanelText, fontSize = 12.sp),
+            style = TextStyle(color = colors.panelText, fontSize = 12.sp),
         )
     }
 }

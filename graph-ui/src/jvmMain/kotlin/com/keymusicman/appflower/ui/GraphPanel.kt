@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 
@@ -17,6 +16,7 @@ fun GraphPanel(
     viewModel: GraphViewModel,
     modifier: Modifier = Modifier,
 ) {
+    val colors = LocalAppColors.current
     Row(modifier) {
         GraphNavigationPanel(viewModel, Modifier.width(240.dp).fillMaxHeight())
         // Vertical divider
@@ -24,7 +24,7 @@ fun GraphPanel(
             modifier = Modifier
                 .width(1.dp)
                 .fillMaxHeight()
-                .background(Color(0xFFDDDDDD))
+                .background(colors.divider)
         )
         GraphVisualizer(viewModel = viewModel, modifier = Modifier.weight(1f).fillMaxSize().clipToBounds())
     }

@@ -15,6 +15,8 @@ import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.MenuBar
 import com.keymusicman.appflower.model.AppGraph
+import com.keymusicman.appflower.settings.ThemePreference
+import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
 import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.recents.RecentGraph
@@ -34,12 +36,16 @@ fun FrameWindowScope.App(
     graphFile: File,
     recents: List<RecentGraph>,
     onOpenFile: (File) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    isDark: Boolean,
+    themePreference: ThemePreference,
+    onThemeChange: (ThemePreference) -> Unit,
 ) {
     val viewModel = remember { GraphViewModel() }
     var appGraph by remember { mutableStateOf<AppGraph?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val projectPath = remember(graphFile) { deriveProjectPath(graphFile) }
+    var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(graphFile) {
         appGraph = null
@@ -58,6 +64,8 @@ fun FrameWindowScope.App(
             Item("Close", shortcut = KeyShortcut(Key.W, meta = true)) {
                 onClose()
             }
+            Separator()
+            Item("Settings…") { showSettings = true }
             Separator()
             Menu("Recent Graphs") {
                 if (recents.isEmpty()) {
@@ -97,7 +105,19 @@ fun FrameWindowScope.App(
         }
     }
 
-    MaterialTheme {
-        GraphPanel(viewModel = viewModel, modifier = Modifier.fillMaxSize())
+    AppTheme(isDark = isDark) {
+        MaterialTheme {
+            GraphPanel(viewModel = viewModel, modifier = Modifier.fillMaxSize())
+        }
+        if (showSettings) {
+            SettingsWindow(
+                current = themePreference,
+                onSelect = { pref ->
+                    onThemeChange(pref)
+                    showSettings = false
+                },
+                onClose = { showSettings = false },
+            )
+        }
     }
 }

@@ -1,13 +1,17 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.awt.ComposePanel
 import com.intellij.execution.executors.DefaultRunExecutor
+import com.intellij.ide.ui.LafManager
+import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings
 import com.intellij.openapi.externalSystem.task.TaskCallback
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.keymusicman.appflower.loader.GraphLoader
+import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import org.jetbrains.plugins.gradle.util.GradleConstants
@@ -42,14 +46,23 @@ class ModuleGraphPanel(
     private val statusLabel = JLabel()
     private val viewModel = GraphViewModel()
 
+    private val isDarkState = mutableStateOf(LafManager.getInstance().currentUIThemeLookAndFeel.isDark)
+
     /** Compose panel hosting GraphPanel; created once and reused across refreshes. */
     private val composePanel = ComposePanel().apply {
         setContent {
-            GraphPanel(viewModel = viewModel)
+            AppTheme(isDark = isDarkState.value) {
+                GraphPanel(viewModel = viewModel)
+            }
         }
     }
 
     init {
+        // Listen for IDE theme changes and update the Compose panel
+        project.messageBus.connect().subscribe(
+            LafManagerListener.TOPIC,
+            LafManagerListener { isDarkState.value = LafManager.getInstance().currentUIThemeLookAndFeel.isDark }
+        )
         refreshState()
     }
 
