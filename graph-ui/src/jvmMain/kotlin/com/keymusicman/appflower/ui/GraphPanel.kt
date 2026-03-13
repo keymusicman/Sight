@@ -15,6 +15,7 @@ import com.keymusicman.appflower.viewmodel.GraphViewModel
 fun GraphPanel(
     viewModel: GraphViewModel,
     modifier: Modifier = Modifier,
+    onViewSource: ((nodeId: String) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     Row(modifier) {
@@ -26,6 +27,6 @@ fun GraphPanel(
                 .fillMaxHeight()
                 .background(colors.divider)
         )
-        GraphVisualizer(viewModel = viewModel, modifier = Modifier.weight(1f).fillMaxSize().clipToBounds())
+        GraphVisualizer(viewModel = viewModel, modifier = Modifier.weight(1f).fillMaxSize().clipToBounds(), onViewSource = onViewSource)
     }
 }

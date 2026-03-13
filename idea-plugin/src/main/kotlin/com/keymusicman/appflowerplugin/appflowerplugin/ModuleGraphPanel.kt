@@ -5,11 +5,13 @@ import androidx.compose.ui.awt.ComposePanel
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.ide.ui.LafManager
 import com.intellij.ide.ui.LafManagerListener
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings
 import com.intellij.openapi.externalSystem.task.TaskCallback
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
@@ -52,7 +54,19 @@ class ModuleGraphPanel(
     private val composePanel = ComposePanel().apply {
         setContent {
             AppTheme(isDark = isDarkState.value) {
-                GraphPanel(viewModel = viewModel)
+                GraphPanel(
+                    viewModel = viewModel,
+                    onViewSource = { nodeId ->
+                        val appGraph = viewModel.appGraphState.value ?: return@GraphPanel
+                        AppExecutorUtil.getAppExecutorService().submit {
+                            ReadAction.run<Throwable> {
+                                SourceNavigator.navigateToSource(
+                                    project, nodeId, appGraph, moduleInfo.projectRootPath
+                                )
+                            }
+                        }
+                    }
+                )
             }
         }
     }

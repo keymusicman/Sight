@@ -2,6 +2,8 @@ package com.keymusicman.appflower.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -102,6 +104,7 @@ fun GraphVisualizer(
     appBasePath: String? = null,
     modifier: Modifier = Modifier,
     viewModel: GraphViewModel,
+    onViewSource: ((nodeId: String) -> Unit)? = null,
 ) {
     val layoutGraph by viewModel.displayLayoutGraphState
 
@@ -118,7 +121,7 @@ fun GraphVisualizer(
             }
 
             else -> {
-                GraphVisualizerInternal(layoutGraph, viewModel)
+                GraphVisualizerInternal(layoutGraph, viewModel, onViewSource)
             }
         }
     }
@@ -128,7 +131,8 @@ fun GraphVisualizer(
 @OptIn(ExperimentalComposeUiApi::class)
 private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     layoutGraph: LayoutGraph,
-    viewModel: GraphViewModel
+    viewModel: GraphViewModel,
+    onViewSource: ((nodeId: String) -> Unit)? = null,
 ) {
     var loadedOnce by rememberSaveable { mutableStateOf(false) }
     val colors = LocalAppColors.current
@@ -265,6 +269,10 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     val hasMultipleStates = imagePaths.size > 1
                     val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
                     val isSelected = viewModel.selectedNodeIds.value.contains(ln.id)
+                    ContextMenuArea(items = {
+                        if (onViewSource != null) listOf(ContextMenuItem("View source") { onViewSource(ln.id) })
+                        else emptyList()
+                    }) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -363,6 +371,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                             )
                         }
                     }
+                    } // end ContextMenuArea
                 }
             }
         ) { measurables, constraints ->
