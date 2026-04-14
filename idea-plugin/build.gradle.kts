@@ -19,9 +19,10 @@ dependencies {
     implementation(project(":graph-ui"))
 
     intellijPlatform {
-        intellijIdeaCommunity("2025.1.4")
+        androidStudio("2025.1.1.13")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("org.jetbrains.plugins.gradle")
+        bundledPlugin("org.jetbrains.android")
         composeUI()
     }
 }
@@ -29,7 +30,7 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "251"
+            sinceBuild = "AI-251"
         }
         changeNotes = """
             Initial version
