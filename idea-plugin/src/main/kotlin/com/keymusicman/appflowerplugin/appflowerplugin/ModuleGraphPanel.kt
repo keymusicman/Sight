@@ -13,6 +13,8 @@ import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.keymusicman.appflower.loader.GraphLoader
+import com.keymusicman.appflower.model.AppGraph
+import com.keymusicman.appflower.model.Screen
 import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
 import com.keymusicman.appflower.viewmodel.GraphViewModel
@@ -85,7 +87,8 @@ class ModuleGraphPanel(
     /** Re-checks the graph file and updates the view. Called after successful build. */
     fun refreshState() {
         Thread {
-            val appGraphV2 = if (graphFile.exists()) GraphLoader.loadFromFile(graphFile) else null
+            val loaded = if (graphFile.exists()) GraphLoader.loadFromFile(graphFile) else null
+            val appGraphV2 = loaded?.withRenderedPreviews()
 
             SwingUtilities.invokeLater {
                 removeAll()
@@ -150,6 +153,28 @@ class ModuleGraphPanel(
     private fun setBuildingState() {
         buildButton.isEnabled = false
         statusLabel.text = "Building…"
+    }
+
+    /**
+     * Attempts to render each screen's composable via Layoutlib and returns a copy of
+     * the graph with screenshot_location replaced by the rendered temp PNG path.
+     * Screens that fail to render keep their original screenshot_location.
+     */
+    private fun AppGraph.withRenderedPreviews(): AppGraph {
+        val updatedSubgraphs = subgraphs.mapValues { (_, subgraph) ->
+            val updatedScreens = subgraph.screens.map { screen ->
+                val rendered = runCatching {
+                    ComposableRenderer.render(
+                        project = project,
+                        modulePath = moduleInfo.modulePath,
+                        composableFqn = screen.function,
+                    )
+                }.getOrNull()
+                if (rendered != null) screen.copy(screenshot_location = rendered) else screen
+            }
+            subgraph.copy(screens = updatedScreens)
+        }
+        return copy(subgraphs = updatedSubgraphs)
     }
 }
 

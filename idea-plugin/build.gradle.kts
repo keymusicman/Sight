@@ -19,7 +19,7 @@ dependencies {
     implementation(project(":graph-ui"))
 
     intellijPlatform {
-        androidStudio("2025.1.1.13")
+        androidStudio("2025.1.4.8")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("org.jetbrains.plugins.gradle")
         bundledPlugin("org.jetbrains.android")
