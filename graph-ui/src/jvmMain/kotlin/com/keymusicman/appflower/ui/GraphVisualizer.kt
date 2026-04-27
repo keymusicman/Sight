@@ -12,7 +12,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -163,6 +164,18 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     val zoomState = viewModel.zoomState
     val pan = viewModel.panState
     var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
+
+    val transformableState = rememberTransformableState { centroid, zoomChange, panChange, _ ->
+        val oldZoom = zoomState.value
+        val newZoom = (oldZoom * zoomChange).coerceIn(
+            GraphViewModel.ZOOM_MIN,
+            GraphViewModel.ZOOM_MAX
+        )
+        val actualFactor = newZoom / oldZoom
+        // Keep the pinch centroid fixed on screen, then apply any explicit pan delta.
+        pan.value = centroid - (centroid - pan.value) * actualFactor + panChange
+        zoomState.value = newZoom
+    }
     val cameraIconPainter = remember {
         BitmapPainter(loadRequiredClasspathBitmap("img_states_24.png"))
     }
@@ -209,18 +222,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     pan.value = newPan
                     zoomState.value = newZoom
                 }
-                .pointerInput(Unit) {
-                    detectTransformGestures { centroid, panDelta, zoomFactor, _ ->
-                        val oldZoom = zoomState.value
-                        val newZoom = (oldZoom * zoomFactor).coerceIn(
-                            GraphViewModel.ZOOM_MIN,
-                            GraphViewModel.ZOOM_MAX
-                        )
-                        pan.value =
-                            centroid - (centroid - pan.value) * (newZoom / oldZoom) + panDelta
-                        zoomState.value = newZoom
-                    }
-                },
+                .transformable(state = transformableState),
             content = {
                 // background Canvas draws edges and responds to pan/zoom using precomputed layout
                 Canvas(
