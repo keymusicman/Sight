@@ -58,6 +58,6 @@ fun deriveDisplayName(file: File): String {
 /** Derive the project root path from an app-graph.json file.
  *  Screenshots are resolved as File(projectRoot, screenshotLocation). */
 fun deriveProjectPath(file: File): String {
-    return file.parentFile?.parentFile?.parentFile?.parentFile?.absolutePath
+    return file.parentFile?.parentFile?.parentFile?.parentFile?.parentFile?.absolutePath
         ?: file.parent
 }
