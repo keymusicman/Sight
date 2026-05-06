@@ -3,6 +3,7 @@ package com.keymusicman.appflower.viewmodel
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import co.touchlab.kermit.Logger
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.LayoutGraph
@@ -41,6 +42,7 @@ class GraphViewModel {
     var viewportHeight: Float = 0f
 
     val selectedNodeIds: MutableState<Set<String>> = mutableStateOf(emptySet())
+    val backgroundColorState: MutableState<Color> = mutableStateOf(Color(0xFF3C3F41.toInt()))
     val views: MutableState<List<GraphView>> = mutableStateOf(emptyList())
     val activeViewId: MutableState<String?> = mutableStateOf(null)
     private var currentProjectPath: String? = null
@@ -49,6 +51,13 @@ class GraphViewModel {
         const val ZOOM_MIN = 0.1f
         const val ZOOM_MAX = 3.0f
         private const val DEFAULT_ZOOM = 0.5f
+
+        val BACKGROUND_PRESETS = listOf(
+            Color(0xFF3C3F41.toInt()),  // dark gray (default, matches IntelliJ Dark)
+            Color(0xFF1E1E1E.toInt()),  // black
+            Color(0xFFF5F5F5.toInt()),  // light gray
+            Color(0xFFFFFFFF.toInt()),  // white
+        )
     }
 
     fun zoom(factor: Float) {

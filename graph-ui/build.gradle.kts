@@ -26,5 +26,9 @@ kotlin {
 
             implementation(libs.logging.kermit)
         }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.testJunit)
+            implementation(compose.desktop.currentOs)
+        }
     }
 }
