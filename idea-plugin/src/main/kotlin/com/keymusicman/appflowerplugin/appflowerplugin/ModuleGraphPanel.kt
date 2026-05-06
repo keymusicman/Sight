@@ -1,23 +1,18 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.awt.ComposePanel
 import com.intellij.execution.executors.DefaultRunExecutor
-import com.intellij.ide.ui.LafManager
-import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings
-import com.intellij.openapi.externalSystem.task.TaskCallback
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode
+import com.intellij.openapi.externalSystem.task.TaskCallback
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.model.AppGraph
-import com.keymusicman.appflower.model.Screen
-import com.keymusicman.appflower.ui.AppTheme
-import com.keymusicman.appflower.ui.GraphPanel
-import com.keymusicman.appflower.viewmodel.GraphViewModel
+import com.keymusicman.appflower.model.buildLayoutGraph
+import com.keymusicman.appflower.renderer.renderLayoutGraph
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.plugins.gradle.util.GradleConstants
 import java.awt.BorderLayout
 import java.awt.FlowLayout
@@ -27,73 +22,44 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
-/**
- * Per-module Swing panel that embeds [com.keymusicman.appflower.ui.GraphVisualizer] (Compose) for the navigation graph
- * and provides a "Build graph" button to run the exportGraph Gradle task.
- *
- * States:
- *  - No graph JSON present → centered "Build graph" button
- *  - Graph present         → toolbar with "Build graph" + Compose graph visualizer (zoom/pan)
- *  - Building              → button disabled + "Building…" label
- *  - Error                 → error label + "Build graph" button
- */
 class ModuleGraphPanel(
     private val project: Project,
-    private val moduleInfo: GradleModuleInfo
+    private val moduleInfo: GradleModuleInfo,
 ) : JPanel(BorderLayout()) {
 
     private val graphFile = File(moduleInfo.modulePath, "build/graph/app-graph.json")
-
-    private val buildButton = JButton("Build graph").apply {
-        addActionListener { runExportGraph() }
-    }
+    private val buildButton = JButton("Build graph").apply { addActionListener { runExportGraph() } }
     private val statusLabel = JLabel()
-    private val viewModel = GraphViewModel()
 
-    private val isDarkState = mutableStateOf(LafManager.getInstance().currentUIThemeLookAndFeel.isDark)
+    init {
+        refreshState()
+    }
 
-    /** Compose panel hosting GraphPanel; created once and reused across refreshes. */
-    private val composePanel = ComposePanel().apply {
-        setContent {
-            AppTheme(isDark = isDarkState.value) {
-                GraphPanel(
-                    viewModel = viewModel,
-                    onViewSource = { nodeId ->
-                        val appGraph = viewModel.appGraphState.value ?: return@GraphPanel
+    fun refreshState() {
+        Thread {
+            val appGraph = if (graphFile.exists())
+                GraphLoader.loadFromFile(graphFile)?.withRenderedPreviews()
+            else null
+
+            val canvas = appGraph?.let { graph ->
+                runBlocking {
+                    val layout = buildLayoutGraph(graph, moduleInfo.projectRootPath)
+                    val image = renderLayoutGraph(layout) ?: return@runBlocking null
+                    GraphSwingCanvas(layout, image) { nodeId ->
                         AppExecutorUtil.getAppExecutorService().submit {
                             ReadAction.run<Throwable> {
                                 SourceNavigator.navigateToSource(
-                                    project, nodeId, appGraph, moduleInfo.projectRootPath
+                                    project, nodeId, graph, moduleInfo.projectRootPath
                                 )
                             }
                         }
                     }
-                )
+                }
             }
-        }
-    }
-
-    init {
-        // Listen for IDE theme changes and update the Compose panel
-        project.messageBus.connect().subscribe(
-            LafManagerListener.TOPIC,
-            LafManagerListener { isDarkState.value = LafManager.getInstance().currentUIThemeLookAndFeel.isDark }
-        )
-        refreshState()
-    }
-
-    // ── Public API ────────────────────────────────────────────────────────────
-
-    /** Re-checks the graph file and updates the view. Called after successful build. */
-    fun refreshState() {
-        Thread {
-            val loaded = if (graphFile.exists()) GraphLoader.loadFromFile(graphFile) else null
-            val appGraphV2 = loaded?.withRenderedPreviews()
 
             SwingUtilities.invokeLater {
                 removeAll()
-                if (appGraphV2 != null) {
-                    viewModel.buildFromAppGraphV2(appGraphV2, moduleInfo.projectRootPath)
+                if (canvas != null) {
                     val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
                         add(buildButton)
                         add(statusLabel)
@@ -101,16 +67,14 @@ class ModuleGraphPanel(
                     buildButton.isEnabled = true
                     statusLabel.text = ""
                     add(toolbar, BorderLayout.NORTH)
-                    add(composePanel, BorderLayout.CENTER)
+                    add(canvas, BorderLayout.CENTER)
                 } else {
-                    // No graph yet — show centered build button
-                    val center = JPanel(FlowLayout(FlowLayout.CENTER)).apply {
+                    add(JPanel(FlowLayout(FlowLayout.CENTER)).apply {
                         add(JLabel("No graph found for module '${moduleInfo.name}'.  "))
                         add(buildButton)
-                    }
+                    }, BorderLayout.CENTER)
                     buildButton.isEnabled = true
                     statusLabel.text = ""
-                    add(center, BorderLayout.CENTER)
                 }
                 revalidate()
                 repaint()
@@ -118,10 +82,9 @@ class ModuleGraphPanel(
         }.start()
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
     private fun runExportGraph() {
-        setBuildingState()
+        buildButton.isEnabled = false
+        statusLabel.text = "Building…"
 
         val settings = ExternalSystemTaskExecutionSettings().apply {
             externalProjectPath = moduleInfo.projectRootPath
@@ -135,10 +98,7 @@ class ModuleGraphPanel(
             project,
             GradleConstants.SYSTEM_ID,
             object : TaskCallback {
-                override fun onSuccess() {
-                    refreshState()
-                }
-
+                override fun onSuccess() { refreshState() }
                 override fun onFailure() {
                     SwingUtilities.invokeLater {
                         statusLabel.text = "Build failed — see Gradle console for details."
@@ -150,16 +110,6 @@ class ModuleGraphPanel(
         )
     }
 
-    private fun setBuildingState() {
-        buildButton.isEnabled = false
-        statusLabel.text = "Building…"
-    }
-
-    /**
-     * Attempts to render each screen's composable via Layoutlib and returns a copy of
-     * the graph with screenshot_location replaced by the rendered temp PNG path.
-     * Screens that fail to render keep their original screenshot_location.
-     */
     private fun AppGraph.withRenderedPreviews(): AppGraph {
         val updatedSubgraphs = subgraphs.mapValues { (_, subgraph) ->
             val updatedScreens = subgraph.screens.map { screen ->
@@ -177,4 +127,3 @@ class ModuleGraphPanel(
         return copy(subgraphs = updatedSubgraphs)
     }
 }
-

@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.intellijPlatform)
-    alias(libs.plugins.composeCompiler)
 }
 
 group = "com.keymusicman.appflowerplugin"
@@ -16,14 +15,12 @@ repositories {
 
 dependencies {
     implementation(project(":graph-renderer"))
-    implementation(project(":graph-ui"))
 
     intellijPlatform {
         androidStudio("2025.1.4.8")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
         bundledPlugin("org.jetbrains.plugins.gradle")
         bundledPlugin("org.jetbrains.android")
-        composeUI()
     }
 }
 
