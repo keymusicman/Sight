@@ -7,6 +7,7 @@ import com.android.tools.idea.rendering.AndroidBuildTargetReference
 import com.android.tools.idea.rendering.AndroidFacetRenderModelModule
 import com.android.tools.idea.rendering.StudioRenderService
 import com.android.tools.rendering.parsers.RenderXmlFileSnapshot
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import org.jetbrains.android.facet.AndroidFacet
@@ -23,6 +24,8 @@ import javax.imageio.ImageIO
  */
 object ComposableRenderer {
 
+    private val LOG = Logger.getInstance(ComposableRenderer::class.java)
+
     /**
      * Renders [composableFqn] and returns the path to a temp PNG, or null on failure.
      *
@@ -37,12 +40,27 @@ object ComposableRenderer {
         widthDp: Int = 360,
         heightDp: Int = 640,
     ): String? {
+        LOG.info("render() called for composable=$composableFqn, modulePath=$modulePath")
+
         val module = ModuleManager.getInstance(project).modules
             .firstOrNull { it.moduleFilePath.startsWith(modulePath) }
-            ?: return null
+        if (module == null) {
+            LOG.warn("render() failed: no module found matching path=$modulePath. " +
+                "Available modules: ${ModuleManager.getInstance(project).modules.map { it.name }}")
+            return null
+        }
 
-        val facet = AndroidFacet.getInstance(module) ?: return null
-        val moduleVf = module.moduleFile ?: return null
+        val facet = AndroidFacet.getInstance(module)
+        if (facet == null) {
+            LOG.warn("render() failed: no AndroidFacet for module=${module.name}")
+            return null
+        }
+
+        val moduleVf = module.moduleFile
+        if (moduleVf == null) {
+            LOG.warn("render() failed: moduleFile is null for module=${module.name}")
+            return null
+        }
 
         val config: Configuration = ConfigurationManager
             .getOrCreateInstance(module)
@@ -52,14 +70,22 @@ object ComposableRenderer {
         val renderModelModule = AndroidFacetRenderModelModule(buildTargetRef)
 
         val renderService = StudioRenderService.getInstance(project)
-        val logger = renderService.createLogger(project)
+        val renderLogger = renderService.createLogger(project)
 
-        val task = renderService
-            .taskBuilder(renderModelModule, config, logger)
-            .disableDecorations()
-            .build()
-            .get(30, TimeUnit.SECONDS)
-            ?: return null
+        val task = try {
+            renderService
+                .taskBuilder(renderModelModule, config, renderLogger)
+                .disableDecorations()
+                .build()
+                .get(30, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            LOG.error("render() failed: exception building render task for composable=$composableFqn", e)
+            return null
+        }
+        if (task == null) {
+            LOG.warn("render() failed: render task is null for composable=$composableFqn")
+            return null
+        }
 
         return try {
             // Synthetic layout: ComposeViewAdapter + composableName is the same bridge
@@ -76,14 +102,27 @@ object ComposableRenderer {
 
             task.setXmlFile(RenderXmlFileSnapshot(project, "preview.xml", ResourceFolderType.LAYOUT, xml))
 
-            val result = task.render().get(30, TimeUnit.SECONDS) ?: return null
-            val image: BufferedImage = result.getRenderedImage().getCopy() ?: return null
+            val result = task.render().get(30, TimeUnit.SECONDS)
+            if (result == null) {
+                LOG.warn("render() failed: render result is null for composable=$composableFqn")
+                return null
+            }
+
+            val image: BufferedImage? = result.getRenderedImage().getCopy()
+            if (image == null) {
+                LOG.warn("render() failed: rendered image is null for composable=$composableFqn")
+                return null
+            }
 
             val tag = composableFqn.substringAfterLast('.')
             val tempFile = File.createTempFile("appflower_${tag}_", ".png")
             ImageIO.write(image, "PNG", tempFile)
             tempFile.deleteOnExit()
+            LOG.info("render() succeeded for composable=$composableFqn -> ${tempFile.absolutePath}")
             tempFile.absolutePath
+        } catch (e: Exception) {
+            LOG.error("render() failed: exception during rendering of composable=$composableFqn", e)
+            null
         } finally {
             task.dispose()
         }

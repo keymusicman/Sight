@@ -3,6 +3,7 @@ package com.keymusicman.appflowerplugin.appflowerplugin
 import androidx.compose.ui.awt.ComposePanel
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode
 import com.intellij.openapi.externalSystem.task.TaskCallback
@@ -27,6 +28,8 @@ class ModuleGraphPanel(
     private val project: Project,
     private val moduleInfo: GradleModuleInfo,
 ) : JPanel(BorderLayout()) {
+
+    private val log = Logger.getInstance(ModuleGraphPanel::class.java)
 
     private val graphFile = File(moduleInfo.modulePath, "build/graph/app-graph.json")
     private val buildButton = JButton("Build graph").apply { addActionListener { runExportGraph() } }
@@ -133,6 +136,7 @@ class ModuleGraphPanel(
     }
 
     private fun AppGraph.withRenderedPreviews(): AppGraph {
+        log.info("withRenderedPreviews() starting for module=${moduleInfo.modulePath}")
         val updatedSubgraphs = subgraphs.mapValues { (_, subgraph) ->
             val updatedScreens = subgraph.screens.map { screen ->
                 val rendered = runCatching {
@@ -141,11 +145,17 @@ class ModuleGraphPanel(
                         modulePath = moduleInfo.modulePath,
                         composableFqn = screen.function,
                     )
+                }.onFailure { e ->
+                    log.error("withRenderedPreviews() exception rendering screen=${screen.function}", e)
                 }.getOrNull()
+                if (rendered == null) {
+                    log.warn("withRenderedPreviews() no preview for screen=${screen.function}")
+                }
                 if (rendered != null) screen.copy(screenshot_location = rendered) else screen
             }
             subgraph.copy(screens = updatedScreens)
         }
+        log.info("withRenderedPreviews() completed")
         return copy(subgraphs = updatedSubgraphs)
     }
 }
