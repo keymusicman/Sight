@@ -457,10 +457,11 @@ private fun findImagesInLocation(
     projectPath: String?
 ): List<String> {
     return try {
-        val fullPath = if (projectPath != null) {
+        val locationFile = File(screenshotLocation)
+        val fullPath = if (projectPath != null && !locationFile.isAbsolute) {
             File(projectPath, screenshotLocation)
         } else {
-            File(screenshotLocation)
+            locationFile
         }
         Logger.d { "[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}" }
         when {

@@ -10,6 +10,8 @@ import com.android.tools.rendering.parsers.RenderXmlFileSnapshot
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ModuleRootManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import org.jetbrains.android.facet.AndroidFacet
 import java.awt.image.BufferedImage
 import java.io.File
@@ -43,7 +45,9 @@ object ComposableRenderer {
         LOG.info("render() called for composable=$composableFqn, modulePath=$modulePath")
 
         val module = ModuleManager.getInstance(project).modules
-            .firstOrNull { it.moduleFilePath.startsWith(modulePath) }
+            .firstOrNull { m ->
+                ModuleRootManager.getInstance(m).contentRoots.any { root -> root.path == modulePath }
+            }
         if (module == null) {
             LOG.warn("render() failed: no module found matching path=$modulePath. " +
                 "Available modules: ${ModuleManager.getInstance(project).modules.map { it.name }}")
@@ -56,9 +60,9 @@ object ComposableRenderer {
             return null
         }
 
-        val moduleVf = module.moduleFile
+        val moduleVf = LocalFileSystem.getInstance().findFileByPath(modulePath)
         if (moduleVf == null) {
-            LOG.warn("render() failed: moduleFile is null for module=${module.name}")
+            LOG.warn("render() failed: could not find VirtualFile for modulePath=$modulePath")
             return null
         }
 
@@ -114,12 +118,12 @@ object ComposableRenderer {
                 return null
             }
 
-            val tag = composableFqn.substringAfterLast('.')
-            val tempFile = File.createTempFile("appflower_${tag}_", ".png")
-            ImageIO.write(image, "PNG", tempFile)
-            tempFile.deleteOnExit()
-            LOG.info("render() succeeded for composable=$composableFqn -> ${tempFile.absolutePath}")
-            tempFile.absolutePath
+            val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            val outDir = File(modulePath, "build/appflower-previews").also { it.mkdirs() }
+            val outFile = File(outDir, "$safeName.png")
+            ImageIO.write(image, "PNG", outFile)
+            LOG.info("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
+            outFile.absolutePath
         } catch (e: Exception) {
             LOG.error("render() failed: exception during rendering of composable=$composableFqn", e)
             null
