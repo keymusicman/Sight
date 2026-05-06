@@ -30,12 +30,14 @@ class ModuleGraphPanel(
 
     private val graphFile = File(moduleInfo.modulePath, "build/graph/app-graph.json")
     private val buildButton = JButton("Build graph").apply { addActionListener { runExportGraph() } }
+    private val refreshButton = JButton("Refresh previews").apply { addActionListener { refreshPreviews() } }
     private val statusLabel = JLabel()
     private val viewModel = GraphViewModel()
 
     init {
         add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
             add(buildButton)
+            add(refreshButton)
             add(statusLabel)
         }, BorderLayout.NORTH)
 
@@ -110,6 +112,24 @@ class ModuleGraphPanel(
             },
             ProgressExecutionMode.IN_BACKGROUND_ASYNC
         )
+    }
+
+    private fun refreshPreviews() {
+        val currentGraph = viewModel.appGraphState.value ?: return
+        refreshButton.isEnabled = false
+        buildButton.isEnabled = false
+        statusLabel.text = "Rendering previews…"
+
+        Thread {
+            val updated = currentGraph.withRenderedPreviews()
+            viewModel.buildFromAppGraphV2(updated, moduleInfo.projectRootPath)
+
+            SwingUtilities.invokeLater {
+                refreshButton.isEnabled = true
+                buildButton.isEnabled = true
+                statusLabel.text = ""
+            }
+        }.start()
     }
 
     private fun AppGraph.withRenderedPreviews(): AppGraph {

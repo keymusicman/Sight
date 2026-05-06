@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,14 +47,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -73,6 +72,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -164,8 +165,8 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     val pan = viewModel.panState
     var hoveredEdgeIndex by remember(layoutGraph) { mutableStateOf<Int?>(null) }
 
-    val cameraIconPainter = remember {
-        BitmapPainter(loadRequiredClasspathBitmap("img_states_24.png"))
+    val cameraIconBitmap = remember {
+        loadRequiredClasspathBitmap("img_states_24.png")
     }
 
     // Reset pan to center the entry node whenever the graph changes
@@ -348,11 +349,13 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                         .padding(2.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Image(
-                                        painter = cameraIconPainter,
-                                        contentDescription = "Show image states",
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        drawImage(
+                                            image = cameraIconBitmap,
+                                            dstOffset = IntOffset.Zero,
+                                            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -531,7 +534,6 @@ private fun StatePickerDialog(
                                                 .buffered()
                                                 .use(::loadImageBitmap)
                                         },
-                                        painterFor = { remember { BitmapPainter(it) } },
                                         contentDescription = "$nodeId-state-$index",
                                         contentScale = ContentScale.Fit,
                                         modifier = Modifier.fillMaxSize()
@@ -689,17 +691,16 @@ private fun ZoomSlider(
 
 /**
  * Generic async image loader from the JetBrains Compose Multiplatform tutorial.
- * Loads [T] on [kotlinx.coroutines.Dispatchers.IO] and renders via [painterFor].
+ * Loads [ImageBitmap] on [kotlinx.coroutines.Dispatchers.IO] and renders directly on Canvas.
  */
 @Composable
-private fun <T> AsyncImage(
-    load: suspend () -> T,
-    painterFor: @Composable (T) -> Painter,
+private fun AsyncImage(
+    load: suspend () -> ImageBitmap,
     contentDescription: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
 ) {
-    var image by remember { mutableStateOf<T?>(null) }
+    var image by remember { mutableStateOf<ImageBitmap?>(null) }
     var error by remember { mutableStateOf<Throwable?>(null) }
 
     LaunchedEffect(contentDescription) {
@@ -711,13 +712,29 @@ private fun <T> AsyncImage(
         }
     }
 
-    if (image != null) {
-        Image(
-            painter = painterFor(image!!),
-            contentDescription = contentDescription,
-            contentScale = contentScale,
-            modifier = modifier,
-        )
+    val bitmap = image
+    if (bitmap != null) {
+        Canvas(modifier = modifier) {
+            val srcSize = Size(bitmap.width.toFloat(), bitmap.height.toFloat())
+            val dstSize = size
+            val scaleFactor = when (contentScale) {
+                ContentScale.Fit -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                ContentScale.FillWidth -> dstSize.width / srcSize.width
+                ContentScale.FillHeight -> dstSize.height / srcSize.height
+                ContentScale.Crop -> maxOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                else -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+            }
+            val scaledWidth = srcSize.width * scaleFactor
+            val scaledHeight = srcSize.height * scaleFactor
+            val offsetX = (dstSize.width - scaledWidth) / 2f
+            val offsetY = (dstSize.height - scaledHeight) / 2f
+
+            drawImage(
+                image = bitmap,
+                dstOffset = IntOffset(offsetX.toInt(), offsetY.toInt()),
+                dstSize = IntSize(scaledWidth.toInt(), scaledHeight.toInt()),
+            )
+        }
     } else {
         Box(modifier = modifier) {
             if (error != null) {
@@ -759,26 +776,43 @@ private fun AsyncImage(
 
         else -> error("Unsupported AsyncImage model type: ${model::class}")
     }
-    var image by remember(model) { mutableStateOf<BitmapPainter?>(null) }
+    var image by remember(model) { mutableStateOf<ImageBitmap?>(null) }
     var error by remember(model) { mutableStateOf<Throwable?>(null) }
 
     LaunchedEffect(model) {
         try {
-            image = withContext(Dispatchers.IO) { BitmapPainter(load()) }
+            image = withContext(Dispatchers.IO) { load() }
         } catch (e: Throwable) {
             Logger.w { "[AppFlower] AsyncImage: failed to load '$contentDescription': ${e::class.simpleName}: ${e.message}" }
             error = e
         }
     }
 
-    val painter = image
-    if (painter != null) {
-        Image(
-            painter = painter,
-            contentDescription = contentDescription,
-            contentScale = contentScale,
-            modifier = modifier,
-        )
+    val bitmap = image
+    if (bitmap != null) {
+        // Draw directly on Canvas to avoid passing Painter types across composable
+        // boundaries, which causes $stable field errors in IntelliJ plugin runtime.
+        Canvas(modifier = modifier) {
+            val srcSize = Size(bitmap.width.toFloat(), bitmap.height.toFloat())
+            val dstSize = size
+            val scaleFactor = when (contentScale) {
+                ContentScale.Fit -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                ContentScale.FillWidth -> dstSize.width / srcSize.width
+                ContentScale.FillHeight -> dstSize.height / srcSize.height
+                ContentScale.Crop -> maxOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                else -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+            }
+            val scaledWidth = srcSize.width * scaleFactor
+            val scaledHeight = srcSize.height * scaleFactor
+            val offsetX = (dstSize.width - scaledWidth) / 2f
+            val offsetY = (dstSize.height - scaledHeight) / 2f
+
+            drawImage(
+                image = bitmap,
+                dstOffset = IntOffset(offsetX.toInt(), offsetY.toInt()),
+                dstSize = IntSize(scaledWidth.toInt(), scaledHeight.toInt()),
+            )
+        }
     } else {
         Box(modifier = modifier) {
             if (error != null) {
