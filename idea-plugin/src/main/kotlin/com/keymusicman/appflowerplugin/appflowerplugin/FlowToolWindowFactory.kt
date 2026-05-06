@@ -30,8 +30,7 @@ class FlowToolWindowFactory : ToolWindowFactory {
                 when {
                     modules.isEmpty() -> {
                         val msg = makeMessagePanel(
-                            "No modules with exportGraph task found.\n" +
-                            "Make sure the exportGraph task is registered in a build.gradle.kts."
+                            "No modules with exportGraph task found."
                         )
                         toolWindow.contentManager.addContent(
                             ContentFactory.getInstance().createContent(msg, "App Flow", false)
