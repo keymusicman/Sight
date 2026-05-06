@@ -112,7 +112,7 @@ fun GraphVisualizer(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.background),
+            .background(viewModel.backgroundColorState.value),
         contentAlignment = Alignment.TopStart,
     ) {
         when (val layoutGraph = layoutGraph) {
@@ -408,13 +408,14 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
             }
         }
 
-        ZoomControls(
+        ToolsPanel(
             zoom = zoomState.value,
             onZoomChange = { viewModel.setZoom(it) },
             onZoomIn = { viewModel.zoom(1.2f) },
             onZoomOut = { viewModel.zoom(1f / 1.2f) },
-            modifier = Modifier.align(Alignment.BottomEnd)
-                .padding(16.dp)
+            selectedColor = viewModel.backgroundColorState.value,
+            onColorSelect = { viewModel.backgroundColorState.value = it },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
         )
 
         val statePickerNodeId = viewModel.statePickerNodeId.value
@@ -558,59 +559,78 @@ private fun StatePickerDialog(
     }
 }
 
-/**
- * Zoom control overlay: `- [slider] + 75%`, semi-transparent until hovered.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun ZoomControls(
+private fun ToolsPanel(
     zoom: Float,
     onZoomChange: (Float) -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
+    selectedColor: Color,
+    onColorSelect: (Color) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var hovered by remember { mutableStateOf(false) }
     val alpha by animateFloatAsState(targetValue = if (hovered) 0.8f else 0.4f)
     val percent = (zoom * 100).roundToInt()
+    val colors = LocalAppColors.current
 
     Box(
         modifier = modifier
             .alpha(alpha)
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
-            .clip(CircleShape)
-            .background(LocalAppColors.current.surface),
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surface)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        Row(
-            modifier = Modifier,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .clickable { onZoomOut() }
-                    .padding(12.dp),
-                contentAlignment = Alignment.Center,
-            ) { BasicText("-") }
-            ZoomSlider(
-                value = zoom,
-                onValueChange = onZoomChange,
-                valueRange = GraphViewModel.ZOOM_MIN..GraphViewModel.ZOOM_MAX,
-                modifier = Modifier.width(140.dp)
-                    .height(24.dp),
-            )
-            Box(
-                modifier = Modifier
-                    .clickable { onZoomIn() }
-                    .padding(12.dp),
-                contentAlignment = Alignment.Center,
-            ) { BasicText("+") }
-            BasicText(
-                text = "$percent%",
-                style = TextStyle(fontSize = 12.sp),
-                modifier = Modifier.padding(start = 4.dp, end = 16.dp)
-                    .width(40.dp),
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Color swatches
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                GraphViewModel.BACKGROUND_PRESETS.forEach { preset ->
+                    val isSelected = preset == selectedColor
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 3.dp)
+                            .size(20.dp)
+                            .border(
+                                width = 2.dp,
+                                color = if (isSelected) colors.primary else Color.Transparent,
+                                shape = CircleShape
+                            )
+                            .clip(CircleShape)
+                            .background(preset)
+                            .clickable { onColorSelect(preset) }
+                    )
+                }
+            }
+            // Zoom row
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.clickable { onZoomOut() }.padding(8.dp),
+                    contentAlignment = Alignment.Center,
+                ) { BasicText("-") }
+                ZoomSlider(
+                    value = zoom,
+                    onValueChange = onZoomChange,
+                    valueRange = GraphViewModel.ZOOM_MIN..GraphViewModel.ZOOM_MAX,
+                    modifier = Modifier.width(120.dp).height(24.dp),
+                )
+                Box(
+                    modifier = Modifier.clickable { onZoomIn() }.padding(8.dp),
+                    contentAlignment = Alignment.Center,
+                ) { BasicText("+") }
+                BasicText(
+                    text = "$percent%",
+                    style = TextStyle(fontSize = 12.sp),
+                    modifier = Modifier
+                        .padding(start = 4.dp, end = 8.dp)
+                        .width(36.dp),
+                )
+            }
         }
     }
 }
