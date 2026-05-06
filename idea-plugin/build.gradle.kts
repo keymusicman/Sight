@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.intellijPlatform)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
 }
 
 group = "com.keymusicman.appflowerplugin"
@@ -8,6 +10,7 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    google()
     intellijPlatform {
         defaultRepositories()
     }
@@ -15,6 +18,8 @@ repositories {
 
 dependencies {
     implementation(project(":graph-renderer"))
+    implementation(project(":graph-ui"))
+    compileOnly(compose.desktop.currentOs)
 
     intellijPlatform {
         androidStudio("2025.1.4.8")
