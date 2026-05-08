@@ -63,13 +63,12 @@ object LayoutGraphBuilder {
                         }
 
                         "subgraph" -> {
-                            // Resolve to root screen of target subgraph
+                            // Resolve to root screen of target subgraph, or placeholder for cross-module
                             subgraphRoots[connection.to.subgraph]
+                                ?: "[${connection.to.subgraph}]"
                         }
 
-                        else -> {
-                            null
-                        }
+                        else -> null
                     }
 
                     if (fromId != null && toId != null) {
@@ -78,6 +77,13 @@ object LayoutGraphBuilder {
                 }
             }
 
+            // Add placeholder nodes for any edge target not in this module's graph
+            edgesList.map { it.to }.distinct()
+                .filter { it !in nodesMap }
+                .forEach { missingId ->
+                    nodesMap[missingId] = GraphNode(id = missingId, isPlaceholder = true)
+                }
+
             nodesMap.values.toList() to edgesList
         }
 
@@ -85,12 +91,14 @@ object LayoutGraphBuilder {
 
         // Load image dimensions efficiently (header-only, no full image load)
         val imageDimensions: Map<String, Pair<Int, Int>> = nodes.associate { node ->
-            val selectedPath = node.imagePaths.getOrNull(node.selectedState)
-                ?: node.imagePaths.firstOrNull()
-            val dim = selectedPath
-                ?.let { path ->
-                    imageResolver.resolveDimension(path)
+            val dim = when {
+                node.isPlaceholder -> 300 to 100
+                else -> {
+                    val selectedPath = node.imagePaths.getOrNull(node.selectedState)
+                        ?: node.imagePaths.firstOrNull()
+                    selectedPath?.let { imageResolver.resolveDimension(it) }
                 }
+            }
             node.id to (dim ?: (540 to 360))
         }
 
@@ -297,7 +305,8 @@ object LayoutGraphBuilder {
                     width = w,
                     height = h,
                     imagePaths = imagePaths,
-                    selectedState = selectedState
+                    selectedState = selectedState,
+                    isPlaceholder = nodeById[id]?.isPlaceholder ?: false,
                 )
         }
 
@@ -318,7 +327,8 @@ object LayoutGraphBuilder {
                     width = w,
                     height = h,
                     imagePaths = imagePaths,
-                    selectedState = selectedState
+                    selectedState = selectedState,
+                    isPlaceholder = nodeById[id]?.isPlaceholder ?: false,
                 )
                 extraTop += h + minVerticalGap
             }

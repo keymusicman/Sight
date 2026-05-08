@@ -48,9 +48,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -330,7 +332,32 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                 }
                             }
                     ) {
-                        if (selectedPath != null) {
+                        if (ln.isPlaceholder) {
+                            val subgraphLabel = ln.id.removePrefix("[").removeSuffix("]")
+                            Box(
+                                modifier = Modifier.fillMaxSize()
+                                    .background(colors.surface.copy(alpha = 0.4f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    drawRoundRect(
+                                        color = Color.Gray.copy(alpha = 0.5f),
+                                        style = Stroke(
+                                            width = 2.dp.toPx(),
+                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 5f)),
+                                        ),
+                                        cornerRadius = CornerRadius(4.dp.toPx()),
+                                    )
+                                }
+                                BasicText(
+                                    text = "[$subgraphLabel]",
+                                    style = TextStyle(
+                                        color = colors.onBackground.copy(alpha = 0.6f),
+                                        fontSize = labelFontSize.sp,
+                                    ),
+                                )
+                            }
+                        } else if (selectedPath != null) {
                             AsyncImage(
                                 model = File(selectedPath),
                                 contentDescription = ln.id,
