@@ -1,32 +1,24 @@
 {
   "metadata": {
-    "version": "2.0",
+    "version": "3.0",
     "generated_at": "1234567890"
   },
   "subgraphs": {
     "main": {
       "key": "main",
-      "qualified_name": "com.example.isolatedGraph",
-      "location": "MainActivity.kt",
       "root_screen": "ScreenA",
       "screens": [
         {
           "id": "ScreenA",
-          "function": "MainActivity::ScreenA",
-          "location": "MainActivity.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         },
         {
           "id": "IsolatedB",
-          "function": "MainActivity::IsolatedB",
-          "location": "MainActivity.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         },
         {
           "id": "IsolatedC",
-          "function": "MainActivity::IsolatedC",
-          "location": "MainActivity.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         }
       ],
       "connections": [

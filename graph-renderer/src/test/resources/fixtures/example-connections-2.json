@@ -1,20 +1,16 @@
 {
   "metadata": {
-    "version": "2.0",
+    "version": "3.0",
     "generated_at": "1234567890"
   },
   "subgraphs": {
     "A": {
       "key": "A",
-      "qualified_name": "com.example.A",
-      "location": "A.kt",
       "root_screen": "A1",
       "screens": [
         {
           "id": "A1",
-          "function": "A::A1",
-          "location": "A.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         }
       ],
       "connections": [
@@ -46,42 +42,30 @@
     },
     "B": {
       "key": "B",
-      "qualified_name": "com.example.B",
-      "location": "B.kt",
       "root_screen": "B1",
       "screens": [
         {
           "id": "B1",
-          "function": "B::B1",
-          "location": "B.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         }
       ],
       "connections": []
     },
     "C": {
       "key": "C",
-      "qualified_name": "com.example.C",
-      "location": "C.kt",
       "root_screen": "C1",
       "screens": [
         {
           "id": "C1",
-          "function": "C::C1",
-          "location": "C.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         },
         {
           "id": "C2",
-          "function": "C::C2",
-          "location": "C.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         },
         {
           "id": "C3",
-          "function": "C::C3",
-          "location": "C.kt",
-          "screenshot_location": "/tmp/screenshots/"
+          "composable_fqn": ""
         }
       ],
       "connections": [
