@@ -128,7 +128,8 @@ data class LayoutNode(
 data class LayoutEdge(
     val from: String,
     val to: String,
-    val points: List<PointF>
+    val points: List<PointF>,
+    val trigger: String? = null,
 )
 
 data class LayoutGraph(

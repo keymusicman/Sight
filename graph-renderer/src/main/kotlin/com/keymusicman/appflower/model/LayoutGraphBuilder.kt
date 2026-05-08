@@ -73,7 +73,7 @@ object LayoutGraphBuilder {
                     }
 
                     if (fromId != null && toId != null) {
-                        edgesList.add(GraphEdge(fromId, toId, null))
+                        edgesList.add(GraphEdge(fromId, toId, connection.trigger.takeIf { it.isNotBlank() }))
                     }
                 }
             }
@@ -397,7 +397,7 @@ object LayoutGraphBuilder {
             val dy = end.y - start.y
             val c1 = PointF(start.x + dx * 0.5f, start.y + dy * 0f)
             val c2 = PointF(start.x + dx * 0.05f, start.y + dy * 1f)
-            LayoutEdge(from = e.from, to = e.to, points = listOf(start, c1, c2, end))
+            LayoutEdge(from = e.from, to = e.to, points = listOf(start, c1, c2, end), trigger = e.trigger)
         }
 
         return LayoutGraph(nodes = layoutNodesMap, edges = layoutEdges)

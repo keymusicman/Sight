@@ -254,6 +254,28 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     )
                 }
 
+                // Trigger label shown at cubic midpoint when hovering an edge that has a trigger
+                val hoveredEdge = hoveredEdgeIndex?.let { layoutGraph.edges.getOrNull(it) }
+                val hoveredTrigger = hoveredEdge?.trigger
+                if (hoveredTrigger != null && (hoveredEdge?.points?.size ?: 0) >= 4) {
+                    val pts = hoveredEdge.points
+                    val midX = (pts[0].x + 3 * pts[1].x + 3 * pts[2].x + pts[3].x) / 8f
+                    val midY = (pts[0].y + 3 * pts[1].y + 3 * pts[2].y + pts[3].y) / 8f
+                    val screenX = midX * zoomState.value + pan.value.x
+                    val screenY = midY * zoomState.value + pan.value.y
+                    Box(modifier = Modifier.offset { IntOffset(screenX.roundToInt(), screenY.roundToInt()) }) {
+                        BasicText(
+                            text = hoveredTrigger,
+                            style = TextStyle(
+                                color = colors.edgeHover,
+                                fontSize = 11.sp,
+                                background = colors.surface.copy(alpha = 0.9f),
+                            ),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
                 var hoveredNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
                 var hoveredIconNodeId by remember(layoutGraph) { mutableStateOf<String?>(null) }
                 // image children for each node — loaded asynchronously via loadImageBitmap
