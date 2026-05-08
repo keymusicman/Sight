@@ -21,9 +21,7 @@ object SourceNavigator {
     ) {
         val screen = findScreen(appGraph, nodeId) ?: return
         val screenId = nodeId.substringAfter(':')
-        val parts = screen.function.split("::")
-        if (parts.size != 2) return
-        val screenshotFnName = parts[1]
+        val screenshotFnName = screen.composable_fqn.substringAfterLast('.').takeIf { it.isNotBlank() } ?: return
 
         val screenshotVFile = resolveVirtualFile("$projectRootPath/${screen.location}") ?: return
         val screenshotLine = findFunctionLine(screenshotVFile, screenshotFnName)

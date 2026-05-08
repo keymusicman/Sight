@@ -2,7 +2,7 @@ package com.keymusicman.appflower.model
 
 import kotlinx.serialization.Serializable
 
-// v2.0 format
+// v3.0 format
 @Serializable
 data class GraphMetadata(
     val version: String,
@@ -12,9 +12,9 @@ data class GraphMetadata(
 @Serializable
 data class Screen(
     val id: String,
-    val function: String,
-    val location: String,
-    val screenshot_location: String,
+    val composable_fqn: String = "",
+    val location: String = "",
+    val preview_provider_fqn: String? = null,
     val selected_state: Int = 0
 )
 
@@ -28,14 +28,13 @@ data class ConnectionEndpoint(
 @Serializable
 data class Connection(
     val from: ConnectionEndpoint,
-    val to: ConnectionEndpoint
+    val to: ConnectionEndpoint,
+    val trigger: String = ""
 )
 
 @Serializable
 data class Subgraph(
     val key: String,
-    val qualified_name: String,
-    val location: String,
     val root_screen: String,
     val screens: List<Screen>,
     val connections: List<Connection>
@@ -75,6 +74,31 @@ fun getImageDimension(path: String): Pair<Int, Int>? {
 
 // Immutable layout models and layout builder
 
+fun AppGraph.filterToView(nodeIds: Set<String>): AppGraph {
+    fun ConnectionEndpoint.isInView(): Boolean = when (type) {
+        "screen" -> screen_id != null && "$subgraph:$screen_id" in nodeIds
+        "subgraph" -> nodeIds.any { it.startsWith("$subgraph:") }
+        else -> false
+    }
+    val filteredSubgraphs = subgraphs.mapValues { (subgraphKey, subgraph) ->
+        val filteredScreens = subgraph.screens.filter { screen ->
+            "$subgraphKey:${screen.id}" in nodeIds
+        }
+        val filteredConnections = subgraph.connections.filter { conn ->
+            conn.from.isInView() && conn.to.isInView()
+        }
+        subgraph.copy(screens = filteredScreens, connections = filteredConnections)
+    }.filter { (_, subgraph) -> subgraph.screens.isNotEmpty() }
+    return copy(subgraphs = filteredSubgraphs)
+}
+
+// Backward compatibility: keep old function signature for now
+suspend fun buildLayoutGraph(
+    appGraph: AppGraph,
+    projectPath: String? = null,
+    scale: Float = 0.33f
+): LayoutGraph = LayoutGraphBuilder.build(appGraph, projectPath, scale)
+
 // Local data classes only used internally within buildLayoutGraph
 data class GraphNode(
     val id: String,
@@ -111,28 +135,3 @@ data class LayoutGraph(
     val nodes: Map<String, LayoutNode>,
     val edges: List<LayoutEdge>
 )
-
-fun AppGraph.filterToView(nodeIds: Set<String>): AppGraph {
-    fun ConnectionEndpoint.isInView(): Boolean = when (type) {
-        "screen" -> screen_id != null && "$subgraph:$screen_id" in nodeIds
-        "subgraph" -> nodeIds.any { it.startsWith("$subgraph:") }
-        else -> false
-    }
-    val filteredSubgraphs = subgraphs.mapValues { (subgraphKey, subgraph) ->
-        val filteredScreens = subgraph.screens.filter { screen ->
-            "$subgraphKey:${screen.id}" in nodeIds
-        }
-        val filteredConnections = subgraph.connections.filter { conn ->
-            conn.from.isInView() && conn.to.isInView()
-        }
-        subgraph.copy(screens = filteredScreens, connections = filteredConnections)
-    }.filter { (_, subgraph) -> subgraph.screens.isNotEmpty() }
-    return copy(subgraphs = filteredSubgraphs)
-}
-
-// Backward compatibility: keep old function signature for now
-suspend fun buildLayoutGraph(
-    appGraph: AppGraph,
-    projectPath: String? = null,
-    scale: Float = 0.33f
-): LayoutGraph = LayoutGraphBuilder.build(appGraph, projectPath, scale)

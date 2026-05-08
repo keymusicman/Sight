@@ -1,6 +1,5 @@
 package com.keymusicman.appflower.model
 
-import co.touchlab.kermit.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -21,7 +20,7 @@ object LayoutGraphBuilder {
         appGraph: AppGraph,
         projectPath: String? = null,
         scale: Float = 0.33f,
-        imageResolver: ImageDimensionResolver = DefaultImageDimensionResolver(projectPath),
+        imageResolver: ImageDimensionResolver = DefaultImageDimensionResolver(),
         gaps: LayoutGaps = LayoutGaps()
     ): LayoutGraph {
         // Flatten AppGraph on IO dispatcher (disk I/O for screenshots)
@@ -39,8 +38,7 @@ object LayoutGraphBuilder {
             appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
                 subgraph.screens.forEach { screen ->
                     val nodeId = "$subgraphKey:${screen.id}"
-                    val imagePaths =
-                        findImagesInLocation(screen.screenshot_location, screen.id, projectPath)
+                    val imagePaths = findPreviewImages(screen.composable_fqn, projectPath)
                     nodesMap[nodeId] = GraphNode(
                         id = nodeId,
                         imagePaths = imagePaths,
@@ -441,56 +439,24 @@ interface ImageDimensionResolver {
     suspend fun resolveDimension(imagePath: String): Pair<Int, Int>?
 }
 
-class DefaultImageDimensionResolver(private val projectPath: String? = null) :
-    ImageDimensionResolver {
+class DefaultImageDimensionResolver : ImageDimensionResolver {
     override suspend fun resolveDimension(imagePath: String): Pair<Int, Int>? =
-        withContext(Dispatchers.IO) {
-            val paths = findImagesInLocation(imagePath, "", null)
-            paths.firstOrNull()
-                ?.let { getImageDimension(it) }
-        }
+        withContext(Dispatchers.IO) { getImageDimension(imagePath) }
 }
 
-private fun findImagesInLocation(
-    screenshotLocation: String,
-    screenId: String,
-    projectPath: String?
-): List<String> {
-    return try {
-        val locationFile = File(screenshotLocation)
-        val fullPath = if (projectPath != null && !locationFile.isAbsolute) {
-            File(projectPath, screenshotLocation)
-        } else {
-            locationFile
-        }
-        Logger.d { "[AppFlower] findImagesInLocation: screenId=$screenId, resolved path=${fullPath.absolutePath}, exists=${fullPath.exists()}, isFile=${fullPath.isFile}, isDir=${fullPath.isDirectory}" }
-        when {
-            fullPath.isFile -> listOf(fullPath.absolutePath)
-            fullPath.isDirectory -> {
-                // Match {screenId}[_variant]_{index}.{ext} case-insensitively
-                val regex = Regex(
-                    "${Regex.escape(screenId)}(?:_.+?)?_(\\d+)\\.(?:png|jpg|jpeg|webp)",
-                    RegexOption.IGNORE_CASE
-                )
-                val files = fullPath.listFiles()
-                Logger.d { "[AppFlower] findImagesInLocation: dir contains ${files?.size ?: 0} files, regex=$regex" }
-                files
-                    ?.filter { regex.matches(it.name) }
-                    ?.sortedBy { file ->
-                        regex.find(file.name)?.groups?.get(1)?.value?.toIntOrNull() ?: 0
-                    }
-                    ?.map { it.absolutePath } ?: emptyList()
-            }
-
-            else -> {
-                Logger.e { "[AppFlower] findImagesInLocation: path does not exist or is not accessible: ${fullPath.absolutePath}" }
-                emptyList()
-            }
-        }
-    } catch (e: Exception) {
-        Logger.e { "[AppFlower] findImagesInLocation: exception for screenId=$screenId: ${e.message}" }
-        emptyList()
-    }
+private fun findPreviewImages(composableFqn: String, modulePath: String?): List<String> {
+    if (modulePath.isNullOrBlank() || composableFqn.isBlank()) return emptyList()
+    val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    val previewDir = File(modulePath, "build/appflower-previews")
+    if (!previewDir.isDirectory) return emptyList()
+    val indexed = previewDir.listFiles { f ->
+        f.name.matches(Regex("${Regex.escape(safeName)}_\\d+\\.png"))
+    }?.sortedBy { f ->
+        f.name.removePrefix("${safeName}_").removeSuffix(".png").toIntOrNull() ?: 0
+    }?.map { it.absolutePath }.orEmpty()
+    if (indexed.isNotEmpty()) return indexed
+    val single = File(previewDir, "$safeName.png")
+    return if (single.exists()) listOf(single.absolutePath) else emptyList()
 }
 
 data class LayoutGaps(

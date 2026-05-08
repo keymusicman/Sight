@@ -987,37 +987,25 @@ private fun loadRequiredClasspathBitmap(path: String) =
 @Composable
 private fun PreviewGraphVisualizer() {
     val appGraph = AppGraph(
-        GraphMetadata(
-            version = "", generated_at = "",
-        ),
+        GraphMetadata(version = "", generated_at = ""),
         subgraphs = mapOf(
             "root" to Subgraph(
                 key = "root",
-                qualified_name = "root",
-                location = "com.example.app.MainActivity",
                 root_screen = "Screen1",
                 screens = listOf(
-                    Screen("Screen1", "", "", ""),
-                    Screen("Screen2", "", "", ""),
-                    Screen("Screen3", "", "", ""),
+                    Screen(id = "Screen1"),
+                    Screen(id = "Screen2"),
+                    Screen(id = "Screen3"),
                 ),
                 connections = listOf(
                     Connection(
-                        ConnectionEndpoint(
-                            type = "screen",
-                            screen_id = "Screen1",
-                            subgraph = "root",
-                        ),
-                        ConnectionEndpoint(
-                            type = "screen",
-                            screen_id = "Screen2",
-                            subgraph = "root",
-                        ),
+                        ConnectionEndpoint(type = "screen", screen_id = "Screen1", subgraph = "root"),
+                        ConnectionEndpoint(type = "screen", screen_id = "Screen2", subgraph = "root"),
                     ),
                 )
             )
         )
     )
     val viewModel = GraphViewModel().apply { buildFromAppGraphV2(appGraph) }
-    GraphVisualizer(viewModel = viewModel)
+    AppTheme(isDark = true) { GraphVisualizer(viewModel = viewModel) }
 }

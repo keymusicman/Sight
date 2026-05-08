@@ -19,8 +19,7 @@ import javax.swing.filechooser.FileNameExtensionFilter
  */
 suspend fun prepareGraphZipArchive(appGraph: AppGraph, projectPath: String?): String {
     require(!projectPath.isNullOrBlank()) { "Project path is required" }
-    val projectRoot = File(projectPath.trim())
-    require(projectRoot.exists() && projectRoot.isDirectory) { "Invalid project path: ${projectRoot.absolutePath}" }
+    require(File(projectPath.trim()).isDirectory) { "Invalid project path: $projectPath" }
 
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Web Archive ZIP"
@@ -46,33 +45,8 @@ suspend fun prepareGraphZipArchive(appGraph: AppGraph, projectPath: String?): St
             Charsets.UTF_8
         )
 
-        val screenshotLocations = appGraph.subgraphs.values
-            .flatMap { subgraph -> subgraph.screens.map { it.screenshot_location } }
-            .filter { it.isNotBlank() }
-            .distinct()
-
-        var copiedLocations = 0
-        var missingLocations = 0
-        val screenshots = File(stagingDir, "screenshots")
-        if (!screenshots.exists()) screenshots.mkdir()
-        screenshotLocations.forEach { location ->
-            val source = File(projectRoot, location)
-            if (!source.exists()) {
-                missingLocations++
-                return@forEach
-            }
-            val destinationPath = File(screenshots, location)
-            if (source.isDirectory) {
-                source.copyRecursively(destinationPath, overwrite = true)
-            } else {
-                destinationPath.parentFile?.mkdirs()
-                source.copyTo(destinationPath, overwrite = true)
-            }
-            copiedLocations++
-        }
-
         zipDirectoryContents(stagingDir, destination)
-        return "ZIP prepared: ${destination.absolutePath}\nCopied screenshot locations: $copiedLocations, missing: $missingLocations"
+        return "ZIP prepared: ${destination.absolutePath} (preview PNG bundling deferred)"
     } finally {
         stagingDir.deleteRecursively()
     }
