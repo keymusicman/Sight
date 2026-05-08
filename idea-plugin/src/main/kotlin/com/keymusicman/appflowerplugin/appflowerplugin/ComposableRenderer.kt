@@ -44,6 +44,7 @@ object ComposableRenderer {
         modulePath: String,
         composableFqn: String,
         parameterProviderFqn: String? = null,
+        stateIndex: Int = -1,
         widthDp: Int = 360,
         heightDp: Int = 640,
         sourceFilePath: String? = null,
@@ -161,10 +162,10 @@ object ComposableRenderer {
                 """.trimIndent()
             } else {
                 // Real path: ComposeViewAdapter is the same bridge Android Studio's Preview uses.
-                val providerAttr = if (parameterProviderFqn != null)
-                    "\n    tools:parameterProviderClass=\"$parameterProviderFqn\"" +
-                    "\n    tools:parameterProviderIndex=\"0\""
-                else ""
+                val providerAttr = if (parameterProviderFqn != null) buildString {
+                    append("\n    tools:parameterProviderClass=\"$parameterProviderFqn\"")
+                    if (stateIndex >= 0) append("\n    tools:parameterProviderIndex=\"$stateIndex\"")
+                } else ""
                 // No <?xml?> declaration — kxml2 treats it as a Processing Instruction and rejects it.
                 """
                 <androidx.compose.ui.tooling.ComposeViewAdapter
@@ -205,7 +206,8 @@ object ComposableRenderer {
 
             val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
             val outDir = File(modulePath, "build/appflower-previews").also { it.mkdirs() }
-            val outFile = File(outDir, "$safeName.png")
+            val outFile = if (stateIndex >= 0) File(outDir, "${safeName}_${stateIndex}.png")
+                          else File(outDir, "$safeName.png")
             ImageIO.write(image, "PNG", outFile)
             LOG.info("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
             outFile.absolutePath
