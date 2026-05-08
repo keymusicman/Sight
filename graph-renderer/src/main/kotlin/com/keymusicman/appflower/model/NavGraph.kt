@@ -103,7 +103,8 @@ suspend fun buildLayoutGraph(
 data class GraphNode(
     val id: String,
     val imagePaths: List<String> = emptyList(),
-    val selectedState: Int = 0
+    val selectedState: Int = 0,
+    val isPlaceholder: Boolean = false,
 )
 
 data class GraphEdge(
@@ -121,8 +122,9 @@ data class LayoutNode(
     val y: Float, // center y
     val width: Float,
     val height: Float,
-    val imagePaths: List<String> = emptyList(), // screenshot paths for rendering
-    val selectedState: Int = 0
+    val imagePaths: List<String> = emptyList(),
+    val selectedState: Int = 0,
+    val isPlaceholder: Boolean = false,
 )
 
 data class LayoutEdge(

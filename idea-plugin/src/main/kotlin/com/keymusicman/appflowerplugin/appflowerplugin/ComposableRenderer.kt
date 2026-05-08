@@ -81,6 +81,10 @@ object ComposableRenderer {
                     LOG.warn("render() no module owns sourceFilePath=$sourceFilePath, falling back to modulePath")
                     null
                 }
+                AndroidFacet.getInstance(candidate) == null -> {
+                    LOG.info("render() ${candidate.name} has no AndroidFacet (root/holder module); falling back to modulePath")
+                    null
+                }
                 AndroidFacet.getInstance(candidate)?.configuration?.isLibraryProject == true -> {
                     LOG.info("render() ${candidate.name} is a library module; using app module from modulePath for rendering")
                     null
@@ -116,17 +120,28 @@ object ComposableRenderer {
             return null
         }
 
-        val moduleVf = LocalFileSystem.getInstance().findFileByPath(modulePath)
-        if (moduleVf == null) {
-            LOG.warn("render() failed: could not find VirtualFile for modulePath=$modulePath")
-            return null
-        }
+        val lfs = LocalFileSystem.getInstance()
+        // ConfigurationManager.getConfiguration needs a file VirtualFile (not a directory) to
+        // set up the correct theme, density, and API level from the module's manifest.
+        // Prefer the source file that contains the composable; fall back to the module's
+        // AndroidManifest.xml so ConfigurationManager has module context; last resort: module dir.
+        val configVf = (sourceFilePath?.let { lfs.findFileByPath(it) }
+            ?: lfs.findFileByPath("$modulePath/src/main/AndroidManifest.xml")
+            ?: lfs.findFileByPath(modulePath))
+            ?: run {
+                LOG.warn("render() failed: could not find VirtualFile for modulePath=$modulePath")
+                return null
+            }
+        LOG.info("render() using configVf=${configVf.path} for ConfigurationManager")
 
         val config: Configuration = ConfigurationManager
             .getOrCreateInstance(module)
-            .getConfiguration(moduleVf)
+            .getConfiguration(configVf)
 
-        val buildTargetRef = AndroidBuildTargetReference.gradleOnly(facet)
+        // from(facet, configVf) resolves the build target from the source file so Layoutlib
+        // uses the debug variant classpath (including debugImplementation deps like ui-tooling).
+        // gradleOnly() omits variant context, which can cause ComposeViewAdapter to be broken.
+        val buildTargetRef = AndroidBuildTargetReference.from(facet, configVf)
         val renderModelModule = AndroidFacetRenderModelModule(buildTargetRef)
 
         val renderService = StudioRenderService.getInstance(project)
@@ -193,8 +208,15 @@ object ComposableRenderer {
                 LOG.warn("render() layoutlib [${msg.severity}] $composableFqn: ${msg.html}")
             }
             // Broken/missing classes are stored separately from messages — often the real root cause.
-            runCatching { result.logger.brokenClasses.takeIf { it.isNotEmpty() } }.getOrNull()
-                ?.let { LOG.warn("render() brokenClasses for $composableFqn: ${it.keys}") }
+            val broken = runCatching { result.logger.brokenClasses.takeIf { it.isNotEmpty() } }.getOrNull()
+            if (broken != null) {
+                broken.forEach { (cls, ex) -> LOG.warn("render() brokenClass $cls for $composableFqn: ${ex?.message}", ex) }
+                // ComposeViewAdapter broken means ui-tooling classpath is unusable; no image will render.
+                if (broken.keys.any { it.contains("ComposeViewAdapter") }) {
+                    LOG.warn("render() aborting: ComposeViewAdapter broken — ui-tooling not loadable in Layoutlib classpath")
+                    return null
+                }
+            }
             runCatching { result.logger.missingClasses.takeIf { it.isNotEmpty() } }.getOrNull()
                 ?.let { LOG.warn("render() missingClasses for $composableFqn: $it") }
 
