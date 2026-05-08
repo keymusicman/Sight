@@ -132,6 +132,7 @@ class ModuleGraphPanel(
 
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
+            currentGraph.renderPreviews()
             viewModel.buildFromAppGraphV2(currentGraph, moduleInfo.modulePath)
 
             SwingUtilities.invokeLater {
@@ -144,7 +145,59 @@ class ModuleGraphPanel(
         }
     }
 
-    private fun AppGraph.withRenderedPreviews(): AppGraph = this
+    private companion object {
+        const val MAX_PREVIEW_STATES = 20
+    }
 
-    private fun AppGraph.renderPreviews() {}
+    private fun AppGraph.renderPreviews() {
+        log.info("renderPreviews() starting for module=${moduleInfo.modulePath}")
+        subgraphs.forEach { (_, subgraph) ->
+            subgraph.screens.forEach { screen ->
+                val fqn = screen.composable_fqn.takeIf { it.isNotBlank() } ?: run {
+                    log.warn("renderPreviews() skipping screen=${screen.id}: blank composable_fqn")
+                    return@forEach
+                }
+                val providerFqn = screen.preview_provider_fqn
+                val sourceFilePath = screen.location.takeIf { it.isNotBlank() }?.let { loc ->
+                    java.io.File(moduleInfo.projectRootPath, loc).absolutePath
+                }
+
+                if (providerFqn == null) {
+                    runCatching {
+                        ComposableRenderer.render(
+                            project, moduleInfo.modulePath, fqn,
+                            sourceFilePath = sourceFilePath,
+                        )
+                    }.onFailure { e ->
+                        log.error("renderPreviews() exception for screen=${screen.id}", e)
+                    }.onSuccess { path ->
+                        if (path == null) log.warn("renderPreviews() render returned null for screen=${screen.id}")
+                        else log.info("renderPreviews() rendered screen=${screen.id} → $path")
+                    }
+                } else {
+                    var index = 0
+                    while (index < MAX_PREVIEW_STATES) {
+                        val path = runCatching {
+                            ComposableRenderer.render(
+                                project, moduleInfo.modulePath, fqn,
+                                parameterProviderFqn = providerFqn,
+                                stateIndex = index,
+                                sourceFilePath = sourceFilePath,
+                            )
+                        }.onFailure { e ->
+                            log.error("renderPreviews() exception for screen=${screen.id} index=$index", e)
+                        }.getOrNull()
+
+                        if (path == null) {
+                            log.info("renderPreviews() multi-state done for screen=${screen.id}: $index states rendered")
+                            break
+                        }
+                        log.info("renderPreviews() rendered screen=${screen.id} state=$index → $path")
+                        index++
+                    }
+                }
+            }
+        }
+        log.info("renderPreviews() completed for module=${moduleInfo.modulePath}")
+    }
 }
