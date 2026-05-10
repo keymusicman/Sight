@@ -195,6 +195,22 @@ object ComposableRenderer {
 
             task.setXmlFile(RenderXmlFileSnapshot(project, "preview.xml", ResourceFolderType.LAYOUT, xml))
 
+            // Inflate first so the view hierarchy (including ComposeViewAdapter) is created.
+            // ComposeViewAdapter.init() calls setContent{} which schedules Compose work.
+            task.inflate().get(30, TimeUnit.SECONDS)
+
+            // Advance the Compose frame clock so the scheduled composition actually runs.
+            // Without this, Compose never draws and the snapshot is always white.
+            // Loop until no more callbacks (typically 1-2 frames for a static composable).
+            val frameNs = 16_666_666L // ~60fps
+            var callbacks = task.executeCallbacks(frameNs).get(30, TimeUnit.SECONDS)
+            var frames = 0
+            while (callbacks?.hasMoreCallbacks() == true && frames < 4) {
+                callbacks = task.executeCallbacks(frameNs).get(30, TimeUnit.SECONDS)
+                frames++
+            }
+            LOG.info("render() executeCallbacks done after ${frames + 1} frame(s) for $composableFqn")
+
             val result = task.render().get(30, TimeUnit.SECONDS)
             if (result == null) {
                 LOG.warn("render() failed: render result is null for composable=$composableFqn")
@@ -202,10 +218,20 @@ object ComposableRenderer {
             }
 
             LOG.info("render() result: isSuccess=${result.isSuccess()}, module=${module.name}")
+            // Log the underlying Result status/exception for deeper failure diagnosis.
+            runCatching { result.renderResult }.getOrNull()?.let { r ->
+                if (!r.isSuccess) LOG.warn("render() renderResult status=${r.status} error=${r.errorMessage}", r.exception)
+            }
 
             // Log every render message regardless of severity so we can diagnose failures.
             result.logger.messages.forEach { msg ->
                 LOG.warn("render() layoutlib [${msg.severity}] $composableFqn: ${msg.html}")
+            }
+            // Return null when a render message indicates an out-of-bounds provider index —
+            // this is how the multi-state loop detects that all valid states have been rendered.
+            if (result.logger.messages.any { it.html.contains("Sequence doesn't contain element") }) {
+                LOG.info("render() stopping multi-state loop: provider exhausted at stateIndex=$stateIndex")
+                return null
             }
             // Broken/missing classes are stored separately from messages — often the real root cause.
             val broken = runCatching { result.logger.brokenClasses.takeIf { it.isNotEmpty() } }.getOrNull()

@@ -158,8 +158,9 @@ class ModuleGraphPanel(
                     return@forEach
                 }
                 val providerFqn = screen.preview_provider_fqn
+                // location is relative to the module directory (set by KSP projectRoot option)
                 val sourceFilePath = screen.location.takeIf { it.isNotBlank() }?.let { loc ->
-                    java.io.File(moduleInfo.projectRootPath, loc).absolutePath
+                    java.io.File(moduleInfo.modulePath, loc).absolutePath
                 }
 
                 if (providerFqn == null) {
