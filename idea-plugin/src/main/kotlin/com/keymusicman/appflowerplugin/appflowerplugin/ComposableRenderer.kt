@@ -203,8 +203,8 @@ object ComposableRenderer {
                 <androidx.compose.ui.tooling.ComposeViewAdapter
                     xmlns:android="http://schemas.android.com/apk/res/android"
                     xmlns:tools="http://schemas.android.com/tools"
-                    android:layout_width="360dp"
-                    android:layout_height="640dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     tools:composableName="$resolvedName"$providerAttr />
                 """.trimIndent()
             }
@@ -302,11 +302,35 @@ object ComposableRenderer {
                     return null
                 }
 
+            // Crop to the composable's measured size. ComposeViewAdapter uses wrap_content so it
+            // measures to the composable's intrinsic size, not the full device canvas. rootViews
+            // gives the ComposeViewAdapter's layout bounds (left/top/right/bottom) inside the image.
+            val outputImage = runCatching {
+                result.rootViews.firstOrNull()?.let { root ->
+                    val left = root.left
+                    val top = root.top
+                    val width = root.right - root.left
+                    val height = root.bottom - root.top
+                    logInfo("render() root view bounds: ${width}x${height} at ($left,$top) for $composableFqn")
+                    if (width > 0 && height > 0 && left >= 0 && top >= 0 &&
+                        left + width <= image.width && top + height <= image.height
+                    ) {
+                        image.getSubimage(left, top, width, height)
+                    } else {
+                        logWarn("render() root view bounds outside image (${image.width}x${image.height}): left=$left top=$top w=$width h=$height — using full image")
+                        null
+                    }
+                }
+            }.getOrNull() ?: run {
+                logInfo("render() no root view bounds — using full image ${image.width}x${image.height} for $composableFqn")
+                image
+            }
+
             val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
             val outDir = File(modulePath, "build/appflower-previews").also { it.mkdirs() }
             val outFile = if (stateIndex >= 0) File(outDir, "${safeName}_${stateIndex}.png")
                           else File(outDir, "$safeName.png")
-            ImageIO.write(image, "PNG", outFile)
+            ImageIO.write(outputImage, "PNG", outFile)
             logInfo("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
             outFile.absolutePath
         } catch (e: Exception) {
