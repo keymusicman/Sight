@@ -32,5 +32,6 @@
                     factoryClass="com.keymusicman.appflowerplugin.appflowerplugin.FlowToolWindowFactory"
                     anchor="bottom"
                     icon="AllIcons.Toolwindows.ToolWindowPalette"/>
+        <projectService serviceImplementation="com.keymusicman.appflowerplugin.appflowerplugin.PreviewConfigService"/>
     </extensions>
 </idea-plugin>
