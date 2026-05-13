@@ -59,6 +59,8 @@ Ktor HTTP server on port 8080. Accepts ZIP uploads (`app-graph.json` + `screensh
 ### idea-plugin
 IntelliJ IDEA plugin (targets 2025.1+). Registers a tool window, scans Gradle modules for the `exportGraph` task, and embeds the `graph-ui` Compose component using IntelliJ's bundled Compose UI.
 
+**Composable rendering**: see [`idea-plugin/COMPOSABLE_RENDERING.md`](idea-plugin/COMPOSABLE_RENDERING.md) for the rules governing how `ComposableRenderer` renders `@Composable` functions via Layoutlib. These rules are hard constraints derived from debugging — violating them causes blank images, inflate failures, or `ClassNotFoundException`.
+
 ## Key Architectural Decisions
 
 - **graph-renderer has zero UI dependency** — this is intentional. It can be used from Ktor, IntelliJ, or CLI.
