@@ -1,5 +1,7 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
+import com.android.ide.common.resources.Locale as AndroidLocale
+import com.android.resources.NightMode
 import com.android.resources.ResourceFolderType
 import com.android.tools.configurations.Configuration
 import com.android.tools.idea.configurations.ConfigurationManager
@@ -48,11 +50,10 @@ object ComposableRenderer {
         composableFqn: String,
         parameterProviderFqn: String? = null,
         stateIndex: Int = -1,
-        widthDp: Int = 360,
-        heightDp: Int = 640,
         sourceFilePath: String? = null,
         onLog: ((String) -> Unit)? = null,
         useSimpleLayout: Boolean = DEBUG_SIMPLE_LAYOUT,
+        previewConfig: PreviewRenderConfig = PreviewRenderConfig(),
     ): String? {
         fun logInfo(msg: String) { LOG.info(msg); onLog?.invoke("[INFO] $msg") }
         fun logWarn(msg: String, e: Throwable? = null) {
@@ -152,14 +153,21 @@ object ComposableRenderer {
         val configManager = ConfigurationManager.getOrCreateInstance(module)
         val config: Configuration = configManager.getConfiguration(configVf)
 
-        // Match Android Studio Preview's default device (Pixel 5, 1080×2340, 440 dpi) so that
-        // dp→px conversion is consistent with AS @Preview rendering.
-        val pixel5 = configManager.devices.firstOrNull { it.id == "pixel_5" }
-        if (pixel5 != null) {
-            config.setDevice(pixel5, false)
-            logInfo("render() device set to ${pixel5.displayName} for $composableFqn")
+        if (previewConfig.useCustomConfig) {
+            val baseDeviceId = if (previewConfig.deviceId == CUSTOM_DEVICE_ID) "pixel_5" else previewConfig.deviceId
+            val device = configManager.devices.firstOrNull { it.id == baseDeviceId }
+            if (device != null) {
+                config.setDevice(device, false)
+                logInfo("render() device set to ${device.displayName} for $composableFqn")
+            } else {
+                logWarn("render() device '${previewConfig.deviceId}' not found — using default: ${config.device?.displayName}")
+            }
+            config.setNightMode(if (previewConfig.uiMode == PreviewUiMode.DARK) NightMode.NIGHT else NightMode.NOTNIGHT)
+            config.setFontScale(previewConfig.fontScale)
+            config.setLocale(if (previewConfig.locale.isBlank()) AndroidLocale.ANY else AndroidLocale.create(previewConfig.locale))
+            logInfo("render() custom config applied: device=${previewConfig.deviceId}, uiMode=${previewConfig.uiMode}, fontScale=${previewConfig.fontScale}, locale='${previewConfig.locale}', showSystemUi=${previewConfig.showSystemUi}")
         } else {
-            logWarn("render() pixel_5 not found in device list — using default: ${config.device?.displayName}")
+            logInfo("render() useCustomConfig=false — using @Preview annotation params for $composableFqn")
         }
 
         // from(facet, configVf) resolves the build target from the source file so Layoutlib
@@ -172,11 +180,10 @@ object ComposableRenderer {
         val renderLogger = renderService.createLogger(project)
 
         val task = try {
-            renderService
-                .taskBuilder(renderModelModule, config, renderLogger)
-                .disableDecorations()
-                .build()
-                .get(30, TimeUnit.SECONDS)
+            val builder = renderService.taskBuilder(renderModelModule, config, renderLogger)
+            val showDecorations = previewConfig.useCustomConfig && previewConfig.showSystemUi && !useSimpleLayout
+            if (!showDecorations) builder.disableDecorations()
+            builder.build().get(30, TimeUnit.SECONDS)
         } catch (e: Exception) {
             logError("render() failed: exception building render task for composable=$composableFqn", e)
             return null
@@ -192,8 +199,8 @@ object ComposableRenderer {
                 """
                 <TextView
                     xmlns:android="http://schemas.android.com/apk/res/android"
-                    android:layout_width="${widthDp}dp"
-                    android:layout_height="${heightDp}dp"
+                    android:layout_width="${previewConfig.customWidthDp}dp"
+                    android:layout_height="${previewConfig.customHeightDp}dp"
                     android:text="$composableFqn"
                     android:textColor="#FF0000"
                     android:textSize="24sp"
@@ -207,6 +214,10 @@ object ComposableRenderer {
                     append("\n    tools:parameterProviderClass=\"$parameterProviderFqn\"")
                     if (stateIndex >= 0) append("\n    tools:parameterProviderIndex=\"$stateIndex\"")
                 } else ""
+                val sizeAttr = if (previewConfig.useCustomConfig && previewConfig.deviceId == CUSTOM_DEVICE_ID) {
+                    "\n    tools:previewWidth=\"${previewConfig.customWidthDp}\"" +
+                    "\n    tools:previewHeight=\"${previewConfig.customHeightDp}\""
+                } else ""
                 // No <?xml?> declaration — kxml2 treats it as a Processing Instruction and rejects it.
                 """
                 <androidx.compose.ui.tooling.ComposeViewAdapter
@@ -214,7 +225,7 @@ object ComposableRenderer {
                     xmlns:tools="http://schemas.android.com/tools"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    tools:composableName="$resolvedName"$providerAttr />
+                    tools:composableName="$resolvedName"$providerAttr$sizeAttr />
                 """.trimIndent()
             }
             logInfo("render() xml for composable=$composableFqn:\n$xml")
@@ -314,25 +325,32 @@ object ComposableRenderer {
             // Crop to the composable's measured size. ComposeViewAdapter uses wrap_content so it
             // measures to the composable's intrinsic size, not the full device canvas. rootViews
             // gives the ComposeViewAdapter's layout bounds (left/top/right/bottom) inside the image.
-            val outputImage = runCatching {
-                result.rootViews.firstOrNull()?.let { root ->
-                    val left = root.left
-                    val top = root.top
-                    val width = root.right - root.left
-                    val height = root.bottom - root.top
-                    logInfo("render() root view bounds: ${width}x${height} at ($left,$top) for $composableFqn")
-                    if (width > 0 && height > 0 && left >= 0 && top >= 0 &&
-                        left + width <= image.width && top + height <= image.height
-                    ) {
-                        image.getSubimage(left, top, width, height)
-                    } else {
-                        logWarn("render() root view bounds outside image (${image.width}x${image.height}): left=$left top=$top w=$width h=$height — using full image")
-                        null
-                    }
-                }
-            }.getOrNull() ?: run {
-                logInfo("render() no root view bounds — using full image ${image.width}x${image.height} for $composableFqn")
+            // Skip cropping when showSystemUi=true — we want the full device frame.
+            val skipCrop = previewConfig.useCustomConfig && previewConfig.showSystemUi
+            val outputImage = if (skipCrop) {
+                logInfo("render() skipCrop=true (useCustomConfig=true, showSystemUi=true) — using full image ${image.width}x${image.height} for $composableFqn")
                 image
+            } else {
+                runCatching {
+                    result.rootViews.firstOrNull()?.let { root ->
+                        val left = root.left
+                        val top = root.top
+                        val width = root.right - root.left
+                        val height = root.bottom - root.top
+                        logInfo("render() root view bounds: ${width}x${height} at ($left,$top) for $composableFqn")
+                        if (width > 0 && height > 0 && left >= 0 && top >= 0 &&
+                            left + width <= image.width && top + height <= image.height
+                        ) {
+                            image.getSubimage(left, top, width, height)
+                        } else {
+                            logWarn("render() root view bounds outside image (${image.width}x${image.height}): left=$left top=$top w=$width h=$height — using full image")
+                            null
+                        }
+                    }
+                }.getOrNull() ?: run {
+                    logInfo("render() no root view bounds — using full image ${image.width}x${image.height} for $composableFqn")
+                    image
+                }
             }
 
             val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
