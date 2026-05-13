@@ -39,6 +39,16 @@ class ModuleGraphPanel(
     private val graphFile = File(moduleInfo.modulePath, "build/graph/app-graph.json")
     private val buildButton = JButton("Build graph").apply { addActionListener { runExportGraph() } }
     private val refreshButton = JButton("Refresh previews").apply { addActionListener { refreshPreviews() } }
+    private val configButton = JButton("Configure…").apply {
+        addActionListener {
+            val parent = SwingUtilities.getWindowAncestor(this) as? java.awt.Frame
+            val currentConfig = PreviewConfigService.getInstance(project).config
+            PreviewConfigDialog(parent, currentConfig) { newConfig ->
+                PreviewConfigService.getInstance(project).updateConfig(newConfig)
+                refreshPreviews()
+            }.isVisible = true
+        }
+    }
     private val statusLabel = JLabel()
     private val viewModel = GraphViewModel()
 
@@ -46,6 +56,7 @@ class ModuleGraphPanel(
         add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
             add(buildButton)
             add(refreshButton)
+            add(configButton)
             add(statusLabel)
         }, BorderLayout.NORTH)
 
@@ -76,6 +87,7 @@ class ModuleGraphPanel(
 
     fun refreshState() {
         buildButton.isEnabled = false
+        configButton.isEnabled = false
         statusLabel.text = "Loading…"
 
         AppExecutorUtil.getAppExecutorService().submit {
@@ -90,6 +102,7 @@ class ModuleGraphPanel(
             SwingUtilities.invokeLater {
                 if (!disposed) {
                     buildButton.isEnabled = true
+                    configButton.isEnabled = true
                     statusLabel.text = if (appGraph == null) "No graph — click Build graph" else ""
                 }
             }
@@ -98,6 +111,7 @@ class ModuleGraphPanel(
 
     private fun runExportGraph() {
         buildButton.isEnabled = false
+        configButton.isEnabled = false
         statusLabel.text = "Building…"
 
         val settings = ExternalSystemTaskExecutionSettings().apply {
@@ -117,6 +131,7 @@ class ModuleGraphPanel(
                     SwingUtilities.invokeLater {
                         statusLabel.text = "Build failed — see Gradle console for details."
                         buildButton.isEnabled = true
+                        configButton.isEnabled = true
                     }
                 }
             },
@@ -128,6 +143,7 @@ class ModuleGraphPanel(
         val currentGraph = viewModel.appGraphState.value ?: return
         refreshButton.isEnabled = false
         buildButton.isEnabled = false
+        configButton.isEnabled = false
         statusLabel.text = "Rendering previews…"
 
         AppExecutorUtil.getAppExecutorService().submit {
@@ -139,6 +155,7 @@ class ModuleGraphPanel(
                 if (!disposed) {
                     refreshButton.isEnabled = true
                     buildButton.isEnabled = true
+                    configButton.isEnabled = true
                     statusLabel.text = ""
                 }
             }
@@ -151,6 +168,7 @@ class ModuleGraphPanel(
 
     private fun AppGraph.renderPreviews() {
         log.info("renderPreviews() starting for module=${moduleInfo.modulePath}")
+        val previewConfig = PreviewConfigService.getInstance(project).config
         subgraphs.forEach { (_, subgraph) ->
             subgraph.screens.forEach { screen ->
                 val fqn = screen.composable_fqn.takeIf { it.isNotBlank() } ?: run {
@@ -168,6 +186,7 @@ class ModuleGraphPanel(
                         ComposableRenderer.render(
                             project, moduleInfo.modulePath, fqn,
                             sourceFilePath = sourceFilePath,
+                            previewConfig = previewConfig,
                         )
                     }.onFailure { e ->
                         log.error("renderPreviews() exception for screen=${screen.id}", e)
@@ -184,6 +203,7 @@ class ModuleGraphPanel(
                                 parameterProviderFqn = providerFqn,
                                 stateIndex = index,
                                 sourceFilePath = sourceFilePath,
+                                previewConfig = previewConfig,
                             )
                         }.onFailure { e ->
                             log.error("renderPreviews() exception for screen=${screen.id} index=$index", e)
