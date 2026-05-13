@@ -20,6 +20,7 @@ import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JButton
 import javax.swing.JCheckBox
+import javax.swing.JComboBox
 import javax.swing.JDialog
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -35,6 +36,8 @@ class ComposableRenderDebugDialog(private val project: Project) :
     private val fqnField = JTextField(50)
     private val renderButton = JButton("Render")
     private val simpleLayoutCheckbox = JCheckBox("Simple layout (TextView)", false)
+    private val useCustomConfigCheckbox = JCheckBox("Custom config", false)
+    private val debugDeviceCombo = JComboBox<String>(PRESET_DEVICES.map { it.second }.toTypedArray())
     private val logArea = JTextArea().apply {
         font = Font(Font.MONOSPACED, Font.PLAIN, 11)
         isEditable = false
@@ -49,6 +52,8 @@ class ComposableRenderDebugDialog(private val project: Project) :
             add(fqnField)
             add(renderButton)
             add(simpleLayoutCheckbox)
+            add(useCustomConfigCheckbox)
+            add(debugDeviceCombo)
         }
         add(topBar, BorderLayout.NORTH)
 
@@ -94,12 +99,21 @@ class ComposableRenderDebugDialog(private val project: Project) :
                     return@submit
                 }
 
+                val debugConfig = if (useCustomConfigCheckbox.isSelected) {
+                    PreviewRenderConfig(
+                        useCustomConfig = true,
+                        deviceId = PRESET_DEVICES[debugDeviceCombo.selectedIndex].first,
+                    )
+                } else {
+                    PreviewRenderConfig(useCustomConfig = false)
+                }
                 val imagePath = ComposableRenderer.render(
                     project = project,
                     modulePath = modulePath,
                     composableFqn = fqn,
                     onLog = ::appendLog,
                     useSimpleLayout = simpleLayoutCheckbox.isSelected,
+                    previewConfig = debugConfig,
                 )
 
                 if (imagePath != null) {
