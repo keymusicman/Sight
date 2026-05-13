@@ -167,7 +167,15 @@ object ComposableRenderer {
             config.setLocale(if (previewConfig.locale.isBlank()) AndroidLocale.ANY else AndroidLocale.create(previewConfig.locale))
             logInfo("render() custom config applied: device=${previewConfig.deviceId}, uiMode=${previewConfig.uiMode}, fontScale=${previewConfig.fontScale}, locale='${previewConfig.locale}', showSystemUi=${previewConfig.showSystemUi}")
         } else {
-            logInfo("render() useCustomConfig=false — using @Preview annotation params for $composableFqn")
+            // ConfigurationManager caches the Configuration object per file — our mutations from
+            // a previous useCustomConfig=true render persist on it. Reset all four fields to known
+            // defaults so stale custom settings don't leak into this render.
+            configManager.devices.firstOrNull { it.id == "pixel_5" }
+                ?.let { config.setDevice(it, false) }
+            config.setNightMode(NightMode.NOTNIGHT)
+            config.setFontScale(1.0f)
+            config.setLocale(AndroidLocale.ANY)
+            logInfo("render() useCustomConfig=false — reset to defaults (pixel_5, light, 1.0x, system locale) for $composableFqn")
         }
 
         // from(facet, configVf) resolves the build target from the source file so Layoutlib
