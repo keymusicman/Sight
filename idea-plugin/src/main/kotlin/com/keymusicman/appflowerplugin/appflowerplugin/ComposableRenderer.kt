@@ -149,9 +149,18 @@ object ComposableRenderer {
             }
         logInfo("render() using configVf=${configVf.path} for ConfigurationManager")
 
-        val config: Configuration = ConfigurationManager
-            .getOrCreateInstance(module)
-            .getConfiguration(configVf)
+        val configManager = ConfigurationManager.getOrCreateInstance(module)
+        val config: Configuration = configManager.getConfiguration(configVf)
+
+        // Match Android Studio Preview's default device (Pixel 5, 1080×2340, 440 dpi) so that
+        // dp→px conversion is consistent with AS @Preview rendering.
+        val pixel5 = configManager.devices.firstOrNull { it.id == "pixel_5" }
+        if (pixel5 != null) {
+            config.setDevice(pixel5, false)
+            logInfo("render() device set to ${pixel5.displayName} for $composableFqn")
+        } else {
+            logWarn("render() pixel_5 not found in device list — using default: ${config.device?.displayName}")
+        }
 
         // from(facet, configVf) resolves the build target from the source file so Layoutlib
         // uses the debug variant classpath (including debugImplementation deps like ui-tooling).
