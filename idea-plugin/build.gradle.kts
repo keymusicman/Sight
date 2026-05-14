@@ -27,6 +27,8 @@ dependencies {
         bundledPlugin("org.jetbrains.plugins.gradle")
         bundledPlugin("org.jetbrains.android")
     }
+
+    testImplementation(libs.kotlin.testJunit)
 }
 
 intellijPlatform {
