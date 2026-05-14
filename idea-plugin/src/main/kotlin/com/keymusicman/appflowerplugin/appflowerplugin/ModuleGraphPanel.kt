@@ -148,6 +148,7 @@ class ModuleGraphPanel(
 
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
+            PreviewCache.clearAll(moduleInfo.modulePath)
             currentGraph.renderPreviews()
             viewModel.buildFromAppGraphV2(currentGraph, moduleInfo.modulePath)
 
