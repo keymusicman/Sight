@@ -169,6 +169,11 @@ class ModuleGraphPanel(
     private fun AppGraph.renderPreviews() {
         log.info("renderPreviews() starting for module=${moduleInfo.modulePath}")
         val previewConfig = PreviewConfigService.getInstance(project).config
+        val cacheValid = PreviewCache.isValid(moduleInfo.modulePath, previewConfig)
+        if (cacheValid) {
+            log.info("renderPreviews() cache valid — will skip existing images")
+        }
+
         subgraphs.forEach { (_, subgraph) ->
             subgraph.screens.forEach { screen ->
                 val fqn = screen.composable_fqn.takeIf { it.isNotBlank() } ?: run {
@@ -182,6 +187,10 @@ class ModuleGraphPanel(
                 }
 
                 if (providerFqn == null) {
+                    if (cacheValid && PreviewCache.expectedFile(moduleInfo.modulePath, fqn).exists()) {
+                        log.info("renderPreviews() skipping cached screen=${screen.id}")
+                        return@forEach
+                    }
                     runCatching {
                         ComposableRenderer.render(
                             project, moduleInfo.modulePath, fqn,
@@ -197,6 +206,11 @@ class ModuleGraphPanel(
                 } else {
                     var index = 0
                     while (index < MAX_PREVIEW_STATES) {
+                        if (cacheValid && PreviewCache.expectedFile(moduleInfo.modulePath, fqn, index).exists()) {
+                            log.info("renderPreviews() skipping cached screen=${screen.id} state=$index")
+                            index++
+                            continue
+                        }
                         val path = runCatching {
                             ComposableRenderer.render(
                                 project, moduleInfo.modulePath, fqn,
@@ -219,6 +233,8 @@ class ModuleGraphPanel(
                 }
             }
         }
+
+        PreviewCache.writeSentinel(moduleInfo.modulePath, previewConfig)
         log.info("renderPreviews() completed for module=${moduleInfo.modulePath}")
     }
 }
