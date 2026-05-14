@@ -75,6 +75,77 @@ class ModuleGraphPanel(
                                     }
                                 }
                             }
+                        },
+                        onRefreshNode = onRefreshNode@{ nodeId ->
+                            val currentGraph = viewModel.appGraphState.value ?: return@onRefreshNode
+                            val colon = nodeId.indexOf(':')
+                            if (colon < 0) return@onRefreshNode
+                            val subgraphKey = nodeId.substring(0, colon)
+                            val screenId = nodeId.substring(colon + 1)
+                            val screen = currentGraph.subgraphs[subgraphKey]?.screens?.find { it.id == screenId }
+                                ?: return@onRefreshNode
+                            val fqn = screen.composable_fqn.takeIf { it.isNotBlank() } ?: return@onRefreshNode
+
+                            val displayName = nodeId.substringAfterLast(':')
+                            refreshButton.isEnabled = false
+                            buildButton.isEnabled = false
+                            configButton.isEnabled = false
+                            statusLabel.text = "Rendering $displayName…"
+
+                            AppExecutorUtil.getAppExecutorService().submit {
+                                if (disposed) return@submit
+                                val previewConfig = PreviewConfigService.getInstance(project).config
+                                val providerFqn = screen.preview_provider_fqn
+                                val sourceFilePath = screen.location.takeIf { it.isNotBlank() }?.let { loc ->
+                                    java.io.File(moduleInfo.modulePath, loc).absolutePath
+                                }
+
+                                if (providerFqn == null) {
+                                    PreviewCache.expectedFile(moduleInfo.modulePath, fqn).delete()
+                                    runCatching {
+                                        ComposableRenderer.render(
+                                            project, moduleInfo.modulePath, fqn,
+                                            sourceFilePath = sourceFilePath,
+                                            previewConfig = previewConfig,
+                                        )
+                                    }.onFailure { e -> log.error("onRefreshNode() failed for nodeId=$nodeId", e) }
+                                } else {
+                                    var i = 0
+                                    while (true) {
+                                        val f = PreviewCache.expectedFile(moduleInfo.modulePath, fqn, i)
+                                        if (!f.exists()) break
+                                        f.delete()
+                                        i++
+                                    }
+                                    var index = 0
+                                    while (index < MAX_PREVIEW_STATES) {
+                                        val path = runCatching {
+                                            ComposableRenderer.render(
+                                                project, moduleInfo.modulePath, fqn,
+                                                parameterProviderFqn = providerFqn,
+                                                stateIndex = index,
+                                                sourceFilePath = sourceFilePath,
+                                                previewConfig = previewConfig,
+                                            )
+                                        }.onFailure { e ->
+                                            log.error("onRefreshNode() failed for nodeId=$nodeId index=$index", e)
+                                        }.getOrNull()
+                                        if (path == null) break
+                                        index++
+                                    }
+                                }
+
+                                viewModel.bumpNodeImageRevision(nodeId)
+
+                                SwingUtilities.invokeLater {
+                                    if (!disposed) {
+                                        refreshButton.isEnabled = true
+                                        buildButton.isEnabled = true
+                                        configButton.isEnabled = true
+                                        statusLabel.text = ""
+                                    }
+                                }
+                            }
                         }
                     )
                 }
