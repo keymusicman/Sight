@@ -362,7 +362,8 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                 model = File(selectedPath),
                                 contentDescription = ln.id,
                                 contentScale = ContentScale.FillBounds,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                revision = viewModel.nodeImageRevisions.value[ln.id] ?: 0,
                             )
                         } else {
                             Box(modifier = Modifier.fillMaxSize()) {
@@ -809,6 +810,7 @@ private fun AsyncImage(
     contentDescription: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
+    revision: Int = 0,
 ) {
     val load = when (model) {
         null -> {
@@ -825,10 +827,10 @@ private fun AsyncImage(
 
         else -> error("Unsupported AsyncImage model type: ${model::class}")
     }
-    var image by remember(model) { mutableStateOf<ImageBitmap?>(null) }
-    var error by remember(model) { mutableStateOf<Throwable?>(null) }
+    var image by remember(model, revision) { mutableStateOf<ImageBitmap?>(null) }
+    var error by remember(model, revision) { mutableStateOf<Throwable?>(null) }
 
-    LaunchedEffect(model) {
+    LaunchedEffect(model, revision) {
         try {
             image = withContext(Dispatchers.IO) { load() }
         } catch (e: Throwable) {
