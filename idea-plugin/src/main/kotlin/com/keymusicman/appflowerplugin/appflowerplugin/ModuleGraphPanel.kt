@@ -70,7 +70,7 @@ class ModuleGraphPanel(
                                 AppExecutorUtil.getAppExecutorService().submit {
                                     ReadAction.run<Throwable> {
                                         SourceNavigator.navigateToSource(
-                                            project, nodeId, appGraph, moduleInfo.projectRootPath
+                                            project, nodeId, appGraph, moduleInfo.modulePath
                                         )
                                     }
                                 }
