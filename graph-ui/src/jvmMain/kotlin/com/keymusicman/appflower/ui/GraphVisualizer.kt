@@ -108,6 +108,7 @@ fun GraphVisualizer(
     modifier: Modifier = Modifier,
     viewModel: GraphViewModel,
     onViewSource: ((nodeId: String) -> Unit)? = null,
+    onRefreshNode: ((nodeId: String) -> Unit)? = null,
 ) {
     val layoutGraph by viewModel.displayLayoutGraphState
 
@@ -124,7 +125,7 @@ fun GraphVisualizer(
             }
 
             else -> {
-                GraphVisualizerInternal(layoutGraph, viewModel, onViewSource)
+                GraphVisualizerInternal(layoutGraph, viewModel, onViewSource, onRefreshNode)
             }
         }
     }
@@ -136,6 +137,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     layoutGraph: LayoutGraph,
     viewModel: GraphViewModel,
     onViewSource: ((nodeId: String) -> Unit)? = null,
+    onRefreshNode: ((nodeId: String) -> Unit)? = null,
 ) {
     var loadedOnce by rememberSaveable { mutableStateOf(false) }
     val colors = LocalAppColors.current
@@ -296,8 +298,10 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
                     val isSelected = viewModel.selectedNodeIds.value.contains(ln.id)
                     ContextMenuArea(items = {
-                        if (onViewSource != null) listOf(ContextMenuItem("View source") { onViewSource(ln.id) })
-                        else emptyList()
+                        buildList {
+                            if (onViewSource != null) add(ContextMenuItem("View source") { onViewSource(ln.id) })
+                            if (onRefreshNode != null) add(ContextMenuItem("Refresh") { onRefreshNode(ln.id) })
+                        }
                     }) {
                     Box(
                         modifier = Modifier
