@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GraphMetadata(
     val version: String,
-    val generated_at: String
+    val generated_at: String,
+    val entry_subgraph: String? = null
 )
 
 @Serializable

@@ -23,16 +23,16 @@ object LayoutGraphBuilder {
         imageResolver: ImageDimensionResolver = DefaultImageDimensionResolver(),
         gaps: LayoutGaps = LayoutGaps()
     ): LayoutGraph {
+        // Build map of subgraph key to root_screen (pure computation, no IO needed)
+        val subgraphRoots: Map<String, String> = appGraph.subgraphs.mapValues { (_, subgraph) ->
+            "${subgraph.key}:${subgraph.root_screen}"
+        }
+
         // Flatten AppGraph on IO dispatcher (disk I/O for screenshots)
         val (nodes, edges) = withContext(Dispatchers.IO) {
             val projectPath = projectPath?.trim()
             val nodesMap = mutableMapOf<String, GraphNode>()
             val edgesList = mutableListOf<GraphEdge>()
-
-            // Build map of subgraph key to root_screen for resolving subgraph targets
-            val subgraphRoots = appGraph.subgraphs.mapValues { (_, subgraph) ->
-                "${subgraph.key}:${subgraph.root_screen}"
-            }
 
             // Extract all screens from all subgraphs
             appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
@@ -125,9 +125,17 @@ object LayoutGraphBuilder {
             incomingCount[e.to] = (incomingCount[e.to] ?: 0) + 1
         }
 
-        // find entry node (no incoming). If multiple, pick deterministic first by id.
+        // Resolve entry node: explicit metadata declaration takes priority;
+        // otherwise prefer zero-incoming root screens (subgraph entry points), then fall back
+        // to the candidate that can reach the most nodes.
+        val explicitEntry: String? = appGraph.metadata.entry_subgraph
+            ?.let { key -> subgraphRoots[key]?.takeIf { nodeId -> nodeId in nodeIds } }
+        val rootScreenNodeIds = subgraphRoots.values.toSet()
         val entries = nodeIds.filter { incomingCount[it] == 0 }
-        val entryId = if (entries.isNotEmpty()) entries.first() else nodeIds.first()
+        val entryId: String = explicitEntry
+            ?: (entries.filter { it in rootScreenNodeIds }.ifEmpty { entries })
+                .maxByOrNull { countReachable(it, adjacency) }
+            ?: nodeIds.first()
 
         // compute depth from entry on SCC-condensed DAG.
         // Using longest path on the DAG keeps node columns stable when extra shortcut edges exist.
@@ -475,6 +483,16 @@ data class LayoutGaps(
     val minHorizontalGap: Float = 250f,
     val minVerticalGap: Float = 250f
 )
+
+private fun countReachable(start: String, adjacency: Map<String, List<String>>): Int {
+    val visited = mutableSetOf(start)
+    val queue = ArrayDeque(listOf(start))
+    while (queue.isNotEmpty()) {
+        adjacency[queue.removeFirst()].orEmpty()
+            .forEach { if (visited.add(it)) queue.add(it) }
+    }
+    return visited.size
+}
 
 private fun computeDepthBySccDag(
     nodeIds: List<String>,
