@@ -52,6 +52,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -100,6 +101,8 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+
+const val DOWNSCALE_IMAGES = true
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -267,7 +270,12 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     val midY = (pts[0].y + 3 * pts[1].y + 3 * pts[2].y + pts[3].y) / 8f
                     val screenX = midX * zoomState.value + pan.value.x
                     val screenY = midY * zoomState.value + pan.value.y
-                    Box(modifier = Modifier.offset { IntOffset(screenX.roundToInt(), screenY.roundToInt()) }) {
+                    Box(modifier = Modifier.offset {
+                        IntOffset(
+                            screenX.roundToInt(),
+                            screenY.roundToInt()
+                        )
+                    }) {
                         BasicText(
                             text = hoveredTrigger,
                             style = TextStyle(
@@ -303,132 +311,141 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                             if (onRefreshNode != null) add(ContextMenuItem("Refresh") { onRefreshNode(ln.id) })
                         }
                     }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (isSelected) Modifier.border(
-                                    2.dp,
-                                    colors.nodeSelected,
-                                    RoundedCornerShape(4.dp)
-                                )
-                                else Modifier
-                            )
-                            .onPointerEvent(PointerEventType.Enter) {
-                                hoveredNodeId = ln.id
-                            }
-                            .onPointerEvent(PointerEventType.Exit) {
-                                if (hoveredNodeId == ln.id) {
-                                    hoveredNodeId = null
-                                }
-                                if (hoveredIconNodeId == ln.id) {
-                                    hoveredIconNodeId = null
-                                }
-                            }
-                            .pointerInput(ln.id) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    val isShift = currentEvent.keyboardModifiers.isShiftPressed
-                                    val up = waitForUpOrCancellation()
-                                    if (up != null && isShift) {
-                                        viewModel.toggleNodeSelection(ln.id)
-                                    }
-                                }
-                            }
-                    ) {
-                        if (ln.isPlaceholder) {
-                            val subgraphLabel = ln.id.removePrefix("[").removeSuffix("]")
-                            Box(
-                                modifier = Modifier.fillMaxSize()
-                                    .background(colors.surface.copy(alpha = 0.4f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    drawRoundRect(
-                                        color = Color.Gray.copy(alpha = 0.5f),
-                                        style = Stroke(
-                                            width = 2.dp.toPx(),
-                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 5f)),
-                                        ),
-                                        cornerRadius = CornerRadius(4.dp.toPx()),
-                                    )
-                                }
-                                BasicText(
-                                    text = "[$subgraphLabel]",
-                                    style = TextStyle(
-                                        color = colors.onBackground.copy(alpha = 0.6f),
-                                        fontSize = labelFontSize.sp,
-                                    ),
-                                )
-                            }
-                        } else if (selectedPath != null) {
-                            AsyncImage(
-                                model = File(selectedPath),
-                                contentDescription = ln.id,
-                                contentScale = ContentScale.FillBounds,
-                                modifier = Modifier.fillMaxSize(),
-                                revision = viewModel.nodeImageRevisions.value[ln.id] ?: 0,
-                            )
-                        } else {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                BasicText(
-                                    "No image",
-                                    style = TextStyle(color = Color.Red, fontSize = 12.sp),
-                                    modifier = Modifier.align(Alignment.Center)
-                                )
-                            }
-                        }
-                        if (showStateIcon) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(4.dp),
-                            ) {
-                                val iconAlpha = if (hoveredIconNodeId == ln.id) 0.9f else 0.5f
-                                val iconSize = (24.dp * zoomState.value).coerceIn(24.dp, 32.dp)
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .size(iconSize)
-                                        .alpha(iconAlpha)
-                                        .clickable { viewModel.openStatePicker(ln.id) }
-                                        .onPointerEvent(PointerEventType.Enter) {
-                                            hoveredIconNodeId = ln.id
-                                        }
-                                        .onPointerEvent(PointerEventType.Exit) {
-                                            if (hoveredIconNodeId == ln.id) {
-                                                hoveredIconNodeId = null
-                                            }
-                                        }
-                                        .padding(2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Canvas(modifier = Modifier.fillMaxSize()) {
-                                        drawImage(
-                                            image = cameraIconBitmap,
-                                            dstOffset = IntOffset.Zero,
-                                            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-                                        )
-                                    }
-                                }
-                            }
-                        }
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .offset(y = with(LocalDensity.current) { (-labelTextStyle.fontSize * 1.8).toDp() })
-                                .graphicsLayer { clip = false }
-                                .background(colors.labelBackground)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .fillMaxSize()
+                                .then(
+                                    if (isSelected) Modifier.border(
+                                        2.dp,
+                                        colors.nodeSelected,
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    else Modifier
+                                )
+                                .onPointerEvent(PointerEventType.Enter) {
+                                    hoveredNodeId = ln.id
+                                }
+                                .onPointerEvent(PointerEventType.Exit) {
+                                    if (hoveredNodeId == ln.id) {
+                                        hoveredNodeId = null
+                                    }
+                                    if (hoveredIconNodeId == ln.id) {
+                                        hoveredIconNodeId = null
+                                    }
+                                }
+                                .pointerInput(ln.id) {
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        val isShift = currentEvent.keyboardModifiers.isShiftPressed
+                                        val up = waitForUpOrCancellation()
+                                        if (up != null && isShift) {
+                                            viewModel.toggleNodeSelection(ln.id)
+                                        }
+                                    }
+                                }
                         ) {
-                            BasicText(
-                                text = labelText,
-                                style = labelTextStyle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            if (ln.isPlaceholder) {
+                                val subgraphLabel = ln.id.removePrefix("[")
+                                    .removeSuffix("]")
+                                Box(
+                                    modifier = Modifier.fillMaxSize()
+                                        .background(colors.surface.copy(alpha = 0.4f)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Canvas(Modifier.fillMaxSize()) {
+                                        drawRoundRect(
+                                            color = Color.Gray.copy(alpha = 0.5f),
+                                            style = Stroke(
+                                                width = 2.dp.toPx(),
+                                                pathEffect = PathEffect.dashPathEffect(
+                                                    floatArrayOf(
+                                                        10f,
+                                                        5f
+                                                    )
+                                                ),
+                                            ),
+                                            cornerRadius = CornerRadius(4.dp.toPx()),
+                                        )
+                                    }
+                                    BasicText(
+                                        text = "[$subgraphLabel]",
+                                        style = TextStyle(
+                                            color = colors.onBackground.copy(alpha = 0.6f),
+                                            fontSize = labelFontSize.sp,
+                                        ),
+                                    )
+                                }
+                            } else if (selectedPath != null) {
+                                AsyncImage(
+                                    model = File(selectedPath),
+                                    contentDescription = ln.id,
+                                    contentScale = ContentScale.FillBounds,
+                                    modifier = Modifier.fillMaxSize(),
+                                    revision = viewModel.nodeImageRevisions.value[ln.id] ?: 0,
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    BasicText(
+                                        "No image",
+                                        style = TextStyle(color = Color.Red, fontSize = 12.sp),
+                                        modifier = Modifier.align(Alignment.Center)
+                                    )
+                                }
+                            }
+                            if (showStateIcon) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp),
+                                ) {
+                                    val iconAlpha = if (hoveredIconNodeId == ln.id) 0.9f else 0.5f
+                                    val iconSize = (24.dp * zoomState.value).coerceIn(24.dp, 32.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .size(iconSize)
+                                            .alpha(iconAlpha)
+                                            .clickable { viewModel.openStatePicker(ln.id) }
+                                            .onPointerEvent(PointerEventType.Enter) {
+                                                hoveredIconNodeId = ln.id
+                                            }
+                                            .onPointerEvent(PointerEventType.Exit) {
+                                                if (hoveredIconNodeId == ln.id) {
+                                                    hoveredIconNodeId = null
+                                                }
+                                            }
+                                            .padding(2.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            drawImage(
+                                                image = cameraIconBitmap,
+                                                dstOffset = IntOffset.Zero,
+                                                dstSize = IntSize(
+                                                    size.width.toInt(),
+                                                    size.height.toInt()
+                                                ),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .offset(y = with(LocalDensity.current) { (-labelTextStyle.fontSize * 1.8).toDp() })
+                                    .graphicsLayer { clip = false }
+                                    .background(colors.labelBackground)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                BasicText(
+                                    text = labelText,
+                                    style = labelTextStyle,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
-                    }
                     } // end ContextMenuArea
                 }
             }
@@ -472,7 +489,8 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
             onZoomOut = { viewModel.zoom(1f / 1.2f) },
             selectedColor = viewModel.backgroundColorState.value,
             onColorSelect = { viewModel.backgroundColorState.value = it },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+            modifier = Modifier.align(Alignment.BottomEnd)
+                .padding(16.dp)
         )
 
         val statePickerNodeId = viewModel.statePickerNodeId.value
@@ -666,17 +684,20 @@ private fun ToolsPanel(
             // Zoom row
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.clickable { onZoomOut() }.padding(8.dp),
+                    modifier = Modifier.clickable { onZoomOut() }
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center,
                 ) { BasicText("-") }
                 ZoomSlider(
                     value = zoom,
                     onValueChange = onZoomChange,
                     valueRange = GraphViewModel.ZOOM_MIN..GraphViewModel.ZOOM_MAX,
-                    modifier = Modifier.width(120.dp).height(24.dp),
+                    modifier = Modifier.width(120.dp)
+                        .height(24.dp),
                 )
                 Box(
-                    modifier = Modifier.clickable { onZoomIn() }.padding(8.dp),
+                    modifier = Modifier.clickable { onZoomIn() }
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center,
                 ) { BasicText("+") }
                 BasicText(
@@ -772,10 +793,18 @@ private fun AsyncImage(
             val srcSize = Size(bitmap.width.toFloat(), bitmap.height.toFloat())
             val dstSize = size
             val scaleFactor = when (contentScale) {
-                ContentScale.Fit -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                ContentScale.Fit -> minOf(
+                    dstSize.width / srcSize.width,
+                    dstSize.height / srcSize.height
+                )
+
                 ContentScale.FillWidth -> dstSize.width / srcSize.width
                 ContentScale.FillHeight -> dstSize.height / srcSize.height
-                ContentScale.Crop -> maxOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                ContentScale.Crop -> maxOf(
+                    dstSize.width / srcSize.width,
+                    dstSize.height / srcSize.height
+                )
+
                 else -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
             }
             val scaledWidth = srcSize.width * scaleFactor
@@ -822,10 +851,14 @@ private fun AsyncImage(
         }
 
         is File -> {
-            {
-                model.inputStream()
-                    .buffered()
-                    .use(::loadImageBitmap)
+            if (DOWNSCALE_IMAGES) {
+                { loadScaledImageBitmap(model) }
+            } else {
+                {
+                    model.inputStream()
+                        .buffered()
+                        .use(::loadImageBitmap)
+                }
             }
         }
 
@@ -851,10 +884,18 @@ private fun AsyncImage(
             val srcSize = Size(bitmap.width.toFloat(), bitmap.height.toFloat())
             val dstSize = size
             val scaleFactor = when (contentScale) {
-                ContentScale.Fit -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                ContentScale.Fit -> minOf(
+                    dstSize.width / srcSize.width,
+                    dstSize.height / srcSize.height
+                )
+
                 ContentScale.FillWidth -> dstSize.width / srcSize.width
                 ContentScale.FillHeight -> dstSize.height / srcSize.height
-                ContentScale.Crop -> maxOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
+                ContentScale.Crop -> maxOf(
+                    dstSize.width / srcSize.width,
+                    dstSize.height / srcSize.height
+                )
+
                 else -> minOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height)
             }
             val scaledWidth = srcSize.width * scaleFactor
@@ -1032,6 +1073,27 @@ internal fun formatNodeLabel(nodeId: String): String {
     return if (leaf.isNotEmpty()) leaf else nodeId
 }
 
+private fun loadScaledImageBitmap(file: File, maxDimension: Int = 800): ImageBitmap {
+    val src = javax.imageio.ImageIO.read(file) ?: return ImageBitmap(1, 1)
+    val w = src.width
+    val h = src.height
+    if (w <= maxDimension && h <= maxDimension) return src.toComposeImageBitmap()
+    val scale = maxDimension.toFloat() / maxOf(w, h)
+    val sw = (w * scale).toInt()
+        .coerceAtLeast(1)
+    val sh = (h * scale).toInt()
+        .coerceAtLeast(1)
+    val dst = java.awt.image.BufferedImage(sw, sh, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+    val g = dst.createGraphics()
+    g.setRenderingHint(
+        java.awt.RenderingHints.KEY_INTERPOLATION,
+        java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR
+    )
+    g.drawImage(src, 0, 0, sw, sh, null)
+    g.dispose()
+    return dst.toComposeImageBitmap()
+}
+
 private fun loadRequiredClasspathBitmap(path: String) =
     GraphViewModel::class.java.classLoader
         ?.getResourceAsStream(path)
@@ -1054,8 +1116,16 @@ private fun PreviewGraphVisualizer() {
                 ),
                 connections = listOf(
                     Connection(
-                        ConnectionEndpoint(type = "screen", screen_id = "Screen1", subgraph = "root"),
-                        ConnectionEndpoint(type = "screen", screen_id = "Screen2", subgraph = "root"),
+                        ConnectionEndpoint(
+                            type = "screen",
+                            screen_id = "Screen1",
+                            subgraph = "root"
+                        ),
+                        ConnectionEndpoint(
+                            type = "screen",
+                            screen_id = "Screen2",
+                            subgraph = "root"
+                        ),
                     ),
                 )
             )
