@@ -42,6 +42,7 @@ class GraphViewModel {
     var viewportHeight: Float = 0f
 
     val selectedNodeIds: MutableState<Set<String>> = mutableStateOf(emptySet())
+    val nodeImageRevisions: MutableState<Map<String, Int>> = mutableStateOf(emptyMap())
     val backgroundColorState: MutableState<Color> = mutableStateOf(Color(0xFF3C3F41.toInt()))
     val views: MutableState<List<GraphView>> = mutableStateOf(emptyList())
     val activeViewId: MutableState<String?> = mutableStateOf(null)
@@ -124,6 +125,11 @@ class GraphViewModel {
 
     fun clearSelection() {
         selectedNodeIds.value = emptySet()
+    }
+
+    fun bumpNodeImageRevision(nodeId: String) {
+        val current = nodeImageRevisions.value[nodeId] ?: 0
+        nodeImageRevisions.value = nodeImageRevisions.value + (nodeId to current + 1)
     }
 
     fun createView(name: String) {

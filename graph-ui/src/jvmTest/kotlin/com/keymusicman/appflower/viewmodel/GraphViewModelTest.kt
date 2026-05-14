@@ -17,4 +17,26 @@ class GraphViewModelTest {
         vm.backgroundColorState.value = GraphViewModel.BACKGROUND_PRESETS[3]
         assertEquals(GraphViewModel.BACKGROUND_PRESETS[3], vm.backgroundColorState.value)
     }
+
+    @Test
+    fun `nodeImageRevisions starts empty`() {
+        val vm = GraphViewModel()
+        assertEquals(emptyMap<String, Int>(), vm.nodeImageRevisions.value)
+    }
+
+    @Test
+    fun `bumpNodeImageRevision increments revision for the node`() {
+        val vm = GraphViewModel()
+        vm.bumpNodeImageRevision("root:Home")
+        assertEquals(1, vm.nodeImageRevisions.value["root:Home"])
+        vm.bumpNodeImageRevision("root:Home")
+        assertEquals(2, vm.nodeImageRevisions.value["root:Home"])
+    }
+
+    @Test
+    fun `bumpNodeImageRevision does not affect other nodes`() {
+        val vm = GraphViewModel()
+        vm.bumpNodeImageRevision("root:Home")
+        assertEquals(null, vm.nodeImageRevisions.value["root:Settings"])
+    }
 }
