@@ -1,6 +1,7 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -13,28 +14,56 @@ import com.keymusicman.appflower.model.Screen
 
 object SourceNavigator {
 
+    private val log = Logger.getInstance(SourceNavigator::class.java)
+
     fun navigateToSource(
         project: Project,
         nodeId: String,
         appGraph: AppGraph,
         projectRootPath: String,
     ) {
-        val screen = findScreen(appGraph, nodeId) ?: return
+        val screen = findScreen(appGraph, nodeId) ?: run {
+            log.warn("navigateToSource: no screen found for nodeId=$nodeId")
+            return
+        }
         val screenId = nodeId.substringAfter(':')
-        val screenshotFnName = screen.composable_fqn.substringAfterLast('.').takeIf { it.isNotBlank() } ?: return
+        val composableName = screen.composable_fqn.substringAfterLast('.').takeIf { it.isNotBlank() } ?: run {
+            log.warn("navigateToSource: blank composable name for nodeId=$nodeId, fqn=${screen.composable_fqn}")
+            return
+        }
 
-        val screenshotVFile = resolveVirtualFile("$projectRootPath/${screen.location}") ?: return
-        val screenshotLine = findFunctionLine(screenshotVFile, screenshotFnName)
+        val locationPath = "$projectRootPath/${screen.location}"
+        log.info("navigateToSource: nodeId=$nodeId fqn=${screen.composable_fqn} location=${screen.location} resolvedPath=$locationPath")
 
-        val candidate = extractComposableCandidate(screenshotVFile, screenshotFnName, screenId)
+        val screenshotVFile = resolveVirtualFile(locationPath)
+        if (screenshotVFile == null) {
+            // Cross-module: location is relative to a different module directory.
+            // Fall back to project-wide search for the composable function.
+            log.warn("navigateToSource: could not resolve location file at $locationPath — searching project for $composableName")
+            val result = findComposableFile(project, composableName, "")
+            if (result != null) {
+                log.info("navigateToSource: found $composableName at ${result.first.path}:${result.second}")
+                navigateToLine(project, result.first, result.second)
+            } else {
+                log.warn("navigateToSource: $composableName not found in project")
+            }
+            return
+        }
+
+        val screenshotLine = findFunctionLine(screenshotVFile, composableName)
+        log.info("navigateToSource: resolved file=${screenshotVFile.path} line=$screenshotLine")
+
+        val candidate = extractComposableCandidate(screenshotVFile, composableName, screenId)
         if (candidate != null) {
             val composableResult = findComposableFile(project, candidate, screenshotVFile.path)
             if (composableResult != null) {
+                log.info("navigateToSource: navigating to composable candidate=$candidate at ${composableResult.first.path}:${composableResult.second}")
                 navigateToLine(project, composableResult.first, composableResult.second)
                 return
             }
         }
-        // Fallback: open screenshot test function
+        // Fallback: open the location file at the function line
+        log.info("navigateToSource: falling back to location file at line ${screenshotLine ?: 0}")
         navigateToLine(project, screenshotVFile, screenshotLine ?: 0)
     }
 
