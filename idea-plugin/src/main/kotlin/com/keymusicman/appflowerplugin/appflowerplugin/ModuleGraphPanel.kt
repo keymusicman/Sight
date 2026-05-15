@@ -164,10 +164,40 @@ class ModuleGraphPanel(
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val appGraph = if (graphFile.exists()) GraphLoader.loadFromFile(graphFile) else null
-            appGraph?.renderPreviews()
 
             if (appGraph != null) {
+                val previewConfig = PreviewConfigService.getInstance(project).config
+                val cacheValid = PreviewCache.isValid(moduleInfo.modulePath, previewConfig)
+
+                val phase1Rendered = appGraph.renderSelectedStates(cacheValid) { done, total ->
+                    SwingUtilities.invokeLater { if (!disposed) statusLabel.text = "Rendering $done/$total…" }
+                }
+
                 viewModel.buildFromAppGraphV2(appGraph, moduleInfo.modulePath)
+
+                val multiStateCount = appGraph.subgraphs.values
+                    .sumOf { sub -> sub.screens.count { it.preview_provider_fqn != null && it.composable_fqn.isNotBlank() } }
+
+                if (multiStateCount > 0) {
+                    SwingUtilities.invokeLater {
+                        if (!disposed) {
+                            buildButton.isEnabled = true
+                            configButton.isEnabled = true
+                            statusLabel.text = "Rendering state variants 0/$multiStateCount…"
+                        }
+                    }
+                    appGraph.renderRemainingStates(
+                        phase1Rendered = phase1Rendered,
+                        cacheValid = cacheValid,
+                        onProgress = { done, total ->
+                            SwingUtilities.invokeLater { if (!disposed) statusLabel.text = "Rendering state variants $done/$total…" }
+                        },
+                        onNodeDone = { nodeId -> viewModel.bumpNodeImageRevision(nodeId) },
+                    )
+                    viewModel.silentRefreshLayout(appGraph, moduleInfo.modulePath)
+                }
+
+                PreviewCache.writeSentinel(moduleInfo.modulePath, previewConfig)
             }
 
             SwingUtilities.invokeLater {
@@ -220,8 +250,38 @@ class ModuleGraphPanel(
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             PreviewCache.clearAll(moduleInfo.modulePath)
-            currentGraph.renderPreviews()
+            val previewConfig = PreviewConfigService.getInstance(project).config
+
+            val phase1Rendered = currentGraph.renderSelectedStates(cacheValid = false) { done, total ->
+                SwingUtilities.invokeLater { if (!disposed) statusLabel.text = "Rendering $done/$total…" }
+            }
+
             viewModel.buildFromAppGraphV2(currentGraph, moduleInfo.modulePath)
+
+            val multiStateCount = currentGraph.subgraphs.values
+                .sumOf { sub -> sub.screens.count { it.preview_provider_fqn != null && it.composable_fqn.isNotBlank() } }
+
+            if (multiStateCount > 0) {
+                SwingUtilities.invokeLater {
+                    if (!disposed) {
+                        refreshButton.isEnabled = true
+                        buildButton.isEnabled = true
+                        configButton.isEnabled = true
+                        statusLabel.text = "Rendering state variants 0/$multiStateCount…"
+                    }
+                }
+                currentGraph.renderRemainingStates(
+                    phase1Rendered = phase1Rendered,
+                    cacheValid = false,
+                    onProgress = { done, total ->
+                        SwingUtilities.invokeLater { if (!disposed) statusLabel.text = "Rendering state variants $done/$total…" }
+                    },
+                    onNodeDone = { nodeId -> viewModel.bumpNodeImageRevision(nodeId) },
+                )
+                viewModel.silentRefreshLayout(currentGraph, moduleInfo.modulePath)
+            }
+
+            PreviewCache.writeSentinel(moduleInfo.modulePath, previewConfig)
 
             SwingUtilities.invokeLater {
                 if (!disposed) {
@@ -238,75 +298,104 @@ class ModuleGraphPanel(
         const val MAX_PREVIEW_STATES = 20
     }
 
-    private fun AppGraph.renderPreviews() {
-        log.info("renderPreviews() starting for module=${moduleInfo.modulePath}")
+    private fun AppGraph.renderSelectedStates(
+        cacheValid: Boolean,
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): Set<File> {
         val previewConfig = PreviewConfigService.getInstance(project).config
-        val cacheValid = PreviewCache.isValid(moduleInfo.modulePath, previewConfig)
-        if (cacheValid) {
-            log.info("renderPreviews() cache valid — will skip existing images")
+        val screensToRender = subgraphs.values.flatMap { sub ->
+            sub.screens.filter { it.composable_fqn.isNotBlank() }
         }
+        val total = screensToRender.size
+        var done = 0
+        val rendered = mutableSetOf<File>()
 
-        subgraphs.forEach { (_, subgraph) ->
-            subgraph.screens.forEach { screen ->
-                val fqn = screen.composable_fqn.takeIf { it.isNotBlank() } ?: run {
-                    log.warn("renderPreviews() skipping screen=${screen.id}: blank composable_fqn")
-                    return@forEach
-                }
-                val providerFqn = screen.preview_provider_fqn
-                // location is relative to the module directory (set by KSP projectRoot option)
-                val sourceFilePath = screen.location.takeIf { it.isNotBlank() }?.let { loc ->
-                    java.io.File(moduleInfo.modulePath, loc).absolutePath
-                }
+        screensToRender.forEach { screen ->
+            val fqn = screen.composable_fqn
+            val providerFqn = screen.preview_provider_fqn
+            val selectedState = screen.selected_state.coerceAtLeast(0)
+            val sourceFilePath = screen.location.takeIf { it.isNotBlank() }
+                ?.let { File(moduleInfo.modulePath, it).absolutePath }
 
-                if (providerFqn == null) {
-                    if (cacheValid && PreviewCache.expectedFile(moduleInfo.modulePath, fqn).exists()) {
-                        log.info("renderPreviews() skipping cached screen=${screen.id}")
-                        return@forEach
-                    }
+            if (providerFqn == null) {
+                val f = PreviewCache.expectedFile(moduleInfo.modulePath, fqn)
+                if (!(cacheValid && f.exists())) {
                     runCatching {
                         ComposableRenderer.render(
                             project, moduleInfo.modulePath, fqn,
                             sourceFilePath = sourceFilePath,
                             previewConfig = previewConfig,
                         )
-                    }.onFailure { e ->
-                        log.error("renderPreviews() exception for screen=${screen.id}", e)
-                    }.onSuccess { path ->
-                        if (path == null) log.warn("renderPreviews() render returned null for screen=${screen.id}")
-                        else log.info("renderPreviews() rendered screen=${screen.id} → $path")
-                    }
-                } else {
-                    var index = 0
-                    while (index < MAX_PREVIEW_STATES) {
-                        if (cacheValid && PreviewCache.expectedFile(moduleInfo.modulePath, fqn, index).exists()) {
-                            log.info("renderPreviews() skipping cached screen=${screen.id} state=$index")
-                            index++
-                            continue
-                        }
-                        val path = runCatching {
-                            ComposableRenderer.render(
-                                project, moduleInfo.modulePath, fqn,
-                                parameterProviderFqn = providerFqn,
-                                stateIndex = index,
-                                sourceFilePath = sourceFilePath,
-                                previewConfig = previewConfig,
-                            )
-                        }.onFailure { e ->
-                            log.error("renderPreviews() exception for screen=${screen.id} index=$index", e)
-                        }.getOrNull()
-
-                        if (path == null) {
-                            log.info("renderPreviews() multi-state done for screen=${screen.id}: $index states rendered")
-                            break
-                        }
-                        log.info("renderPreviews() rendered screen=${screen.id} state=$index → $path")
-                        index++
-                    }
+                    }.onFailure { e -> log.error("renderSelectedStates() exception for screen=${screen.id}", e) }
+                     .onSuccess { path -> if (path != null) rendered.add(f) }
+                }
+            } else {
+                val f = PreviewCache.expectedFile(moduleInfo.modulePath, fqn, selectedState)
+                if (!(cacheValid && f.exists())) {
+                    runCatching {
+                        ComposableRenderer.render(
+                            project, moduleInfo.modulePath, fqn,
+                            parameterProviderFqn = providerFqn,
+                            stateIndex = selectedState,
+                            sourceFilePath = sourceFilePath,
+                            previewConfig = previewConfig,
+                        )
+                    }.onFailure { e -> log.error("renderSelectedStates() exception for screen=${screen.id} stateIndex=$selectedState", e) }
+                     .onSuccess { path -> if (path != null) rendered.add(f) }
                 }
             }
+
+            done++
+            onProgress(done, total)
         }
 
-        PreviewCache.writeSentinel(moduleInfo.modulePath, previewConfig)
-        log.info("renderPreviews() completed for module=${moduleInfo.modulePath}")
+        return rendered
+    }
+
+    private fun AppGraph.renderRemainingStates(
+        phase1Rendered: Set<File>,
+        cacheValid: Boolean,
+        onProgress: (done: Int, total: Int) -> Unit,
+        onNodeDone: (nodeId: String) -> Unit,
+    ) {
+        val previewConfig = PreviewConfigService.getInstance(project).config
+        val multiStateScreens = subgraphs.flatMap { (subgraphKey, subgraph) ->
+            subgraph.screens
+                .filter { it.preview_provider_fqn != null && it.composable_fqn.isNotBlank() }
+                .map { subgraphKey to it }
+        }
+        val total = multiStateScreens.size
+        var done = 0
+
+        multiStateScreens.forEach { (subgraphKey, screen) ->
+            val nodeId = "$subgraphKey:${screen.id}"
+            val fqn = screen.composable_fqn
+            val providerFqn = screen.preview_provider_fqn!!
+            val sourceFilePath = screen.location.takeIf { it.isNotBlank() }
+                ?.let { File(moduleInfo.modulePath, it).absolutePath }
+
+            var index = 0
+            while (index < MAX_PREVIEW_STATES) {
+                val f = PreviewCache.expectedFile(moduleInfo.modulePath, fqn, index)
+                val skip = if (cacheValid) f.exists() else f in phase1Rendered
+                if (skip) { index++; continue }
+                val path = runCatching {
+                    ComposableRenderer.render(
+                        project, moduleInfo.modulePath, fqn,
+                        parameterProviderFqn = providerFqn,
+                        stateIndex = index,
+                        sourceFilePath = sourceFilePath,
+                        previewConfig = previewConfig,
+                    )
+                }.onFailure { e -> log.error("renderRemainingStates() exception for screen=${screen.id} index=$index", e) }
+                 .getOrNull()
+                if (path == null) break
+                index++
+            }
+
+            done++
+            onProgress(done, total)
+            onNodeDone(nodeId)
+        }
     }
 }

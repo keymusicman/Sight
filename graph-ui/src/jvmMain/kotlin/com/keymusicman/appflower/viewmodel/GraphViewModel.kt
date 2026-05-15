@@ -118,6 +118,16 @@ class GraphViewModel {
         }
     }
 
+    fun silentRefreshLayout(appGraph: AppGraph, projectPath: String) {
+        scope.launch {
+            val layout = buildLayoutGraph(appGraph, projectPath, scale = .5f)
+            layoutGraphState.value = layout
+            if (activeViewId.value == null) {
+                displayLayoutGraphState.value = layout
+            }
+        }
+    }
+
     fun toggleNodeSelection(nodeId: String) {
         val current = selectedNodeIds.value
         selectedNodeIds.value = if (nodeId in current) current - nodeId else current + nodeId
