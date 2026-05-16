@@ -246,6 +246,7 @@ object ComposableRenderer {
             // aborting on inflate() failure regresses composables whose packages can't be resolved
             // at this stage but still render correctly via render().
             val inflateResult = task.inflate().get(30, TimeUnit.SECONDS)
+            val inflateEndMs = System.currentTimeMillis()
             if (inflateResult != null) {
                 runCatching { inflateResult.renderResult }.getOrNull()?.let { r ->
                     logInfo("inflate() status=${r.status} isSuccess=${r.isSuccess}")
@@ -278,8 +279,10 @@ object ComposableRenderer {
                 frames++
             }
             logInfo("render() executeCallbacks done after $frames frame(s) for $composableFqn")
+            val callbacksEndMs = System.currentTimeMillis()
 
             val result = task.render().get(30, TimeUnit.SECONDS)
+            val renderEndMs = System.currentTimeMillis()
             if (result == null) {
                 logWarn("render() failed: render result is null for composable=$composableFqn")
                 logInfo("image failed in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn")
@@ -371,7 +374,9 @@ object ComposableRenderer {
             val outFile = if (stateIndex >= 0) File(outDir, "${safeName}_${stateIndex}.png")
                           else File(outDir, "$safeName.png")
             ImageIO.write(outputImage, "PNG", outFile)
-            logInfo("image rendered in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn${if (stateIndex >= 0) " stateIndex=$stateIndex" else ""}")
+            val pngEndMs = System.currentTimeMillis()
+            val stateTag = if (stateIndex >= 0) " stateIndex=$stateIndex" else ""
+            logInfo("steps inflate=${inflateEndMs - imageStartMs}ms callbacks=${callbacksEndMs - inflateEndMs}ms render=${renderEndMs - callbacksEndMs}ms png=${pngEndMs - renderEndMs}ms total=${pngEndMs - imageStartMs}ms fqn=$composableFqn$stateTag")
             logInfo("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
             outFile.absolutePath
         } catch (e: Exception) {
