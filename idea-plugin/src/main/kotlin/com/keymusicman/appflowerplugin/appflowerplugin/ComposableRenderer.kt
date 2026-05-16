@@ -12,14 +12,17 @@ import com.android.tools.idea.rendering.isSuccess
 import com.android.tools.rendering.parsers.RenderXmlFileSnapshot
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.android.facet.AndroidFacet
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
 
@@ -32,6 +35,10 @@ import javax.imageio.ImageIO
 object ComposableRenderer {
 
     private val LOG = Logger.getInstance(ComposableRenderer::class.java)
+
+    private data class ModuleCacheKey(val modulePath: String, val sourceFilePath: String?)
+    private data class ModuleCacheEntry(val module: Module, val facet: AndroidFacet, val configVf: VirtualFile)
+    private val moduleCache = ConcurrentHashMap<ModuleCacheKey, ModuleCacheEntry>()
 
     // Set to true to render a plain red TextView instead of ComposeViewAdapter.
     // Isolates whether failures are in the rendering pipeline or in Compose itself.
@@ -68,88 +75,10 @@ object ComposableRenderer {
         logInfo("render() called for composable=$composableFqn, modulePath=$modulePath, sourceFilePath=$sourceFilePath")
         val imageStartMs = System.currentTimeMillis()
 
-        val allModules = ModuleManager.getInstance(project).modules
-
-        // Find the owning module for the source file. Skip synthetic source-set sub-modules
-        // (e.g. *.main, *.test) — AndroidFacet lives on the parent module, not these children.
-        // If the owning module turns out to be a library (no app manifest), fall back to the
-        // app module from modulePath, which has the full resource + manifest context Layoutlib needs.
-        val sourceOwnerModule = if (sourceFilePath != null) {
-            // Exclude IntelliJ's per-source-set sub-modules (e.g. *.main, *.test).
-            // AndroidFacet lives on the parent Gradle module, not these synthetic children.
-            val sourceSetSegments = setOf("main", "test", "unitTest", "androidTest")
-            val candidate = allModules
-                .filter { m ->
-                    val seg = m.name.substringAfterLast('.')
-                    seg !in sourceSetSegments && !seg.startsWith("screenshotTest")
-                }
-                .flatMap { m ->
-                    ModuleRootManager.getInstance(m).contentRoots
-                        .filter { root ->
-                            sourceFilePath.startsWith(root.path + "/") || sourceFilePath == root.path
-                        }
-                        .map { root -> m to root.path.length }
-                }
-                .maxByOrNull { (_, len) -> len }
-                ?.first
-
-            when {
-                candidate == null -> {
-                    logWarn("render() no module owns sourceFilePath=$sourceFilePath, falling back to modulePath")
-                    null
-                }
-                AndroidFacet.getInstance(candidate) == null -> {
-                    logInfo("render() ${candidate.name} has no AndroidFacet (root/holder module); falling back to modulePath")
-                    null
-                }
-                AndroidFacet.getInstance(candidate)?.configuration?.isLibraryProject == true -> {
-                    logInfo("render() ${candidate.name} is a library module; using app module from modulePath for rendering")
-                    null
-                }
-                else -> {
-                    logInfo("render() resolved owner app module=${candidate.name} for sourceFilePath=$sourceFilePath")
-                    candidate
-                }
-            }
-        } else null
-
-        // The root "holder" module triggers "holder module ambiguous" in GradleBuildSystemFilePreviewServices
-        // because multiple build-variant sub-modules share the same logical name.
-        // Android Studio's own preview avoids this by using the .main source-set module instead.
-        val appRootModule = sourceOwnerModule
-            ?: allModules.firstOrNull { m ->
-                ModuleRootManager.getInstance(m).contentRoots.any { root -> root.path == modulePath }
-            }
-
-        if (appRootModule == null) {
-            logWarn("render() failed: no module found matching path=$modulePath. " +
-                "Available modules: ${allModules.map { it.name }}")
-            return null
-        }
-
-        val module = allModules.firstOrNull { m -> m.name == "${appRootModule.name}.main" }
-            ?.also { logInfo("render() using .main source-set module=${it.name} to avoid holder-module ambiguity") }
-            ?: appRootModule
-
-        val facet = AndroidFacet.getInstance(module)
-        if (facet == null) {
-            logWarn("render() failed: no AndroidFacet for module=${module.name}")
-            return null
-        }
-
-        val lfs = LocalFileSystem.getInstance()
-        // ConfigurationManager.getConfiguration needs a file VirtualFile (not a directory) to
-        // set up the correct theme, density, and API level from the module's manifest.
-        // Prefer the source file that contains the composable; fall back to the module's
-        // AndroidManifest.xml so ConfigurationManager has module context; last resort: module dir.
-        val configVf = (sourceFilePath?.let { lfs.findFileByPath(it) }
-            ?: lfs.findFileByPath("$modulePath/src/main/AndroidManifest.xml")
-            ?: lfs.findFileByPath(modulePath))
-            ?: run {
-                logWarn("render() failed: could not find VirtualFile for modulePath=$modulePath")
-                return null
-            }
-        logInfo("render() using configVf=${configVf.path} for ConfigurationManager")
+        val (module, facet, configVf) = resolveModuleCached(
+            project, modulePath, sourceFilePath,
+            logInfo = { logInfo(it) }, logWarn = { logWarn(it) },
+        ) ?: return null
 
         val configManager = ConfigurationManager.getOrCreateInstance(module)
         val config: Configuration = configManager.getConfiguration(configVf)
@@ -385,6 +314,61 @@ object ComposableRenderer {
         } finally {
             task.dispose()
         }
+    }
+
+    private fun resolveModuleCached(
+        project: Project,
+        modulePath: String,
+        sourceFilePath: String?,
+        logInfo: (String) -> Unit,
+        logWarn: (String) -> Unit,
+    ): ModuleCacheEntry? {
+        val key = ModuleCacheKey(modulePath, sourceFilePath)
+        moduleCache[key]?.let { logInfo("render() module cache hit for modulePath=$modulePath"); return it }
+
+        val allModules = ModuleManager.getInstance(project).modules
+
+        val sourceOwnerModule = if (sourceFilePath != null) {
+            val sourceSetSegments = setOf("main", "test", "unitTest", "androidTest")
+            val candidate = allModules
+                .filter { m ->
+                    val seg = m.name.substringAfterLast('.')
+                    seg !in sourceSetSegments && !seg.startsWith("screenshotTest")
+                }
+                .flatMap { m ->
+                    ModuleRootManager.getInstance(m).contentRoots
+                        .filter { root -> sourceFilePath.startsWith(root.path + "/") || sourceFilePath == root.path }
+                        .map { root -> m to root.path.length }
+                }
+                .maxByOrNull { (_, len) -> len }
+                ?.first
+            when {
+                candidate == null -> { logWarn("render() no module owns sourceFilePath=$sourceFilePath, falling back to modulePath"); null }
+                AndroidFacet.getInstance(candidate) == null -> { logInfo("render() ${candidate.name} has no AndroidFacet (root/holder module); falling back to modulePath"); null }
+                AndroidFacet.getInstance(candidate)?.configuration?.isLibraryProject == true -> { logInfo("render() ${candidate.name} is a library module; using app module from modulePath for rendering"); null }
+                else -> { logInfo("render() resolved owner app module=${candidate.name} for sourceFilePath=$sourceFilePath"); candidate }
+            }
+        } else null
+
+        val appRootModule = sourceOwnerModule
+            ?: allModules.firstOrNull { m -> ModuleRootManager.getInstance(m).contentRoots.any { root -> root.path == modulePath } }
+            ?: run { logWarn("render() failed: no module found matching path=$modulePath. Available modules: ${allModules.map { it.name }}"); return null }
+
+        val module = allModules.firstOrNull { m -> m.name == "${appRootModule.name}.main" }
+            ?.also { logInfo("render() using .main source-set module=${it.name} to avoid holder-module ambiguity") }
+            ?: appRootModule
+
+        val facet = AndroidFacet.getInstance(module)
+            ?: run { logWarn("render() failed: no AndroidFacet for module=${module.name}"); return null }
+
+        val lfs = LocalFileSystem.getInstance()
+        val configVf = (sourceFilePath?.let { lfs.findFileByPath(it) }
+            ?: lfs.findFileByPath("$modulePath/src/main/AndroidManifest.xml")
+            ?: lfs.findFileByPath(modulePath))
+            ?: run { logWarn("render() failed: could not find VirtualFile for modulePath=$modulePath"); return null }
+        logInfo("render() using configVf=${configVf.path} for ConfigurationManager")
+
+        return ModuleCacheEntry(module, facet, configVf).also { moduleCache[key] = it }
     }
 
     // ComposeViewAdapter splits tools:composableName on the last '.' to get (className, methodName).
