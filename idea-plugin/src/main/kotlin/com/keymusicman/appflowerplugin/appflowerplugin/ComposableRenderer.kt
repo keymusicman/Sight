@@ -66,6 +66,7 @@ object ComposableRenderer {
         }
 
         logInfo("render() called for composable=$composableFqn, modulePath=$modulePath, sourceFilePath=$sourceFilePath")
+        val imageStartMs = System.currentTimeMillis()
 
         val allModules = ModuleManager.getInstance(project).modules
 
@@ -281,6 +282,7 @@ object ComposableRenderer {
             val result = task.render().get(30, TimeUnit.SECONDS)
             if (result == null) {
                 logWarn("render() failed: render result is null for composable=$composableFqn")
+                logInfo("image failed in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn")
                 return null
             }
 
@@ -309,6 +311,7 @@ object ComposableRenderer {
             // this is how the multi-state loop detects that all valid states have been rendered.
             if (result.logger.messages.any { it.html.contains("Sequence doesn't contain element") }) {
                 logInfo("render() stopping multi-state loop: provider exhausted at stateIndex=$stateIndex")
+                logInfo("image exhausted in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn stateIndex=$stateIndex")
                 return null
             }
             // Broken/missing classes are stored separately from messages — often the real root cause.
@@ -318,6 +321,7 @@ object ComposableRenderer {
                 // ComposeViewAdapter broken means ui-tooling classpath is unusable; no image will render.
                 if (broken.keys.any { it.contains("ComposeViewAdapter") }) {
                     logWarn("render() aborting: ComposeViewAdapter broken — ui-tooling not loadable in Layoutlib classpath")
+                    logInfo("image failed in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn")
                     return null
                 }
             }
@@ -327,6 +331,7 @@ object ComposableRenderer {
             val image = result.renderedImage.copy
                 ?: run {
                     logWarn("render() failed: rendered image is null for composable=$composableFqn")
+                    logInfo("image failed in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn")
                     return null
                 }
 
@@ -366,10 +371,11 @@ object ComposableRenderer {
             val outFile = if (stateIndex >= 0) File(outDir, "${safeName}_${stateIndex}.png")
                           else File(outDir, "$safeName.png")
             ImageIO.write(outputImage, "PNG", outFile)
+            logInfo("image rendered in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn${if (stateIndex >= 0) " stateIndex=$stateIndex" else ""}")
             logInfo("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
             outFile.absolutePath
         } catch (e: Exception) {
-            logError("render() failed: exception during rendering of composable=$composableFqn", e)
+            logError("render() failed in ${System.currentTimeMillis() - imageStartMs}ms: exception during rendering of composable=$composableFqn", e)
             null
         } finally {
             task.dispose()
