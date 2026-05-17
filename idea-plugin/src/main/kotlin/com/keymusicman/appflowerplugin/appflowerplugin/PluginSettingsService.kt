@@ -15,6 +15,7 @@ class PluginSettingsService : PersistentStateComponent<PluginSettingsService.Sta
         var outputFormat: OutputFormat = OutputFormat.PNG
         var jpegQuality: Int = 85
         var incrementalRendering: Boolean = false
+        var telemetryEnabled: Boolean = true
     }
 
     private var myState = State()

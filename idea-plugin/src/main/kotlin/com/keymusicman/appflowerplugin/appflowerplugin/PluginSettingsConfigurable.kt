@@ -18,6 +18,7 @@ class PluginSettingsConfigurable : Configurable {
     private lateinit var qualitySlider: JSlider
     private lateinit var qualityLabel: JLabel
     private lateinit var incrementalBox: JCheckBox
+    private lateinit var telemetryBox: JCheckBox
 
     override fun getDisplayName(): String = "AppFlower"
 
@@ -26,6 +27,7 @@ class PluginSettingsConfigurable : Configurable {
         qualitySlider = JSlider(1, 100, 85)
         qualityLabel = JLabel("85")
         incrementalBox = JCheckBox("Skip re-rendering composables whose source hasn't changed")
+        telemetryBox = JCheckBox("Send render telemetry (OpenTelemetry → Grafana Cloud)")
 
         val qualityChangeListener = ChangeListener {
             qualityLabel.text = qualitySlider.value.toString()
@@ -40,6 +42,7 @@ class PluginSettingsConfigurable : Configurable {
             add(row("Output format:", formatCombo))
             add(row("JPEG quality:", qualitySlider, qualityLabel))
             add(row(incrementalBox))
+            if (OtelConfig.OTEL_ENABLED) add(row(telemetryBox))
         }
 
         reset()
@@ -50,7 +53,8 @@ class PluginSettingsConfigurable : Configurable {
         val s = PluginSettingsService.getInstance().getState()
         return formatCombo.selectedItem != s.outputFormat ||
             qualitySlider.value != s.jpegQuality ||
-            incrementalBox.isSelected != s.incrementalRendering
+            incrementalBox.isSelected != s.incrementalRendering ||
+            (OtelConfig.OTEL_ENABLED && telemetryBox.isSelected != s.telemetryEnabled)
     }
 
     override fun apply() {
@@ -58,6 +62,11 @@ class PluginSettingsConfigurable : Configurable {
         s.outputFormat = formatCombo.selectedItem as OutputFormat
         s.jpegQuality = qualitySlider.value
         s.incrementalRendering = incrementalBox.isSelected
+        if (OtelConfig.OTEL_ENABLED) {
+            val wasEnabled = s.telemetryEnabled
+            s.telemetryEnabled = telemetryBox.isSelected
+            if (wasEnabled != s.telemetryEnabled) TelemetryService.getInstance().reinitialize()
+        }
     }
 
     override fun reset() {
@@ -66,6 +75,7 @@ class PluginSettingsConfigurable : Configurable {
         qualitySlider.value = s.jpegQuality
         qualityLabel.text = s.jpegQuality.toString()
         incrementalBox.isSelected = s.incrementalRendering
+        if (OtelConfig.OTEL_ENABLED) telemetryBox.isSelected = s.telemetryEnabled
         syncQualityEnabled()
     }
 

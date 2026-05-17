@@ -41,8 +41,9 @@ class TelemetryService : Disposable {
     }
 
     private fun initializeSdk() {
-        if (!OtelConfig.OTEL_ENABLED) {
-            log.info("TelemetryService: disabled (OTEL_ENABLED=false)")
+        val settings = PluginSettingsService.getInstance().getState()
+        if (!OtelConfig.OTEL_ENABLED || !settings.telemetryEnabled) {
+            log.info("TelemetryService: disabled (OTEL_ENABLED=${OtelConfig.OTEL_ENABLED}, telemetryEnabled=${settings.telemetryEnabled})")
             return
         }
 

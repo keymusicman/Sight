@@ -3,6 +3,7 @@ package com.keymusicman.appflowerplugin.appflowerplugin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PluginSettingsServiceTest {
 
@@ -22,5 +23,11 @@ class PluginSettingsServiceTest {
     fun `default state has incremental rendering disabled`() {
         val state = PluginSettingsService.State()
         assertFalse(state.incrementalRendering)
+    }
+
+    @Test
+    fun `default state has telemetry enabled`() {
+        val state = PluginSettingsService.State()
+        assertTrue(state.telemetryEnabled)
     }
 }
