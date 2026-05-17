@@ -2,7 +2,6 @@
 <idea-plugin>
     <!-- Unique identifier of the plugin. It should be FQN, cannot be changed between the plugin versions. -->
     <id>com.keymusicman.appflowerplugin.AppFlowerPlugin</id>
-    <version>1.0.0</version>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
