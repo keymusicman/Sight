@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.intellijPlatform)
@@ -6,7 +8,7 @@ plugins {
 }
 
 group = "com.keymusicman.appflowerplugin"
-version = "1.0.1-SNAPSHOT"
+version = "1.0.5-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -29,6 +31,12 @@ dependencies {
     }
 
     testImplementation(libs.kotlin.testJunit)
+
+    implementation("io.opentelemetry:opentelemetry-sdk:1.43.0")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp:1.43.0") {
+        exclude(group = "io.grpc")
+    }
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp-common:1.43.0")
 }
 
 intellijPlatform {
@@ -45,6 +53,34 @@ intellijPlatform {
 kotlin {
     jvmToolchain(21)
 }
+
+val props = Properties().also { p ->
+    file("local.properties").takeIf { it.exists() }?.inputStream()?.use(p::load)
+}
+val otelEndpoint = props["OTEL_GC_ENDPOINT"] as String?
+val otelToken    = props["OTEL_GC_TOKEN"] as String?
+
+val generateOtelConfig by tasks.registering {
+    notCompatibleWithConfigurationCache("reads local.properties at configuration time")
+    val outDir = layout.buildDirectory.dir("generated/otel")
+    outputs.dir(outDir)
+    doLast {
+        val dir = outDir.get().asFile
+        dir.mkdirs()
+        dir.resolve("OtelConfig.kt").writeText(
+            """
+            package com.keymusicman.appflowerplugin.appflowerplugin
+            internal object OtelConfig {
+                const val OTEL_ENABLED     = ${otelEndpoint != null}
+                const val OTLP_ENDPOINT    = "${otelEndpoint ?: ""}"
+                const val OTLP_AUTH_HEADER = "${otelToken?.trim('"')?.substringAfter("=") ?: ""}"
+            }
+            """.trimIndent()
+        )
+    }
+}
+
+kotlin.sourceSets["main"].kotlin.srcDir(generateOtelConfig)
 
 tasks {
     buildPlugin {
