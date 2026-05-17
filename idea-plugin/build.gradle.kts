@@ -45,3 +45,9 @@ intellijPlatform {
 kotlin {
     jvmToolchain(21)
 }
+
+tasks {
+    buildPlugin {
+        archiveFileName.set("AppFlower.zip")
+    }
+}

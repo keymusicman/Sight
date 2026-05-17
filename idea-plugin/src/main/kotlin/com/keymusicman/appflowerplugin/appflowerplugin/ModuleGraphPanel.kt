@@ -1,5 +1,6 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.ComposePanel
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.openapi.Disposable
@@ -31,8 +32,13 @@ class ModuleGraphPanel(
 ) : JPanel(BorderLayout()), Disposable {
 
     @Volatile private var disposed = false
+    private lateinit var composePanel: ComposePanel
 
-    override fun dispose() { disposed = true }
+    @OptIn(ExperimentalComposeUiApi::class)
+    override fun dispose() {
+        disposed = true
+        if (::composePanel.isInitialized) composePanel.dispose()
+    }
 
     private val log = Logger.getInstance(ModuleGraphPanel::class.java)
 
@@ -60,7 +66,7 @@ class ModuleGraphPanel(
             add(statusLabel)
         }, BorderLayout.NORTH)
 
-        val composePanel = ComposePanel().apply {
+        composePanel = ComposePanel().apply {
             setContent {
                 AppTheme(isDark = true) {
                     GraphPanel(

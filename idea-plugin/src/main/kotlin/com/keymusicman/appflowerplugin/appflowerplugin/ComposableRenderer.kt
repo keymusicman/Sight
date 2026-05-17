@@ -41,6 +41,11 @@ object ComposableRenderer {
     private val moduleCache = ConcurrentHashMap<ModuleCacheKey, ModuleCacheEntry>()
     private val fqnCache = ConcurrentHashMap<String, String>()
 
+    fun clearCaches() {
+        moduleCache.clear()
+        fqnCache.clear()
+    }
+
     // Set to true to render a plain red TextView instead of ComposeViewAdapter.
     // Isolates whether failures are in the rendering pipeline or in Compose itself.
     private const val DEBUG_SIMPLE_LAYOUT = false
