@@ -145,8 +145,8 @@ class TelemetryService : Disposable {
     }
 
     override fun dispose() {
-        heapUsedGauge?.close()
-        heapDeltaGauge?.close()
+        try { heapUsedGauge?.close() } catch (_: Exception) {}
+        try { heapDeltaGauge?.close() } catch (_: Exception) {}
         sdk?.close()
         sdk            = null
         phaseHistogram = null

@@ -98,7 +98,21 @@ object ComposableRenderer {
         val (module, facet, configVf) = resolveModuleCached(
             project, modulePath, sourceFilePath,
             logInfo = { logInfo(it) }, logWarn = { logWarn(it) },
-        ) ?: return null
+        ) ?: run {
+            val heapAfter = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+            TelemetryService.getInstance().record(
+                RenderSample(
+                    inflateMs = 0L, callbacksMs = 0L, renderMs = 0L, writeMs = 0L,
+                    totalMs   = System.currentTimeMillis() - imageStartMs,
+                    format    = outputFormat,
+                    outcome   = RenderOutcome.FAIL,
+                    heapBefore = heapBefore,
+                    heapAfter  = heapAfter,
+                    gcDelta    = GcStats(0L, 0L),
+                )
+            )
+            return null
+        }
 
         val configManager = ConfigurationManager.getOrCreateInstance(module)
         val config: Configuration = configManager.getConfiguration(configVf)
@@ -144,10 +158,34 @@ object ComposableRenderer {
             builder.build().get(30, TimeUnit.SECONDS)
         } catch (e: Exception) {
             logError("render() failed: exception building render task for composable=$composableFqn", e)
+            val heapAfter = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+            TelemetryService.getInstance().record(
+                RenderSample(
+                    inflateMs = 0L, callbacksMs = 0L, renderMs = 0L, writeMs = 0L,
+                    totalMs   = System.currentTimeMillis() - imageStartMs,
+                    format    = outputFormat,
+                    outcome   = RenderOutcome.FAIL,
+                    heapBefore = heapBefore,
+                    heapAfter  = heapAfter,
+                    gcDelta    = GcStats(0L, 0L),
+                )
+            )
             return null
         }
         if (task == null) {
             logWarn("render() failed: render task is null for composable=$composableFqn")
+            val heapAfter = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+            TelemetryService.getInstance().record(
+                RenderSample(
+                    inflateMs = 0L, callbacksMs = 0L, renderMs = 0L, writeMs = 0L,
+                    totalMs   = System.currentTimeMillis() - imageStartMs,
+                    format    = outputFormat,
+                    outcome   = RenderOutcome.FAIL,
+                    heapBefore = heapBefore,
+                    heapAfter  = heapAfter,
+                    gcDelta    = GcStats(0L, 0L),
+                )
+            )
             return null
         }
 

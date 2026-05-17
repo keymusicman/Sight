@@ -10,6 +10,7 @@ class PluginUnloadListener : DynamicPluginListener {
 
     internal fun handleUnload(pluginId: String) {
         if (pluginId == "com.keymusicman.appflowerplugin.AppFlowerPlugin") {
+            runCatching { TelemetryService.getInstance()?.dispose() }
             ComposableRenderer.clearCaches()
         }
     }
