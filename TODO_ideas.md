@@ -1,3 +1,5 @@
+# Heap
+
 - [ ] Deep link simulation for screens
 - [ ] Navigation argument visualization (show parameters passed between screens)
 - [ ] State matrix rendering (all states of a screen in one grid)
@@ -43,3 +45,15 @@
 - [-] Plugin action: render graph for current module only
 - [-] Plugin action: render graph for current screen
 - [-] Plugin action: render all states of selected composable
+
+# Planned
+
+## Plugin settings UI
+- [ ] Plugin settings page (persistent per-project or IDE-level)
+- [ ] Setting: output image format (PNG / JPEG / BMP) with quality slider for JPEG
+- [ ] Setting: incremental rendering (skip composables whose source hasn't changed since last render)
+
+## Rendering performance
+- [ ] JPEG output format experiment (target: ~15–25ms write vs current 132ms PNG)
+- [ ] BMP output format experiment (zero encode cost, large files)
+- [ ] Incremental rendering: compare source file lastModified vs existing image timestamp, skip if unchanged
