@@ -60,7 +60,7 @@ val generateOtelConfig by tasks.registering {
     outputs.dir(outDir)
     doLast {
         val props = Properties().also { p ->
-            file("local.properties").takeIf { it.exists() }?.inputStream()?.use(p::load)
+            localPropsFile.takeIf { it.exists() }?.inputStream()?.use(p::load)
         }
         val otelEndpoint = props["OTEL_GC_ENDPOINT"] as String?
         val otelToken    = props["OTEL_GC_TOKEN"] as String?
