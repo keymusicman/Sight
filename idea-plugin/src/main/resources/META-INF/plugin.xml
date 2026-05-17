@@ -36,5 +36,10 @@
                     anchor="bottom"
                     icon="AllIcons.Toolwindows.ToolWindowPalette"/>
         <projectService serviceImplementation="com.keymusicman.appflowerplugin.appflowerplugin.PreviewConfigService"/>
+        <applicationService serviceImplementation="com.keymusicman.appflowerplugin.appflowerplugin.PluginSettingsService"/>
+        <applicationConfigurable parentId="tools"
+                                 instance="com.keymusicman.appflowerplugin.appflowerplugin.PluginSettingsConfigurable"
+                                 id="com.keymusicman.appflowerplugin.settings"
+                                 displayName="AppFlower"/>
     </extensions>
 </idea-plugin>

@@ -11,9 +11,10 @@ object PreviewCache {
 
     fun sentinelFile(modulePath: String): File = File(outDir(modulePath), SENTINEL_FILENAME)
 
-    fun expectedFile(modulePath: String, composableFqn: String, stateIndex: Int = -1): File {
+    fun expectedFile(modulePath: String, composableFqn: String, stateIndex: Int = -1, format: OutputFormat = OutputFormat.PNG): File {
         val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val name = if (stateIndex >= 0) "${safeName}_${stateIndex}.png" else "$safeName.png"
+        val ext = format.extension
+        val name = if (stateIndex >= 0) "${safeName}_${stateIndex}.$ext" else "$safeName.$ext"
         return File(outDir(modulePath), name)
     }
 

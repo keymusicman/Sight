@@ -69,4 +69,28 @@ class PreviewCacheTest {
         val emptyDir = File(tmpDir, "nonexistent").absolutePath
         PreviewCache.clearAll(emptyDir)   // must not throw
     }
+
+    @Test
+    fun `expectedFile with JPEG format returns jpg extension`() {
+        val file = PreviewCache.expectedFile(tmpDir.absolutePath, "com.example.HomeScreen", format = OutputFormat.JPEG)
+        assertEquals("com.example.HomeScreen.jpg", file.name)
+    }
+
+    @Test
+    fun `expectedFile with BMP format returns bmp extension`() {
+        val file = PreviewCache.expectedFile(tmpDir.absolutePath, "com.example.HomeScreen", format = OutputFormat.BMP)
+        assertEquals("com.example.HomeScreen.bmp", file.name)
+    }
+
+    @Test
+    fun `expectedFile with explicit PNG format returns png extension`() {
+        val file = PreviewCache.expectedFile(tmpDir.absolutePath, "com.example.HomeScreen", format = OutputFormat.PNG)
+        assertEquals("com.example.HomeScreen.png", file.name)
+    }
+
+    @Test
+    fun `expectedFile with JPEG format and state index returns correct path`() {
+        val file = PreviewCache.expectedFile(tmpDir.absolutePath, "com.example.HomeScreen", stateIndex = 2, format = OutputFormat.JPEG)
+        assertEquals("com.example.HomeScreen_2.jpg", file.name)
+    }
 }

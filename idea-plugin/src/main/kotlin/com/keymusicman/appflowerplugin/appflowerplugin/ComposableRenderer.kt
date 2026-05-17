@@ -21,10 +21,13 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.android.facet.AndroidFacet
+import java.awt.image.BufferedImage
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import javax.imageio.IIOImage
 import javax.imageio.ImageIO
+import javax.imageio.ImageWriteParam
 
 /**
  * Renders @Composable functions from the user's Android module using Layoutlib.
@@ -80,6 +83,14 @@ object ComposableRenderer {
 
         logInfo("render() called for composable=$composableFqn, modulePath=$modulePath, sourceFilePath=$sourceFilePath")
         val imageStartMs = System.currentTimeMillis()
+
+        val pluginSettings = PluginSettingsService.getInstance()
+        val outputFormat = pluginSettings.getState().outputFormat
+        val outFile = PreviewCache.expectedFile(modulePath, composableFqn, stateIndex, outputFormat)
+        if (shouldSkipIncrementalRender(outFile, sourceFilePath, pluginSettings.getState().incrementalRendering)) {
+            logInfo("render() skipped (incremental): $composableFqn -> ${outFile.absolutePath}")
+            return outFile.absolutePath
+        }
 
         val (module, facet, configVf) = resolveModuleCached(
             project, modulePath, sourceFilePath,
@@ -304,14 +315,11 @@ object ComposableRenderer {
                 }
             }
 
-            val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
-            val outDir = File(modulePath, "build/appflower-previews").also { it.mkdirs() }
-            val outFile = if (stateIndex >= 0) File(outDir, "${safeName}_${stateIndex}.png")
-                          else File(outDir, "$safeName.png")
-            ImageIO.write(outputImage, "PNG", outFile)
+            outFile.parentFile.mkdirs()
+            writeImage(outputImage, outputFormat, pluginSettings.getState().jpegQuality, outFile)
             val pngEndMs = System.currentTimeMillis()
             val stateTag = if (stateIndex >= 0) " stateIndex=$stateIndex" else ""
-            logInfo("steps inflate=${inflateEndMs - imageStartMs}ms callbacks=${callbacksEndMs - inflateEndMs}ms render=${renderEndMs - callbacksEndMs}ms png=${pngEndMs - renderEndMs}ms total=${pngEndMs - imageStartMs}ms fqn=$composableFqn$stateTag")
+            logInfo("steps inflate=${inflateEndMs - imageStartMs}ms callbacks=${callbacksEndMs - inflateEndMs}ms render=${renderEndMs - callbacksEndMs}ms write=${pngEndMs - renderEndMs}ms total=${pngEndMs - imageStartMs}ms fqn=$composableFqn$stateTag format=${outputFormat.name}")
             logInfo("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
             outFile.absolutePath
         } catch (e: Exception) {
@@ -409,5 +417,25 @@ object ComposableRenderer {
 
         fqnCache[composableFqn] = resolved
         return resolved
+    }
+
+    private fun writeImage(image: BufferedImage, format: OutputFormat, jpegQuality: Int, outFile: File) {
+        if (format == OutputFormat.JPEG) {
+            val writer = ImageIO.getImageWritersByFormatName("JPEG").next()
+            val param = writer.defaultWriteParam.apply {
+                compressionMode = ImageWriteParam.MODE_EXPLICIT
+                compressionQuality = jpegQuality / 100f
+            }
+            ImageIO.createImageOutputStream(outFile).use { ios ->
+                writer.output = ios
+                // JPEG doesn't support alpha; convert to RGB first
+                val rgb = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_RGB)
+                rgb.createGraphics().apply { drawImage(image, 0, 0, null); dispose() }
+                writer.write(null, IIOImage(rgb, null, null), param)
+                writer.dispose()
+            }
+        } else {
+            ImageIO.write(image, format.imageIoName, outFile)
+        }
     }
 }
