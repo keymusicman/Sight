@@ -36,7 +36,6 @@ dependencies {
     implementation("io.opentelemetry:opentelemetry-exporter-otlp:1.43.0") {
         exclude(group = "io.grpc")
     }
-    implementation("io.opentelemetry:opentelemetry-exporter-otlp-common:1.43.0")
 }
 
 intellijPlatform {
@@ -54,17 +53,18 @@ kotlin {
     jvmToolchain(21)
 }
 
-val props = Properties().also { p ->
-    file("local.properties").takeIf { it.exists() }?.inputStream()?.use(p::load)
-}
-val otelEndpoint = props["OTEL_GC_ENDPOINT"] as String?
-val otelToken    = props["OTEL_GC_TOKEN"] as String?
-
 val generateOtelConfig by tasks.registering {
-    notCompatibleWithConfigurationCache("reads local.properties at configuration time")
     val outDir = layout.buildDirectory.dir("generated/otel")
+    val localPropsFile = file("local.properties")
+    inputs.file(localPropsFile).optional(true)
     outputs.dir(outDir)
     doLast {
+        val props = Properties().also { p ->
+            file("local.properties").takeIf { it.exists() }?.inputStream()?.use(p::load)
+        }
+        val otelEndpoint = props["OTEL_GC_ENDPOINT"] as String?
+        val otelToken    = props["OTEL_GC_TOKEN"] as String?
+
         val dir = outDir.get().asFile
         dir.mkdirs()
         dir.resolve("OtelConfig.kt").writeText(
