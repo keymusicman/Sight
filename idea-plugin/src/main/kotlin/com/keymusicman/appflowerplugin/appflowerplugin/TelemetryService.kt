@@ -8,7 +8,6 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.api.metrics.ObservableLongGauge
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
@@ -48,11 +47,10 @@ class TelemetryService : Disposable {
         }
 
         try {
-            val exporter = OtlpHttpMetricExporter.builder()
-                .setEndpoint("${OtelConfig.OTLP_ENDPOINT}/v1/metrics")
-                .addHeader("Authorization", OtelConfig.OTLP_AUTH_HEADER)
-                .setTimeout(Duration.ofSeconds(5))
-                .build()
+            val exporter = OtlpJsonMetricExporter(
+                endpoint = OtelConfig.OTLP_ENDPOINT,
+                authHeader = OtelConfig.OTLP_AUTH_HEADER,
+            )
 
             val meterProvider = SdkMeterProvider.builder()
                 .registerMetricReader(
@@ -108,7 +106,7 @@ class TelemetryService : Disposable {
                 .build()
 
             log.info("TelemetryService: SDK initialized, pushing to ${OtelConfig.OTLP_ENDPOINT}")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             log.warn("TelemetryService: failed to initialize OTel SDK", e)
         }
     }

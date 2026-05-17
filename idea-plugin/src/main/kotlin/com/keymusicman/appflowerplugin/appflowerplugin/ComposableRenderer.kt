@@ -1,6 +1,5 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
-import com.android.ide.common.resources.Locale as AndroidLocale
 import com.android.resources.NightMode
 import com.android.resources.ResourceFolderType
 import com.android.tools.configurations.Configuration
@@ -28,6 +27,7 @@ import java.util.concurrent.TimeUnit
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
+import com.android.ide.common.resources.Locale as AndroidLocale
 
 /**
  * Renders @Composable functions from the user's Android module using Layoutlib.
@@ -409,7 +409,6 @@ object ComposableRenderer {
             null
         } finally {
             task.dispose()
-            renderService.dispose()
         }
     }
 

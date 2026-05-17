@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.keymusicman.appflowerplugin"
-version = "1.0.5-SNAPSHOT"
+version = "1.0.11-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -33,9 +33,6 @@ dependencies {
     testImplementation(libs.kotlin.testJunit)
 
     implementation("io.opentelemetry:opentelemetry-sdk:1.43.0")
-    implementation("io.opentelemetry:opentelemetry-exporter-otlp:1.43.0") {
-        exclude(group = "io.grpc")
-    }
 }
 
 intellijPlatform {
