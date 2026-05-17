@@ -7,6 +7,8 @@
 | PNG compressionQuality=1.0 (2026-05-16) | 316ms | 120ms | 12ms | 15ms | 169ms | 75 626ms | 2.14GB | |
 | Module resolution cache (2026-05-16) | 199ms | 70ms | 2ms | 11ms | 115ms | 46 574ms | — | |
 | Async PNG write (2026-05-16) | 401ms | 272ms | 21ms | 17ms | 127ms | 90 657ms | — | |
+| FQN resolution cache — cold (2026-05-17) | 278ms | 122ms | 12ms | 14ms | 131ms | 62 733ms | — | |
+| FQN resolution cache — warm (2026-05-17) | 175ms | 30ms | 2ms | 11ms | 132ms | 39 610ms | — | |
 
 ## PNG compression
 

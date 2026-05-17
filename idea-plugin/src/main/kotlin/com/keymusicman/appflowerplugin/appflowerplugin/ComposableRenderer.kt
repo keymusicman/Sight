@@ -39,6 +39,7 @@ object ComposableRenderer {
     private data class ModuleCacheKey(val modulePath: String, val sourceFilePath: String?)
     private data class ModuleCacheEntry(val module: Module, val facet: AndroidFacet, val configVf: VirtualFile)
     private val moduleCache = ConcurrentHashMap<ModuleCacheKey, ModuleCacheEntry>()
+    private val fqnCache = ConcurrentHashMap<String, String>()
 
     // Set to true to render a plain red TextView instead of ComposeViewAdapter.
     // Isolates whether failures are in the rendering pipeline or in Compose itself.
@@ -376,11 +377,13 @@ object ComposableRenderer {
     // This resolves the actual file-facade class via PSI so the name becomes e.g.
     // "com.example.StartupScreenKt.TestComposable" instead of "com.example.TestComposable".
     private fun resolveComposableNameForLayoutlib(project: Project, composableFqn: String): String {
+        fqnCache[composableFqn]?.let { return it }
+
         val classPart = composableFqn.substringBeforeLast('.', missingDelimiterValue = "")
         val methodName = composableFqn.substringAfterLast('.')
         if (classPart.isEmpty()) return composableFqn
 
-        return try {
+        val resolved = try {
             ReadAction.compute<String, Throwable> {
                 val scope = GlobalSearchScope.allScope(project)
                 val facade = JavaPsiFacade.getInstance(project)
@@ -398,5 +401,8 @@ object ComposableRenderer {
         } catch (_: Exception) {
             composableFqn
         }
+
+        fqnCache[composableFqn] = resolved
+        return resolved
     }
 }
