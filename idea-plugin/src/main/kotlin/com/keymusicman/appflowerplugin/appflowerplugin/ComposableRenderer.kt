@@ -83,12 +83,15 @@ object ComposableRenderer {
 
         logInfo("render() called for composable=$composableFqn, modulePath=$modulePath, sourceFilePath=$sourceFilePath")
         val imageStartMs = System.currentTimeMillis()
+        val heapBefore = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+        val gcBefore   = readGcStats()
 
         val pluginSettings = PluginSettingsService.getInstance()
         val outputFormat = pluginSettings.getState().outputFormat
         val outFile = PreviewCache.expectedFile(modulePath, composableFqn, stateIndex, outputFormat)
         if (shouldSkipIncrementalRender(outFile, sourceFilePath, pluginSettings.getState().incrementalRendering)) {
             logInfo("render() skipped (incremental): $composableFqn -> ${outFile.absolutePath}")
+            TelemetryService.getInstance().recordSkip()
             return outFile.absolutePath
         }
 
@@ -271,6 +274,18 @@ object ComposableRenderer {
                 if (broken.keys.any { it.contains("ComposeViewAdapter") }) {
                     logWarn("render() aborting: ComposeViewAdapter broken — ui-tooling not loadable in Layoutlib classpath")
                     logInfo("image failed in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn")
+                    val heapAfter = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+                    TelemetryService.getInstance().record(
+                        RenderSample(
+                            inflateMs   = 0L, callbacksMs = 0L, renderMs = 0L, writeMs = 0L,
+                            totalMs     = System.currentTimeMillis() - imageStartMs,
+                            format      = outputFormat,
+                            outcome     = RenderOutcome.FAIL,
+                            heapBefore  = heapBefore,
+                            heapAfter   = heapAfter,
+                            gcDelta     = GcStats(0L, 0L),
+                        )
+                    )
                     return null
                 }
             }
@@ -281,6 +296,18 @@ object ComposableRenderer {
                 ?: run {
                     logWarn("render() failed: rendered image is null for composable=$composableFqn")
                     logInfo("image failed in ${System.currentTimeMillis() - imageStartMs}ms: $composableFqn")
+                    val heapAfter = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+                    TelemetryService.getInstance().record(
+                        RenderSample(
+                            inflateMs   = 0L, callbacksMs = 0L, renderMs = 0L, writeMs = 0L,
+                            totalMs     = System.currentTimeMillis() - imageStartMs,
+                            format      = outputFormat,
+                            outcome     = RenderOutcome.FAIL,
+                            heapBefore  = heapBefore,
+                            heapAfter   = heapAfter,
+                            gcDelta     = GcStats(0L, 0L),
+                        )
+                    )
                     return null
                 }
 
@@ -317,7 +344,24 @@ object ComposableRenderer {
 
             outFile.parentFile.mkdirs()
             writeImage(outputImage, outputFormat, pluginSettings.getState().jpegQuality, outFile)
+            image.flush()
             val pngEndMs = System.currentTimeMillis()
+            val heapAfter = Runtime.getRuntime().run { totalMemory() - freeMemory() }
+            val gcAfter   = readGcStats()
+            TelemetryService.getInstance().record(
+                RenderSample(
+                    inflateMs   = inflateEndMs - imageStartMs,
+                    callbacksMs = callbacksEndMs - inflateEndMs,
+                    renderMs    = renderEndMs - callbacksEndMs,
+                    writeMs     = pngEndMs - renderEndMs,
+                    totalMs     = pngEndMs - imageStartMs,
+                    format      = outputFormat,
+                    outcome     = RenderOutcome.SUCCESS,
+                    heapBefore  = heapBefore,
+                    heapAfter   = heapAfter,
+                    gcDelta     = gcAfter - gcBefore,
+                )
+            )
             val stateTag = if (stateIndex >= 0) " stateIndex=$stateIndex" else ""
             logInfo("steps inflate=${inflateEndMs - imageStartMs}ms callbacks=${callbacksEndMs - inflateEndMs}ms render=${renderEndMs - callbacksEndMs}ms write=${pngEndMs - renderEndMs}ms total=${pngEndMs - imageStartMs}ms fqn=$composableFqn$stateTag format=${outputFormat.name}")
             logInfo("render() succeeded for composable=$composableFqn -> ${outFile.absolutePath}")
@@ -327,6 +371,7 @@ object ComposableRenderer {
             null
         } finally {
             task.dispose()
+            renderService.dispose()
         }
     }
 
@@ -419,6 +464,18 @@ object ComposableRenderer {
         return resolved
     }
 
+    private fun readGcStats(): GcStats {
+        var count = 0L
+        var timeMs = 0L
+        for (bean in java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()) {
+            val c = bean.collectionCount
+            val t = bean.collectionTime
+            if (c >= 0) count  += c
+            if (t >= 0) timeMs += t
+        }
+        return GcStats(count, timeMs)
+    }
+
     private fun writeImage(image: BufferedImage, format: OutputFormat, jpegQuality: Int, outFile: File) {
         if (format == OutputFormat.JPEG) {
             val writer = ImageIO.getImageWritersByFormatName("JPEG").next()
@@ -433,6 +490,7 @@ object ComposableRenderer {
                 rgb.createGraphics().apply { drawImage(image, 0, 0, null); dispose() }
                 writer.write(null, IIOImage(rgb, null, null), param)
                 writer.dispose()
+                rgb.flush()
             }
         } else {
             ImageIO.write(image, format.imageIoName, outFile)
