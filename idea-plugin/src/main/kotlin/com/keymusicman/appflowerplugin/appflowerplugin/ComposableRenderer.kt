@@ -4,6 +4,7 @@ import com.android.resources.NightMode
 import com.android.resources.ResourceFolderType
 import com.android.tools.configurations.Configuration
 import com.android.tools.idea.configurations.ConfigurationManager
+import com.android.tools.idea.layoutlib.LayoutLibraryLoader
 import com.android.tools.idea.rendering.AndroidBuildTargetReference
 import com.android.tools.idea.rendering.AndroidFacetRenderModelModule
 import com.android.tools.idea.rendering.StudioRenderService
@@ -43,6 +44,7 @@ object ComposableRenderer {
     private data class ModuleCacheEntry(val module: Module, val facet: AndroidFacet, val configVf: VirtualFile)
     private val moduleCache = ConcurrentHashMap<ModuleCacheKey, ModuleCacheEntry>()
     private val fqnCache = ConcurrentHashMap<String, String>()
+    private val renderCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     fun clearCaches() {
         moduleCache.clear()
@@ -408,7 +410,21 @@ object ComposableRenderer {
             logError("render() failed in ${System.currentTimeMillis() - imageStartMs}ms: exception during rendering of composable=$composableFqn", e)
             null
         } finally {
+            val nativeMemoryUsage =
+                LayoutLibraryLoader.getLayoutLibraryProvider()
+                    .map {
+                        LayoutLibraryLoader.getLayoutLibraryProvider()
+                            .get().nativeMemoryUsage
+                    }
+                    .orElse(0L)
+            if (nativeMemoryUsage != null) {
+                logInfo("render(): native memory usage after render: ${nativeMemoryUsage / (1024 * 1024)} MB for $composableFqn")
+            }
+
             task.dispose()
+            // Layoutlib allocates native memory backed by Java objects; hint GC every 5 renders
+            // so those objects are collected and native memory is reclaimed promptly.
+            if (renderCount.incrementAndGet() % 5 == 0) System.gc()
         }
     }
 
@@ -464,7 +480,7 @@ object ComposableRenderer {
             ?: run { logWarn("render() failed: could not find VirtualFile for modulePath=$modulePath"); return null }
         logInfo("render() using configVf=${configVf.path} for ConfigurationManager")
 
-        return ModuleCacheEntry(module, facet, configVf).also { moduleCache[key] = it }
+        return ModuleCacheEntry(module, facet, configVf)//.also { moduleCache[key] = it }
     }
 
     // ComposeViewAdapter splits tools:composableName on the last '.' to get (className, methodName).
