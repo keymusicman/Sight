@@ -42,8 +42,17 @@ dependencies {
     if (compileOnlyJars.isNotEmpty()) compileOnly(files(compileOnlyJars))
 }
 
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "com.keymusicman.appflowerplugin.renderworker.worker.RenderWorkerMainKt"
+    }
+}
+
 tasks.shadowJar {
     archiveBaseName.set("render-worker")
     archiveClassifier.set("all")
     mergeServiceFiles()
+    manifest {
+        attributes["Main-Class"] = "com.keymusicman.appflowerplugin.renderworker.worker.RenderWorkerMainKt"
+    }
 }
