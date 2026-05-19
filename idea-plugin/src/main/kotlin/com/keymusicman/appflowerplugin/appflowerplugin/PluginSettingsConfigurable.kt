@@ -19,6 +19,7 @@ class PluginSettingsConfigurable : Configurable {
     private lateinit var qualityLabel: JLabel
     private lateinit var incrementalBox: JCheckBox
     private lateinit var telemetryBox: JCheckBox
+    private lateinit var subprocessBox: JCheckBox
 
     override fun getDisplayName(): String = "AppFlower"
 
@@ -28,6 +29,7 @@ class PluginSettingsConfigurable : Configurable {
         qualityLabel = JLabel("85")
         incrementalBox = JCheckBox("Skip re-rendering composables whose source hasn't changed")
         telemetryBox = JCheckBox("Send render telemetry (OpenTelemetry → Grafana Cloud)")
+        subprocessBox = JCheckBox("Render previews in isolated subprocess (experimental — avoids the Layoutlib native memory leak)")
 
         val qualityChangeListener = ChangeListener {
             qualityLabel.text = qualitySlider.value.toString()
@@ -42,6 +44,7 @@ class PluginSettingsConfigurable : Configurable {
             add(row("Output format:", formatCombo))
             add(row("JPEG quality:", qualitySlider, qualityLabel))
             add(row(incrementalBox))
+            add(row(subprocessBox))
             if (OtelConfig.OTEL_ENABLED) add(row(telemetryBox))
         }
 
@@ -54,6 +57,7 @@ class PluginSettingsConfigurable : Configurable {
         return formatCombo.selectedItem != s.outputFormat ||
             qualitySlider.value != s.jpegQuality ||
             incrementalBox.isSelected != s.incrementalRendering ||
+            subprocessBox.isSelected != s.useSubprocessRenderer ||
             (OtelConfig.OTEL_ENABLED && telemetryBox.isSelected != s.telemetryEnabled)
     }
 
@@ -62,6 +66,7 @@ class PluginSettingsConfigurable : Configurable {
         s.outputFormat = formatCombo.selectedItem as OutputFormat
         s.jpegQuality = qualitySlider.value
         s.incrementalRendering = incrementalBox.isSelected
+        s.useSubprocessRenderer = subprocessBox.isSelected
         if (OtelConfig.OTEL_ENABLED) {
             val wasEnabled = s.telemetryEnabled
             s.telemetryEnabled = telemetryBox.isSelected
@@ -75,6 +80,7 @@ class PluginSettingsConfigurable : Configurable {
         qualitySlider.value = s.jpegQuality
         qualityLabel.text = s.jpegQuality.toString()
         incrementalBox.isSelected = s.incrementalRendering
+        subprocessBox.isSelected = s.useSubprocessRenderer
         if (OtelConfig.OTEL_ENABLED) telemetryBox.isSelected = s.telemetryEnabled
         syncQualityEnabled()
     }

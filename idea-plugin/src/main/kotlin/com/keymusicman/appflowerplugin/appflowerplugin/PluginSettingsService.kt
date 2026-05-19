@@ -16,6 +16,7 @@ class PluginSettingsService : PersistentStateComponent<PluginSettingsService.Sta
         var jpegQuality: Int = 85
         var incrementalRendering: Boolean = false
         var telemetryEnabled: Boolean = true
+        var useSubprocessRenderer: Boolean = false
     }
 
     private var myState = State()
