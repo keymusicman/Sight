@@ -109,7 +109,7 @@ class ModuleGraphPanel(
                                 if (providerFqn == null) {
                                     PreviewCache.expectedFile(moduleInfo.modulePath, fqn).delete()
                                     runCatching {
-                                        ComposableRenderer.render(
+                                        RendererRouter.render(
                                             project, moduleInfo.modulePath, fqn,
                                             sourceFilePath = sourceFilePath,
                                             previewConfig = previewConfig,
@@ -126,7 +126,7 @@ class ModuleGraphPanel(
                                     var index = 0
                                     while (index < MAX_PREVIEW_STATES) {
                                         val path = runCatching {
-                                            ComposableRenderer.render(
+                                            RendererRouter.render(
                                                 project, moduleInfo.modulePath, fqn,
                                                 parameterProviderFqn = providerFqn,
                                                 stateIndex = index,
@@ -365,7 +365,7 @@ class ModuleGraphPanel(
                     totalSkipped++
                 } else {
                     runCatching {
-                        ComposableRenderer.render(
+                        RendererRouter.render(
                             project, moduleInfo.modulePath, fqn,
                             sourceFilePath = sourceFilePath,
                             previewConfig = previewConfig,
@@ -394,7 +394,7 @@ class ModuleGraphPanel(
                     totalSkipped++
                 } else {
                     runCatching {
-                        ComposableRenderer.render(
+                        RendererRouter.render(
                             project, moduleInfo.modulePath, fqn,
                             parameterProviderFqn = providerFqn,
                             stateIndex = selectedState,
@@ -431,9 +431,9 @@ class ModuleGraphPanel(
             for (fr in failedScreens) {
                 runCatching {
                     if (fr.providerFqn == null) {
-                        ComposableRenderer.render(project, moduleInfo.modulePath, fr.fqn, sourceFilePath = fr.sourceFilePath, previewConfig = previewConfig)
+                        RendererRouter.render(project, moduleInfo.modulePath, fr.fqn, sourceFilePath = fr.sourceFilePath, previewConfig = previewConfig)
                     } else {
-                        ComposableRenderer.render(project, moduleInfo.modulePath, fr.fqn, parameterProviderFqn = fr.providerFqn, stateIndex = fr.stateIndex, sourceFilePath = fr.sourceFilePath, previewConfig = previewConfig)
+                        RendererRouter.render(project, moduleInfo.modulePath, fr.fqn, parameterProviderFqn = fr.providerFqn, stateIndex = fr.stateIndex, sourceFilePath = fr.sourceFilePath, previewConfig = previewConfig)
                     }
                 }.onSuccess { path ->
                     if (path != null) { rendered.add(fr.expectedFile); totalRendered++; totalFailed-- }
@@ -490,7 +490,7 @@ class ModuleGraphPanel(
                     index++; continue
                 }
                 val path = runCatching {
-                    ComposableRenderer.render(
+                    RendererRouter.render(
                         project, moduleInfo.modulePath, fqn,
                         parameterProviderFqn = providerFqn,
                         stateIndex = index,

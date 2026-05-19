@@ -12,6 +12,7 @@ class PluginUnloadListener : DynamicPluginListener {
         if (pluginId == "com.keymusicman.appflowerplugin.AppFlowerPlugin") {
             runCatching { TelemetryService.getInstance()?.dispose() }
             ComposableRenderer.clearCaches()
+            SubprocessRenderer.shutdownAll()
         }
     }
 }

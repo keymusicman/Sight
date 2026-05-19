@@ -107,7 +107,7 @@ class ComposableRenderDebugDialog(private val project: Project) :
                 } else {
                     PreviewRenderConfig(useCustomConfig = false)
                 }
-                val imagePath = ComposableRenderer.render(
+                val imagePath = RendererRouter.render(
                     project = project,
                     modulePath = modulePath,
                     composableFqn = fqn,
