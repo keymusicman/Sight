@@ -306,3 +306,107 @@ plugin appears to do (subprocess isolation — but verify before relying on this
   surface (smaller render device, e.g. 600×1000 instead of pixel_5's 1080×2400) to
   double the number of renders before the IDE OOMs. Does not stop growth; only delays
   it.
+
+# Subprocess rendering (since 2026-05)
+
+The in-process leak documented above is bounded by spawning a worker JVM per
+modulePath, recycled every 50 renders. After recycle, the OS reclaims all native
+memory the previous worker held. With the in-process renderer growing RSS by
+>5 GB per ~300 renders, this is the only architecture that keeps the IDE usable
+through long sessions.
+
+## Components
+
+- **`:render-worker` Gradle module** — packages a Layoutlib-direct renderer with
+  no IntelliJ Platform on the classpath. Shadow plugin emits
+  `render-worker/build/libs/render-worker-all.jar` (~2.5 MB) bundled into the
+  plugin's `lib/` directory by the `copyWorkerFatJar` Gradle task.
+- **`:ipc` Gradle module** — `@Serializable` DTOs (`WorkerInit`, `RenderRequest`,
+  `RenderResponse`, `Outcome`, `ShutdownRequest`) shared between plugin and worker.
+- **`RenderWorkerMain`** — worker entry point. Reads one `WorkerInit` line from
+  stdin, then loops reading `RenderRequest` lines and emitting `RenderResponse`
+  lines on stdout. A line starting with `{"reason"` terminates the loop.
+- **`LayoutlibBootstrap`** — locates `framework_res.jar`, `icudt*.dat`, native
+  libs; aliases `ro.system.product.cpu.abilist*` to `ro.product.cpu.abilist*`
+  (required by `android.os.Build.<clinit>`); calls the 8-arg `Bridge.init`.
+- **`WorkerRenderer`** — per-render: builds `SessionParams` (direct constructor,
+  no `Builder`), wires `FrameworkResourceRepository` for theme resolution,
+  advances the Compose frame clock, calls `session.render()`, writes PNG/JPEG.
+- **`WorkerLoggerProvider`** — registered at `Int.MAX_VALUE` priority via SPI to
+  shadow Layoutlib's default `IJLoggerProvider` (which would pull in IntelliJ
+  Platform classes the worker doesn't have).
+- **`SubprocessRendererClient`** — owns one worker process. Spawns via
+  `ProcessBuilder` using Studio's bundled JBR, JSON-line IPC over stdin/stdout,
+  reader thread parses responses, `process.onExit()` handler fails any pending
+  requests so callers never hang on worker crashes.
+- **`SubprocessRenderer`** — facade with the same signature as
+  `ComposableRenderer.render(...)`. Pools clients by `modulePath`, recycles
+  each after 50 renders.
+- **`WorkerClasspathAssembler`** — at runtime resolves IDE-bundled JARs via
+  `PathManager.getHomePath()`. In Studio 2025.x the layoutlib JAR lives under
+  `Contents/plugins/design-tools/lib/`; supporting JARs (`layoutlib-api`,
+  `sdk-common`, `sdk-tools`, `android.jar`, `ui-animation-tooling-internal`)
+  are under `Contents/plugins/android/lib/`; `kxml2*.jar` lives there too.
+  Platform `Contents/lib/module-intellij.libraries.guava.jar` and
+  `module-intellij.libraries.fastutil.jar` are also required.
+- **`UserModuleClasspathResolver`** — derives the user app's runtime classpath
+  via `OrderEnumerator` on the IntelliJ `Module`, appended with
+  `build/tmp/kotlin-classes/debug/`, the AGP-generated `R.jar`, and the SDK
+  platform's `android.jar`.
+- **`RendererRouter`** — chooses `ComposableRenderer` vs `SubprocessRenderer`
+  based on `PluginSettingsService.State.useSubprocessRenderer`.
+
+## Why a separate JVM
+
+See "Native memory leak investigation" above for the empirical record. Short
+version: no in-process cleanup mechanism frees the >5 GB of native memory
+Layoutlib/AWT/Skia accumulate per IDE session. Only ending the process reclaims
+it. `LayoutLibrary.dispose()` freed only 44 MB of 7098 MB (0.6%); libc-level
+`malloc_zone_pressure_relief` freed 0 MB. The unaccounted ~6 GB lives in
+AWT/Java2D native pixel buffers, JVM metaspace held by the user-app classloader,
+Skia native caches, and direct ByteBuffers — none reachable from any
+in-process API.
+
+## What still runs in-process
+
+- Module/facet resolution, classpath assembly, source-file lookup
+  (needs the IntelliJ Project model — too heavy to put in the worker).
+- `PreviewCache` path resolution and incremental-skip logic.
+- Telemetry recording (worker reports `durationMs`; the plugin records the
+  `RenderSample`).
+- Settings + UI.
+
+## Toggle behavior
+
+`PluginSettingsService.State.useSubprocessRenderer` (default `false` during
+rollout — opt-in). When `false`, `RendererRouter` calls
+`ComposableRenderer.render()` (in-process). When `true`, it calls
+`SubprocessRenderer.render()`. Toggle is exposed in Preferences → AppFlower.
+
+## Known limitations
+
+- **User-resource repository not merged** — only framework resources are wired.
+  Composables that reference user `R.string.app_name`, `R.drawable.*`, etc. will
+  fail to resolve those references. The in-IDE renderer handles this via
+  `AndroidFacetRenderModelModule`, but reproducing that in the worker is
+  non-trivial.
+- **Density hardcoded to 420 (xxhdpi)** — matches `pixel_5` default. Non-default
+  devices render at the wrong density until per-device density is plumbed
+  through `WorkerInit`/`RenderRequest`.
+- **`targetApiLevel` hardcoded to 34** — should derive from the Android
+  module's `compileSdk`.
+- **No output cropping** — the in-process renderer crops to root view bounds;
+  the worker writes the full canvas. Cosmetic; can be added later.
+- **Per-render timeout is 60 s** — composables that legitimately take longer
+  will be killed.
+
+## Lifecycle
+
+- Workers spawn lazily on first `SubprocessRenderer.render()` for a given
+  `modulePath`.
+- After 50 renders the client is `close()`d and removed; the next render
+  respawns. This keeps native memory bounded.
+- On plugin unload, `PluginUnloadListener` calls `SubprocessRenderer.shutdownAll()`
+  which closes every client.
+- If a worker crashes or its stdout closes, `Process.onExit()` fails any
+  pending requests with synthetic FAIL responses so callers never hang.
