@@ -110,6 +110,20 @@ object SubprocessRenderer {
                 "request=${req.requestId} modulePath=$modulePath"
         )
         val resp = entry.client.render(req, RENDER_TIMEOUT)
+        TelemetryService.getInstance().record(
+            RenderSample(
+                inflateMs   = 0L,
+                callbacksMs = 0L,
+                renderMs    = resp.durationMs,
+                writeMs     = 0L,
+                totalMs     = resp.durationMs,
+                format      = outputFormat,
+                outcome     = if (resp.outcome == Outcome.SUCCESS) RenderOutcome.SUCCESS else RenderOutcome.FAIL,
+                heapBefore  = 0L,
+                heapAfter   = 0L,
+                gcDelta     = GcStats(0L, 0L),
+            )
+        )
         entry.renders++
         if (entry.renders >= RECYCLE_AFTER_RENDERS) {
             logInfo("subprocess: recycling client for $modulePath after ${entry.renders} renders")
