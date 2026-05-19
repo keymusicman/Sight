@@ -21,6 +21,8 @@ repositories {
 dependencies {
     implementation(project(":graph-renderer"))
     implementation(project(":graph-ui"))
+    implementation(project(":ipc"))
+    implementation(libs.kotlinx.serialization)
     compileOnly(compose.desktop.currentOs)
 
     intellijPlatform {
