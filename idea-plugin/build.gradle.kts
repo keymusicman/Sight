@@ -80,7 +80,24 @@ val generateOtelConfig by tasks.registering {
 kotlin.sourceSets["main"].kotlin.srcDir(generateOtelConfig)
 
 tasks {
+    val copyWorkerFatJar by registering(Copy::class) {
+        dependsOn(":render-worker:shadowJar")
+        from(project(":render-worker").layout.buildDirectory.file("libs/render-worker-all.jar"))
+        into(prepareSandbox.flatMap { it.pluginDirectory.dir("lib") })
+        // The Sync-based prepareSandbox would wipe the worker JAR if we ran beforehand.
+        mustRunAfter(prepareSandbox)
+    }
+
+    prepareSandbox {
+        finalizedBy(copyWorkerFatJar)
+    }
+
+    prepareJarSearchableOptions {
+        mustRunAfter(copyWorkerFatJar)
+    }
+
     buildPlugin {
+        dependsOn(copyWorkerFatJar)
         archiveFileName.set("AppFlower.zip")
     }
 }
