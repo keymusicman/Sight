@@ -58,6 +58,10 @@ class WorkerRenderer(
             if (!createRes.isSuccess) {
                 val msg = createRes.errorMessage
                 val providerExhausted = msg?.contains("Sequence doesn't contain element") == true
+                createRes.exception?.let {
+                    System.err.println("createSession failed for ${req.composableFqn}:")
+                    it.printStackTrace(System.err)
+                }
                 return RenderResponse(
                     requestId = req.requestId,
                     outcome = Outcome.FAIL,
@@ -85,6 +89,10 @@ class WorkerRenderer(
             if (!renderRes.isSuccess) {
                 val msg = renderRes.errorMessage
                 val providerExhausted = msg?.contains("Sequence doesn't contain element") == true
+                renderRes.exception?.let {
+                    System.err.println("render() failed for ${req.composableFqn}:")
+                    it.printStackTrace(System.err)
+                }
                 return RenderResponse(
                     requestId = req.requestId,
                     outcome = Outcome.FAIL,
@@ -110,6 +118,8 @@ class WorkerRenderer(
                 durationMs = System.currentTimeMillis() - startMs,
             )
         } catch (e: Throwable) {
+            System.err.println("render() threw for ${req.composableFqn}:")
+            e.printStackTrace(System.err)
             RenderResponse(
                 requestId = req.requestId,
                 outcome = Outcome.FAIL,
@@ -243,7 +253,11 @@ class WorkerRenderer(
     // ---- Framework resource loading ----
 
     private fun loadFramework(): FrameworkBundle {
-        val bootstrap = LayoutlibBootstrap(androidStudioRoot, targetApiLevel = 34)
+        // 36+ required: Studio Quail's Layoutlib reads ro.build.version.sdk_full from build.prop
+        // during Build.VERSION.<clinit>; the android-34 platform's build.prop predates that
+        // field, so parseFullVersion("") throws NumberFormatException and the class can never
+        // initialize (then every render fails forever in this worker).
+        val bootstrap = LayoutlibBootstrap(androidStudioRoot, targetApiLevel = 36)
         val dataDir = bootstrap.locateLayoutlibDataDir()
             ?: error("Cannot locate layoutlib data dir under $androidStudioRoot")
         val jar = File(dataDir, "framework_res.jar")

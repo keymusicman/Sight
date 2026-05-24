@@ -173,7 +173,11 @@ object SubprocessRenderer {
             val init = WorkerInit(
                 androidStudioRoot = WorkerClasspathAssembler.androidStudioRoot().absolutePath,
                 userClasspath = userCp,
-                targetApiLevel = 34,
+                // Studio Quail's Layoutlib reads ro.build.version.sdk_full from build.prop during
+                // Build.VERSION.<clinit>; android-34/build.prop predates that field, so init throws
+                // and the JVM caches the failure for the worker's lifetime — every render then fails.
+                // android-36+ build.prop carries sdk_full.
+                targetApiLevel = 36,
             )
             val client = SubprocessRendererClient(init, WorkerClasspathAssembler.assemble())
             client.start()
