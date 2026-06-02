@@ -40,6 +40,12 @@ dependencies {
         kxml2Jar,
     )
     if (compileOnlyJars.isNotEmpty()) compileOnly(files(compileOnlyJars))
+
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.testJunit)
+    // The resource-repository APIs (sdk-common/sdk-tools + guava/fastutil) are compileOnly
+    // for the shaded jar but are needed at test runtime.
+    if (compileOnlyJars.isNotEmpty()) testImplementation(files(compileOnlyJars))
 }
 
 tasks.jar {
