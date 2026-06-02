@@ -30,6 +30,8 @@ dependencies {
         file("$androidPluginLib/layoutlib-api.jar").takeIf { it.exists() },
         file("$androidPluginLib/sdk-common.jar").takeIf { it.exists() },
         file("$androidPluginLib/sdk-tools.jar").takeIf { it.exists() },
+        // com.android.utils.* / SdkConstants — used by AarSourceResourceRepository loading.
+        file("$androidPluginLib/android-base-common.jar").takeIf { it.exists() },
         // android.jar bundled in the IDE provides com.android.tools.environment.Logger SPI.
         file("$androidPluginLib/android.jar").takeIf { it.exists() },
         // Guava (Bridge.<clinit> uses ImmutableMap; ResourceRepositoryUtil returns a Guava Table).

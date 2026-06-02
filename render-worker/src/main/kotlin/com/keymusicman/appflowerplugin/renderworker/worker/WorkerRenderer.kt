@@ -274,33 +274,12 @@ class WorkerRenderer(
         return FrameworkBundle(repo)
     }
 
-    /**
-     * Wraps [FrameworkResourceRepository] with the reflection workaround for
-     * `ResourceRepositoryUtil` — a Kotlin file facade whose `xi=48` metadata kotlinc
-     * 2.2 can't parse against the bundled jar (see SPIKE_NOTES "Framework resources
-     * wiring"). Reflection is required.
-     */
+    /** Wraps [FrameworkResourceRepository]; delegates configuration to [ConfiguredResources]. */
     private class FrameworkBundle(private val repo: FrameworkResourceRepository) {
-        private val getConfiguredMethod: java.lang.reflect.Method by lazy {
-            val util = Class.forName("com.android.ide.common.resources.ResourceRepositoryUtil")
-            util.declaredMethods.first {
-                it.name == "getConfiguredResources" && it.parameterCount == 2 &&
-                    com.google.common.collect.Table::class.java.isAssignableFrom(it.returnType)
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
         fun configuredFor(
             folderConfig: FolderConfiguration,
-        ): Map<ResourceNamespace, Map<ResourceType, com.android.ide.common.resources.ResourceValueMap>> {
-            val configured = getConfiguredMethod.invoke(null, repo, folderConfig)
-                    as com.google.common.collect.Table<
-                        ResourceNamespace,
-                        ResourceType,
-                        com.android.ide.common.resources.ResourceValueMap,
-                    >
-            return configured.rowMap()
-        }
+        ): Map<ResourceNamespace, Map<ResourceType, com.android.ide.common.resources.ResourceValueMap>> =
+            ConfiguredResources.of(repo, folderConfig)
     }
 }
 
