@@ -39,9 +39,22 @@ class WorkerRenderer(
     private val bridge: Bridge,
     private val userClassLoader: ClassLoader,
     private val androidStudioRoot: File,
+    private val userResDirs: List<String> = emptyList(),
+    private val rJarPaths: List<String> = emptyList(),
 ) {
-    private val callback = WorkerLayoutlibCallback(userClassLoader)
     private val log: ILayoutLog = StdErrLayoutLog()
+
+    private val idRegistry: ResourceIdRegistry by lazy {
+        ResourceIdRegistry.fromJars(rJarPaths, userClassLoader).also {
+            System.err.println("worker: ResourceIdRegistry loaded ${it.size()} user resource ids")
+        }
+    }
+    private val userResources: UserResourceRepository by lazy { UserResourceRepository(userResDirs) }
+    private val callback: WorkerLayoutlibCallback by lazy {
+        WorkerLayoutlibCallback(userClassLoader, idRegistry)
+    }
+    // Log each unresolved (placeheld) resource once across the worker lifetime.
+    private val loggedPlaceholders = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     // Resolved together: the same jar feeds both the parsed-values repo (theme/style
     // resolution) and the raw-file asset repo (Resources.getAnimation, getDrawable, etc.
@@ -196,13 +209,24 @@ class WorkerRenderer(
                 Density.create(densityDpi)
             )
         }
-        val configuredMap = framework.configuredFor(folderConfig)
+        val frameworkMap = framework.configuredFor(folderConfig)
+        val userMap = userResources.configuredFor(folderConfig)
+        val combinedMap = ResourceMapMerger.merge(
+            framework = frameworkMap,
+            user = userMap,
+            declaredRefs = idRegistry.declaredRefs(),
+        ) { ref ->
+            val key = "${ref.resourceType.getName()}/${ref.name}"
+            if (loggedPlaceholders.add(key)) {
+                System.err.println("worker: unresolved resource $key — using placeholder")
+            }
+        }
         val themeRef = ResourceReference(
             ResourceNamespace.ANDROID,
             ResourceType.STYLE,
             "Theme.Material.Light.NoActionBar",
         )
-        val resources = ResourceResolver.create(configuredMap, themeRef)
+        val resources = ResourceResolver.create(combinedMap, themeRef)
         resources.setLogger(log)
 
         val params = SessionParams(

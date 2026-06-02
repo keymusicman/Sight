@@ -20,7 +20,10 @@ import java.util.jar.JarFile
  * Layoutlib classes are visible). It is consulted for every view/class lookup during
  * inflation, including the `ComposeViewAdapter` and any of the user's composables.
  */
-class WorkerLayoutlibCallback(private val loader: ClassLoader) : LayoutlibCallback() {
+class WorkerLayoutlibCallback(
+    private val loader: ClassLoader,
+    private val idRegistry: ResourceIdRegistry,
+) : LayoutlibCallback() {
     private val nextId = AtomicInteger(0x7f040000)
     private val refToId = mutableMapOf<ResourceReference, Int>()
     private val idToRef = mutableMapOf<Int, ResourceReference>()
@@ -36,10 +39,11 @@ class WorkerLayoutlibCallback(private val loader: ClassLoader) : LayoutlibCallba
         return ctor.newInstance(*args)
     }
 
-    override fun resolveResourceId(id: Int): ResourceReference? = idToRef[id]
+    override fun resolveResourceId(id: Int): ResourceReference? =
+        idRegistry.resolve(id) ?: idToRef[id]
 
     override fun getOrGenerateResourceId(ref: ResourceReference): Int =
-        refToId.getOrPut(ref) {
+        idRegistry.idOf(ref) ?: refToId.getOrPut(ref) {
             val id = nextId.getAndIncrement()
             idToRef[id] = ref
             id

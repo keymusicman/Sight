@@ -32,7 +32,13 @@ fun main() {
 
     val bridge = LayoutlibBootstrap(File(init.androidStudioRoot), init.targetApiLevel).init()
     val userCl = newUserClassLoader(init.userClasspath, Thread.currentThread().contextClassLoader)
-    val renderer = WorkerRenderer(bridge, userCl, File(init.androidStudioRoot))
+    val renderer = WorkerRenderer(
+        bridge = bridge,
+        userClassLoader = userCl,
+        androidStudioRoot = File(init.androidStudioRoot),
+        userResDirs = init.userResDirs,
+        rJarPaths = init.rJarPaths,
+    )
 
     System.err.println("worker: ready (pid=${ProcessHandle.current().pid()})")
 
