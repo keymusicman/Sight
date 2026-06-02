@@ -487,7 +487,10 @@ object ComposableRenderer {
     // For top-level Kotlin functions the "class" part is just the package, which is not loadable.
     // This resolves the actual file-facade class via PSI so the name becomes e.g.
     // "com.example.StartupScreenKt.TestComposable" instead of "com.example.TestComposable".
-    private fun resolveComposableNameForLayoutlib(project: Project, composableFqn: String): String {
+    //
+    // Also used by [SubprocessRenderer]: the worker JVM has no PSI access, so the FQN must be
+    // resolved here in the plugin process before being handed to the worker.
+    internal fun resolveComposableNameForLayoutlib(project: Project, composableFqn: String): String {
         fqnCache[composableFqn]?.let { return it }
 
         val classPart = composableFqn.substringBeforeLast('.', missingDelimiterValue = "")

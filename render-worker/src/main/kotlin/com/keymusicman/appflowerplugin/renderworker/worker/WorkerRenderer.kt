@@ -41,11 +41,23 @@ class WorkerRenderer(
     private val androidStudioRoot: File,
 ) {
     private val callback = WorkerLayoutlibCallback(userClassLoader)
-    private val assetRepository: AssetRepository = NoopAssetRepository()
     private val log: ILayoutLog = StdErrLayoutLog()
 
-    // Lazily-loaded; framework_res.jar is ~5MB and the parse is non-trivial.
+    // Resolved together: the same jar feeds both the parsed-values repo (theme/style
+    // resolution) and the raw-file asset repo (Resources.getAnimation, getDrawable, etc.
+    // — Layoutlib's AssetManager calls AssetRepository.openNonAsset for these).
+    private val frameworkJarPath: File by lazy {
+        val bootstrap = LayoutlibBootstrap(androidStudioRoot, targetApiLevel = 36)
+        val dataDir = bootstrap.locateLayoutlibDataDir()
+            ?: error("Cannot locate layoutlib data dir under $androidStudioRoot")
+        File(dataDir, "framework_res.jar").also {
+            require(it.isFile) { "framework_res.jar not found at $it" }
+        }
+    }
     private val framework: FrameworkBundle by lazy { loadFramework() }
+    private val assetRepository: AssetRepository by lazy {
+        FrameworkAssetRepository(frameworkJarPath)
+    }
 
     fun render(req: RenderRequest): RenderResponse {
         val startMs = System.currentTimeMillis()
@@ -253,18 +265,8 @@ class WorkerRenderer(
     // ---- Framework resource loading ----
 
     private fun loadFramework(): FrameworkBundle {
-        // 36+ required: Studio Quail's Layoutlib reads ro.build.version.sdk_full from build.prop
-        // during Build.VERSION.<clinit>; the android-34 platform's build.prop predates that
-        // field, so parseFullVersion("") throws NumberFormatException and the class can never
-        // initialize (then every render fails forever in this worker).
-        val bootstrap = LayoutlibBootstrap(androidStudioRoot, targetApiLevel = 36)
-        val dataDir = bootstrap.locateLayoutlibDataDir()
-            ?: error("Cannot locate layoutlib data dir under $androidStudioRoot")
-        val jar = File(dataDir, "framework_res.jar")
-        require(jar.isFile) { "framework_res.jar not found at $jar" }
-
         val repo = FrameworkResourceRepository.create(
-            jar.toPath(),
+            frameworkJarPath.toPath(),
             /* languagesToLoad */ emptySet(),
             /* cachingData */ null,
             /* useCompiled9Patches */ false,
@@ -302,9 +304,35 @@ class WorkerRenderer(
     }
 }
 
-private class NoopAssetRepository : AssetRepository() {
+/**
+ * Serves files out of `framework_res.jar` for the `AssetManager.openNonAsset` path —
+ * i.e. callers that go through the `Resources` → `AssetManager` API rather than the
+ * `Resources_Delegate` shortcuts (e.g. raw resources, some drawable codepaths, fonts).
+ *
+ * NOTE: framework XML resources resolved via `Resources_Delegate.getAnimation` /
+ * `getXml` / `getDrawable` do NOT go through here — they go through
+ * `ResourceHelper.getXmlBlockParser` → `ParserFactory.create` →
+ * `XmlParserFactory.createXmlParserForFile`, which we wire up in
+ * [WorkerLayoutlibCallback.createXmlParserForFile]. This repository is the fallback
+ * for the asset-table path.
+ *
+ * We don't filter by cookie: file lookup is read-only, so returning a stream when the
+ * entry exists and null otherwise is safe regardless of which asset table the caller
+ * thinks it's reading from. Project assets (cookie 0) simply won't match and fall through.
+ */
+private class FrameworkAssetRepository(jarFile: java.io.File) : AssetRepository() {
+    private val jar = java.util.jar.JarFile(jarFile)
+
     override fun isSupported(): Boolean = true
-    override fun openAsset(path: String?, mode: Int) = null
-    override fun openNonAsset(cookie: Int, path: String?, mode: Int) = null
+    override fun openAsset(path: String?, mode: Int): java.io.InputStream? = null
+    override fun openNonAsset(cookie: Int, path: String?, mode: Int): java.io.InputStream? {
+        if (path.isNullOrEmpty()) return null
+        // Layoutlib has passed paths both with and without the "res/" prefix across versions.
+        jar.getJarEntry(path)?.let { return jar.getInputStream(it) }
+        if (!path.startsWith("res/")) {
+            jar.getJarEntry("res/$path")?.let { return jar.getInputStream(it) }
+        }
+        return null
+    }
 }
 

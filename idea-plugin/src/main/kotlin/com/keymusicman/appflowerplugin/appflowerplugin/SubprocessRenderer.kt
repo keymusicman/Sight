@@ -79,9 +79,21 @@ object SubprocessRenderer {
             return null
         }
 
+        // Resolve top-level composable FQNs to their file-facade class form (e.g.
+        // "pkg.SetPostcodePreview" -> "pkg.SetPostcodeKt.SetPostcodePreview"). The worker's
+        // ComposeViewAdapter splits tools:composableName on the last '.' and loads the class
+        // part; for a top-level function that part is just the package and fails with
+        // ClassNotFoundException. The worker JVM has no PSI access, so this MUST happen here in
+        // the plugin process — mirrors the in-process ComposableRenderer path. Cache keys above
+        // intentionally use the original FQN to stay consistent with the in-process renderer.
+        val resolvedFqn = ComposableRenderer.resolveComposableNameForLayoutlib(project, composableFqn)
+        if (resolvedFqn != composableFqn) {
+            logInfo("subprocess render() resolved top-level FQN: $composableFqn → $resolvedFqn")
+        }
+
         val req = RenderRequest(
             requestId            = entry.client.nextRequestId(),
-            composableFqn        = composableFqn,
+            composableFqn        = resolvedFqn,
             parameterProviderFqn = parameterProviderFqn,
             stateIndex           = stateIndex,
             outputPath           = outFile.absolutePath,

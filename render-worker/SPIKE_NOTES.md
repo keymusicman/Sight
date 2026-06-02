@@ -101,7 +101,18 @@ Plus from the **user's** project:
   variants (not `-api.jar`) including `ui-tooling-release-runtime.jar` which contains
   `ComposeViewAdapter`.
 - Compiled kotlin classes dir: `<app>/build/tmp/kotlin-classes/debug/`
-- The R.jar: `<app>/build/intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar`
+- The R.jar: `<app>/build/intermediates/<*r_class_jar*>/debug/.../R.jar`. The intermediate
+  dir name varies by module type **and AGP version** —
+  `compile_and_runtime_not_namespaced_r_class_jar` (older AGP apps),
+  `compile_and_runtime_r_class_jar` (Gradle 9.x / feature modules), or `compile_r_class_jar`
+  (own, non-transitive R). `UserModuleClasspathResolver.findGeneratedRJars` globs all of them
+  and prefers the largest (fat transitive) jar. **This jar is mandatory:** the worker's plain
+  `URLClassLoader` does not synthesize R classes the way Studio's `ModuleClassLoader` does, so
+  dependency bytecode that references generated R classes (e.g.
+  `androidx.customview.poolingcontainer.R$id`, read by `PoolingContainer.<clinit>` on every
+  `ComposeViewAdapter` inflation) throws `NoClassDefFoundError` and fails *every* preview at
+  `createSession` if the transitive R.jar is absent. Hardcoding the app-module path was the
+  original bug — it doesn't exist for newer AGP.
 - The **Android platform `android.jar`** from the SDK (`$HOME/Library/Android/sdk/platforms/android-37.0/android.jar`).
   This is the `provided`-scoped API jar — Layoutlib loads e.g. `android.os.Build$VERSION`
   from this; without it, `ComposeViewAdapter.<init>` fails with `ClassNotFoundException`.
