@@ -182,6 +182,7 @@ object SubprocessRenderer {
     private fun clientFor(project: Project, modulePath: String): ClientEntry =
         clients.getOrPut(modulePath) {
             val userCp = UserModuleClasspathResolver.resolve(project, modulePath)
+            val userRes = UserResourceResolver.resolve(project, modulePath)
             val init = WorkerInit(
                 androidStudioRoot = WorkerClasspathAssembler.androidStudioRoot().absolutePath,
                 userClasspath = userCp,
@@ -190,6 +191,8 @@ object SubprocessRenderer {
                 // and the JVM caches the failure for the worker's lifetime — every render then fails.
                 // android-36+ build.prop carries sdk_full.
                 targetApiLevel = 36,
+                userResDirs = userRes.resDirs,
+                rJarPaths = userRes.rJarPaths,
             )
             val client = SubprocessRendererClient(init, WorkerClasspathAssembler.assemble())
             client.start()
