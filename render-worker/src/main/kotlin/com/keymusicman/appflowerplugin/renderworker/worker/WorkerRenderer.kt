@@ -56,7 +56,7 @@ class WorkerRenderer(
     }
     private val framework: FrameworkBundle by lazy { loadFramework() }
     private val assetRepository: AssetRepository by lazy {
-        FrameworkAssetRepository(frameworkJarPath)
+        WorkerAssetRepository(frameworkJarPath)
     }
 
     fun render(req: RenderRequest): RenderResponse {
@@ -280,38 +280,6 @@ class WorkerRenderer(
             folderConfig: FolderConfiguration,
         ): Map<ResourceNamespace, Map<ResourceType, com.android.ide.common.resources.ResourceValueMap>> =
             ConfiguredResources.of(repo, folderConfig)
-    }
-}
-
-/**
- * Serves files out of `framework_res.jar` for the `AssetManager.openNonAsset` path —
- * i.e. callers that go through the `Resources` → `AssetManager` API rather than the
- * `Resources_Delegate` shortcuts (e.g. raw resources, some drawable codepaths, fonts).
- *
- * NOTE: framework XML resources resolved via `Resources_Delegate.getAnimation` /
- * `getXml` / `getDrawable` do NOT go through here — they go through
- * `ResourceHelper.getXmlBlockParser` → `ParserFactory.create` →
- * `XmlParserFactory.createXmlParserForFile`, which we wire up in
- * [WorkerLayoutlibCallback.createXmlParserForFile]. This repository is the fallback
- * for the asset-table path.
- *
- * We don't filter by cookie: file lookup is read-only, so returning a stream when the
- * entry exists and null otherwise is safe regardless of which asset table the caller
- * thinks it's reading from. Project assets (cookie 0) simply won't match and fall through.
- */
-private class FrameworkAssetRepository(jarFile: java.io.File) : AssetRepository() {
-    private val jar = java.util.jar.JarFile(jarFile)
-
-    override fun isSupported(): Boolean = true
-    override fun openAsset(path: String?, mode: Int): java.io.InputStream? = null
-    override fun openNonAsset(cookie: Int, path: String?, mode: Int): java.io.InputStream? {
-        if (path.isNullOrEmpty()) return null
-        // Layoutlib has passed paths both with and without the "res/" prefix across versions.
-        jar.getJarEntry(path)?.let { return jar.getInputStream(it) }
-        if (!path.startsWith("res/")) {
-            jar.getJarEntry("res/$path")?.let { return jar.getInputStream(it) }
-        }
-        return null
     }
 }
 
