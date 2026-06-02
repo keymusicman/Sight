@@ -229,6 +229,9 @@ class SubprocessRendererClient(
          *     run.sh). Without these, the worker hits `InaccessibleObjectException` on JDK 17+.
          */
         val DEFAULT_JVM_ARGS: List<String> = listOf(
+            // Keep stack traces on repeated implicit exceptions (NPE/AIOOBE) so a residual
+            // resource-resolution failure shows its real frame instead of a traceless NPE.
+            "-XX:-OmitStackTraceInFastThrow",
             "-Xmx2g",
             "-Dfile.encoding=UTF-8",
             "--add-opens", "java.base/java.lang=ALL-UNNAMED",
