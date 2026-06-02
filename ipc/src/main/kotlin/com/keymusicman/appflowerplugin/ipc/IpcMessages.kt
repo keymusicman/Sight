@@ -7,6 +7,8 @@ data class WorkerInit(
     val androidStudioRoot: String,
     val userClasspath: List<String>,
     val targetApiLevel: Int,
+    val userResDirs: List<String> = emptyList(),
+    val rJarPaths: List<String> = emptyList(),
 )
 
 @Serializable
