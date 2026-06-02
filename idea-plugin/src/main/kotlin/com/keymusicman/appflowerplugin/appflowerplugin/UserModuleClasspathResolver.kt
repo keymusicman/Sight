@@ -116,7 +116,7 @@ object UserModuleClasspathResolver {
      * `ComposableRenderer.resolveModuleCached` so the classpath we build matches the
      * module the in-process renderer would have used.
      */
-    private fun findModule(project: Project, modulePath: String): Module? {
+    internal fun findModule(project: Project, modulePath: String): Module? {
         val allModules = ModuleManager.getInstance(project).modules
         val appRootModule = allModules.firstOrNull { m ->
             ModuleRootManager.getInstance(m).contentRoots.any { it.path == modulePath }
