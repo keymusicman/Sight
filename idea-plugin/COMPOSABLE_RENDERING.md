@@ -385,11 +385,17 @@ rollout — opt-in). When `false`, `RendererRouter` calls
 
 ## Known limitations
 
-- **User-resource repository not merged** — only framework resources are wired.
-  Composables that reference user `R.string.app_name`, `R.drawable.*`, etc. will
-  fail to resolve those references. The in-IDE renderer handles this via
-  `AndroidFacetRenderModelModule`, but reproducing that in the worker is
-  non-trivial.
+- **User resources now wired (since 2026-06)** — the worker resolves user
+  `R.drawable/string/color/dimen/font/…` via res dirs + R.jars discovered
+  plugin-side (`UserResourceResolver`) and passed through `WorkerInit`. The
+  worker builds an `AarSourceResourceRepository` per dir, merges it (namespace
+  `RES_AUTO`) with the framework repo, scans the R.jars for the
+  `int → ResourceReference` map (`ResourceIdRegistry`), and fails soft with typed
+  placeholders for any declared-but-unloaded resource. **Remaining gaps:**
+  resource *namespacing* (`android.nonTransitiveRClass` per-package namespaces)
+  is unsupported (all user resources are treated as `RES_AUTO`); the app's
+  Android base theme is not resolved (framework `Theme.Material.Light.NoActionBar`
+  is used — Compose previews self-wrap their theme).
 - **Density hardcoded to 420 (xxhdpi)** — matches `pixel_5` default. Non-default
   devices render at the wrong density until per-device density is plumbed
   through `WorkerInit`/`RenderRequest`.
