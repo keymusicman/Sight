@@ -76,12 +76,16 @@ object UserModuleClasspathResolver {
         explicit.forEach { if (File(it).exists()) seen.add(it) }
         if (sdkJar != null) seen.add(sdkJar)
 
+        // The runtime R.jar must win the classloader's first-match lookup over the all-zero
+        // placeholder compile R.jar (which the IDE compile classpath puts in earlier), else
+        // every painterResource id resolves to 0 → blank render.
+        val ordered = prioritizeRuntimeRJars(seen.toList())
         log.info(
-            "UserModuleClasspathResolver: resolved ${seen.size} classpath entries for $modulePath " +
+            "UserModuleClasspathResolver: resolved ${ordered.size} classpath entries for $modulePath " +
                 "(agp=${resolved.agpEntries.size}, ide=${resolved.ideEntries.size}, " +
                 "explicit=${explicit.size}, sdk=${sdkJar != null})"
         )
-        return seen.toList()
+        return ordered
     }
 
     /**
@@ -167,6 +171,33 @@ object UserModuleClasspathResolver {
      * exist for this project's AGP version). Jars are returned largest-first so the fat
      * transitive jar wins [java.net.URLClassLoader] lookups over the thin own-module jar.
      */
+    /**
+     * Ensures the user classloader resolves the app's **runtime** R classes (real resource ids),
+     * not the compile-time placeholder R whose ids are all `0`.
+     *
+     * AGP emits two R.jars: the runtime `compile_and_runtime_*r_class_jar` (real, merged,
+     * transitive ids) and the compile-only `compile_r_class_jar` (own-module, all-zero
+     * placeholders — values get linked in only at packaging). The placeholder jar reaches the
+     * classpath first via the IDE/AGP compile classpath, so a plain `URLClassLoader` resolves
+     * `R$drawable.foo` to `0`, and `painterResource(0)` throws during composition → blank render.
+     *
+     * When a runtime R.jar is present we hoist it to the front (so it wins first-match lookups)
+     * and drop the placeholder jars entirely (the runtime jar is a strict superset). With no
+     * runtime jar we leave the list untouched — the placeholder is all that's available.
+     */
+    internal fun prioritizeRuntimeRJars(entries: List<String>): List<String> {
+        fun isRJar(p: String) = p.endsWith("R.jar")
+        // `compile_and_runtime_r_class_jar` and the older `compile_and_runtime_not_namespaced_…`
+        // are the real merged runtime ids; `compile_r_class_jar` is the all-zero placeholder.
+        fun isRuntimeRJar(p: String) = isRJar(p) && p.contains("compile_and_runtime")
+        fun isPlaceholderRJar(p: String) = isRJar(p) && p.contains("compile_r_class_jar")
+
+        val runtime = entries.filter { isRuntimeRJar(it) }
+        if (runtime.isEmpty()) return entries
+        val rest = entries.filterNot { isRuntimeRJar(it) || isPlaceholderRJar(it) }
+        return runtime + rest
+    }
+
     internal fun findGeneratedRJars(moduleDir: File): List<File> {
         val intermediates = File(moduleDir, "build/intermediates")
         val rClassDirs = intermediates.listFiles { f -> f.isDirectory && f.name.contains("r_class_jar") }

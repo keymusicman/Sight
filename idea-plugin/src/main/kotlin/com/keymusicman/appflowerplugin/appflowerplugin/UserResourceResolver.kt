@@ -21,6 +21,13 @@ object UserResourceResolver {
 
     fun resolve(project: Project, modulePath: String): UserResources {
         val resDirs = LinkedHashSet<String>()
+        // The target module's own res dirs, derived straight from [modulePath] — which IS the
+        // module dir (same value used for R.jar discovery below). This is deliberately independent
+        // of the IntelliJ module model: findModule() returns the `.main` source-set module, whose
+        // content root is the source-set dir (…/example-app/src/main), so feeding it to
+        // ownModuleResDirs() (which expects a module ROOT) computes …/src/main/src/*/res = ∅ and
+        // the app's own resources never reach the worker → every drawable placeheld → blank render.
+        ownModuleResDirs(File(modulePath)).forEach { resDirs.add(it.absolutePath) }
         ReadAction.run<Throwable> {
             val module = UserModuleClasspathResolver.findModule(project, modulePath)
                 ?: error("UserResourceResolver: no module found for $modulePath")
@@ -37,15 +44,29 @@ object UserResourceResolver {
             .forEach { resDirs.add(it.absolutePath) }
 
         val rJars = UserModuleClasspathResolver.findGeneratedRJars(File(modulePath)).map { it.absolutePath }
-        log.info("UserResourceResolver: resolved ${resDirs.size} res dirs, ${rJars.size} R.jar(s) for $modulePath")
+        val srcResCount = resDirs.count { it.contains("${File.separator}src${File.separator}") }
+        log.info(
+            "UserResourceResolver: resolved ${resDirs.size} res dirs ($srcResCount source-set), " +
+                "${rJars.size} R.jar(s) for $modulePath"
+        )
         return UserResources(resDirs.toList(), rJars)
     }
 
-    /** On-disk res dirs for [module] derived from its content roots (no Studio resource API). */
+    /**
+     * On-disk res dirs for [module] derived from its content roots (no Studio resource API).
+     * A content root may be the module dir (…/lib) or a source-set dir (…/lib/src/main) depending
+     * on how the module was imported, so [ownModuleResDirs] is tried against both shapes.
+     */
     private fun moduleResDirs(module: Module): List<File> =
         ModuleRootManager.getInstance(module).contentRoots.flatMap { root ->
-            File(root.path).let { if (it.isDirectory) ownModuleResDirs(it) else emptyList() }
-        }
+            File(root.path).takeIf { it.isDirectory }?.let { dir ->
+                ownModuleResDirs(dir) + moduleDirFromSourceSet(dir)?.let(::ownModuleResDirs).orEmpty()
+            }.orEmpty()
+        }.distinctBy { it.absolutePath }
+
+    /** If [dir] is a source-set dir (`…/src/<set>`), the module root is its grandparent. */
+    private fun moduleDirFromSourceSet(dir: File): File? =
+        dir.takeIf { it.parentFile?.name == "src" }?.parentFile?.parentFile
 
     /** `src/<sourceSet>/res` dirs plus any `build/generated/**/res` dirs under [moduleDir]. */
     internal fun ownModuleResDirs(moduleDir: File): List<File> {

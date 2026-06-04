@@ -5,9 +5,11 @@ import com.android.ide.common.rendering.api.ResourceReference
 import com.android.ide.common.rendering.api.ResourceValueImpl
 import com.android.ide.common.resources.ResourceValueMap
 import com.android.resources.ResourceType
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class ResourceMapMergerTest {
     private fun ref(type: ResourceType, name: String) =
@@ -31,7 +33,12 @@ class ResourceMapMergerTest {
         val drawables = combined[ResourceNamespace.RES_AUTO]?.get(ResourceType.DRAWABLE)
         assertNotNull(drawables)
         assertEquals("/path/real_one.webp", drawables.get("real_one")!!.value)
-        assertEquals("#00000000", drawables.get("missing_two")!!.value)
+        // A missing DRAWABLE must placehold to a loadable bitmap *file* (→ BitmapDrawable), not a
+        // "#00000000" COLOR (→ ColorDrawable), which would CCE in Compose's imageResource cast and
+        // abort the whole render. See ResourceMapMerger.transparentPngPath.
+        val placeholder = drawables.get("missing_two")!!.value!!
+        assertTrue(placeholder.endsWith(".png"), "expected a .png file path, got $placeholder")
+        assertTrue(File(placeholder).isFile, "placeholder bitmap should exist on disk: $placeholder")
         assertEquals(listOf(ref(ResourceType.DRAWABLE, "missing_two")), placeheld)
     }
 

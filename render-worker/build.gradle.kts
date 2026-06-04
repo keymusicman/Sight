@@ -25,6 +25,13 @@ dependencies {
         .listFiles { f -> f.isFile && f.name.startsWith("kxml2") && f.name.endsWith(".jar") }
         ?.firstOrNull()
 
+    // Studio renamed these bundled libs from `module-intellij.libraries.<x>.jar` (stable) to
+    // `intellij.libraries.<x>.jar` (canary / Preview). Match by suffix so both resolve; the
+    // suffix is specific enough to skip e.g. `intellij.libraries.kotlinx.coroutines.guava.jar`.
+    fun studioLibBySuffix(suffix: String): File? = studioLib
+        .listFiles { f -> f.isFile && f.name.endsWith(suffix) }
+        ?.firstOrNull()
+
     val compileOnlyJars = listOfNotNull(
         file("$designToolsLib/layoutlib.jar").takeIf { it.exists() },
         file("$androidPluginLib/layoutlib-api.jar").takeIf { it.exists() },
@@ -35,9 +42,9 @@ dependencies {
         // android.jar bundled in the IDE provides com.android.tools.environment.Logger SPI.
         file("$androidPluginLib/android.jar").takeIf { it.exists() },
         // Guava (Bridge.<clinit> uses ImmutableMap; ResourceRepositoryUtil returns a Guava Table).
-        file("$studioLib/module-intellij.libraries.guava.jar").takeIf { it.exists() },
+        studioLibBySuffix("intellij.libraries.guava.jar"),
         // fastutil (AarSourceResourceRepository.loadFromStream).
-        file("$studioLib/module-intellij.libraries.fastutil.jar").takeIf { it.exists() },
+        studioLibBySuffix("intellij.libraries.fastutil.jar"),
         // kxml2 (pull parser used by WorkerLayoutlibCallback / WorkerPullParser).
         kxml2Jar,
     )

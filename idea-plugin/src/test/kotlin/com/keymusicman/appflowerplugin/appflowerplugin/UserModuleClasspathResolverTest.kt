@@ -59,4 +59,31 @@ class UserModuleClasspathResolverTest {
         File(tmp, "build/intermediates/other_stuff").mkdirs()
         assertEquals(emptyList(), UserModuleClasspathResolver.findGeneratedRJars(tmp))
     }
+
+    @Test
+    fun `prioritizeRuntimeRJars hoists runtime R jar to front and drops placeholder`() {
+        // Real-world order: the all-zero placeholder compile R.jar arrives first (via the IDE
+        // compile classpath), the real runtime R.jar later (via explicit AGP outputs).
+        // URLClassLoader resolves first match, so the runtime jar must end up first; the
+        // placeholder (R$drawable.foo == 0 → painterResource(0) → blank render) must be dropped.
+        val thin = "/proj/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar"
+        val classes = "/proj/build/tmp/kotlin-classes/debug"
+        val fat = "/proj/build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar"
+
+        val result = UserModuleClasspathResolver.prioritizeRuntimeRJars(listOf(thin, classes, fat))
+
+        assertEquals(fat, result.first(), "runtime R.jar must win the first-match lookup")
+        assertTrue(thin !in result, "placeholder compile_r_class_jar R.jar must be dropped")
+        assertTrue(classes in result, "non-R classpath entries must be preserved")
+    }
+
+    @Test
+    fun `prioritizeRuntimeRJars leaves classpath untouched when only a placeholder R jar exists`() {
+        // No runtime R.jar to prefer — keep the placeholder; it's all we have.
+        val thin = "/proj/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar"
+        val classes = "/proj/build/tmp/kotlin-classes/debug"
+        val input = listOf(classes, thin)
+
+        assertEquals(input, UserModuleClasspathResolver.prioritizeRuntimeRJars(input))
+    }
 }

@@ -8,7 +8,7 @@ import java.lang.reflect.Modifier
 import java.util.jar.JarFile
 
 /**
- * Maps the user app's compiled resource ids (from R.jar `static final int` fields) to
+ * Maps the user app's compiled resource ids (from R.jar `static int` fields, final or not) to
  * [ResourceReference]s under the [ResourceNamespace.RES_AUTO] namespace, and back.
  *
  * Layoutlib's `Resources_Delegate.getValue(id,…)` resolves an int id to a reference via
@@ -30,19 +30,48 @@ class ResourceIdRegistry private constructor(
     companion object {
         private val IGNORED_TYPES = setOf("styleable")
 
+        // Base for synthesized R ids. Sits below the real app package (`0x7f……`) and the
+        // callback's on-demand generator (`0x7f040000+`, see WorkerLayoutlibCallback) so the three
+        // id spaces never collide; the value only has to round-trip through resolveResourceId.
+        private const val SYNTHETIC_ID_BASE = 0x7E000000
+
         /** Build from already-loaded `R$<type>` classes (e.g. `R.drawable::class.java`). */
         fun fromRClasses(rTypeClasses: List<Class<*>>): ResourceIdRegistry {
             val idToRef = HashMap<Int, ResourceReference>()
             val refToId = HashMap<ResourceReference, Int>()
-            for (cls in rTypeClasses) {
+            var synthCounter = 0
+            // distinct(): the same R class can be enumerated from several jars (thin + fat) but
+            // the classloader returns one Class — process it once so synthetic ids aren't churned.
+            for (cls in rTypeClasses.distinct()) {
                 val typeName = cls.simpleName // "R$drawable".simpleName == "drawable"
                 if (typeName in IGNORED_TYPES) continue
                 val type = ResourceType.fromClassName(typeName) ?: continue
                 for (f in cls.declaredFields) {
                     val mods = f.modifiers
-                    if (!Modifier.isStatic(mods) || !Modifier.isFinal(mods)) continue
+                    // Read every `static int` field. Real AGP app/library R classes use
+                    // NON-final ids (`public static int`), so requiring `final` here registered
+                    // zero ids and every painterResource resolved to null → blank render.
+                    if (!Modifier.isStatic(mods)) continue
                     if (f.type != Int::class.javaPrimitiveType) continue // skip int[] styleables
-                    val id = try { f.getInt(null) } catch (_: Throwable) { continue }
+                    val current = try { f.getInt(null) } catch (_: Throwable) { continue }
+                    // Real AGP R fields are non-final with no <clinit>; their true id lives only in
+                    // a ConstantValue attribute the JVM ignores for non-final fields, so getstatic
+                    // (and getInt here) yields 0. Materialize a synthetic id INTO the field so the
+                    // user's `getstatic R.x` returns it; resolveResourceId maps it back. Mirrors
+                    // Studio's ModuleClassLoader dynamic R ids. Fields that already carry a real id
+                    // (final+inlined, or clinit-initialized) are registered by that value as-is.
+                    val id = if (current != 0) {
+                        current
+                    } else {
+                        val syn = SYNTHETIC_ID_BASE + synthCounter++
+                        try {
+                            runCatching { f.isAccessible = true }
+                            f.setInt(null, syn)
+                        } catch (_: Throwable) {
+                            continue // can't materialize (e.g. final/0) — leave unresolvable
+                        }
+                        syn
+                    }
                     val ref = ResourceReference(ResourceNamespace.RES_AUTO, type, f.name)
                     idToRef[id] = ref
                     refToId[ref] = id

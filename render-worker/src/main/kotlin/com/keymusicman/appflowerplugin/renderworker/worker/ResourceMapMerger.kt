@@ -5,6 +5,9 @@ import com.android.ide.common.rendering.api.ResourceReference
 import com.android.ide.common.rendering.api.ResourceValueImpl
 import com.android.ide.common.resources.ResourceValueMap
 import com.android.resources.ResourceType
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
 
 /**
  * Combines framework (ANDROID) resources with user (RES_AUTO) resources into the map
@@ -13,8 +16,26 @@ import com.android.resources.ResourceType
  * placeholder (fail-soft), so a single missing resource degrades to a blank instead of an NPE.
  */
 object ResourceMapMerger {
+    /**
+     * Absolute path to a 1×1 fully transparent PNG on disk, used as the placeholder *value* for
+     * missing DRAWABLE/MIPMAP refs. layoutlib resolves a file-path drawable to a `BitmapDrawable`,
+     * which is what Compose's `imageResource`/`painterResource` casts to. A `#00000000` COLOR
+     * value would instead resolve to a `ColorDrawable`, whose cast to `BitmapDrawable` throws
+     * `ClassCastException` and aborts the *entire* composition (root measures 0×0 → blank image).
+     * With a real bitmap, a genuinely missing image degrades to a blank box and the rest renders.
+     */
+    private val transparentPngPath: String? by lazy {
+        runCatching {
+            val img = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB) // pixels default to 0x0 = transparent
+            val f = File.createTempFile("af-missing-drawable", ".png").apply { deleteOnExit() }
+            ImageIO.write(img, "png", f)
+            f.absolutePath
+        }.getOrNull()
+    }
+
     private fun placeholderValue(type: ResourceType): String = when (type) {
-        ResourceType.DRAWABLE, ResourceType.MIPMAP, ResourceType.COLOR -> "#00000000"
+        ResourceType.DRAWABLE, ResourceType.MIPMAP -> transparentPngPath ?: "#00000000"
+        ResourceType.COLOR -> "#00000000"
         ResourceType.DIMEN -> "0dp"
         else -> "" // string and everything else
     }

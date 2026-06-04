@@ -4,12 +4,14 @@ import com.android.ide.common.rendering.api.AssetRepository
 import com.android.ide.common.rendering.api.HardwareConfig
 import com.android.ide.common.rendering.api.ILayoutLog
 import com.android.ide.common.rendering.api.ResourceNamespace
+import com.android.ide.common.rendering.api.RenderSession
 import com.android.ide.common.rendering.api.ResourceReference
 import com.android.ide.common.rendering.api.SessionParams
 import com.android.ide.common.resources.ResourceResolver
 import com.android.ide.common.resources.configuration.FolderConfiguration
 import com.android.ide.common.resources.configuration.LocaleQualifier
 import com.android.layoutlib.bridge.Bridge
+import com.android.layoutlib.bridge.android.RenderParamsFlags
 import com.android.resources.Density
 import com.android.resources.ResourceType
 import com.android.resources.ScreenOrientation
@@ -21,6 +23,7 @@ import com.keymusicman.appflowerplugin.ipc.RenderRequest
 import com.keymusicman.appflowerplugin.ipc.RenderResponse
 import java.awt.image.BufferedImage
 import java.io.File
+import java.util.concurrent.TimeUnit
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
@@ -97,20 +100,44 @@ class WorkerRenderer(
                 )
             }
 
-            // Advance the frame clock so Compose's MonotonicFrameClock ticks and the
-            // initial composition + any effects run before we snapshot. Mirrors the
-            // spike + the in-IDE ComposableRenderer's strategy.
-            var nowNs = System.nanoTime()
+            // THE blank-render fix. Layoutlib lays out the window's content frame
+            // (android.R.id.content) with 0×0 LinearLayout params (width=0, height=0, weight=0)
+            // when driven via raw Bridge.createSession the way we do — so with clipChildren=true the
+            // entire app/Compose subtree (which itself measures to the full device size) is clipped
+            // to nothing and only the DecorView background paints (uniform #FAFAFA). Studio's
+            // RenderTask path gets a MATCH_PARENT content frame; we force the same here. Without
+            // this, EVERY preview is blank regardless of content — even a plain View with a solid
+            // background. See the long investigation in the subprocess-blank-render memory.
+            forceContentFrameFill(session)
+
+            // Seed the virtual clocks immediately after createSession, exactly as Android Studio's
+            // RenderTask does, so Compose's MonotonicFrameClock ticks and the first-frame priming
+            // draw runs (RenderSessionImpl only runs it when mElapsedFrameTimeNanos >= 0).
+            session.setSystemBootTimeNanos(0L)
+            session.setSystemTimeNanos(0L)
+            session.setElapsedFrameTimeNanos(TimeUnit.MILLISECONDS.toNanos(500L))
+
+            // Advance the frame clock so Compose's composition + effects run before we snapshot.
+            // BridgeRenderSession.executeCallbacks() reads the *virtual* clock (System_Delegate,
+            // driven by setSystemTimeNanos), not its nanos argument — so setSystemTimeNanos() must
+            // precede each call, exactly as RenderTask.executeCallbacks() does.
+            var nowNs = 0L
             var frames = 0
+            session.setSystemTimeNanos(nowNs)
             var more = session.executeCallbacks(nowNs)
             frames++
             while ((more || frames < 5) && frames < 10) {
                 nowNs += 16_666_666L
+                session.setSystemTimeNanos(nowNs)
                 more = session.executeCallbacks(nowNs)
                 frames++
             }
 
-            val renderRes = session.render()
+            // Single render — createSession did NOT render (FLAG_DO_NOT_RENDER_ON_CREATE), so this is
+            // the first and only session render ("never render twice" — the first consumes the canvas
+            // state, the second comes back blank). forceMeasure=true lays out the now-populated
+            // composition at the device size (matches RenderTask.render(forceMeasure)).
+            val renderRes = session.render(true)
             if (!renderRes.isSuccess) {
                 val msg = renderRes.errorMessage
                 val providerExhausted = msg?.contains("Sequence doesn't contain element") == true
@@ -163,18 +190,17 @@ class WorkerRenderer(
             append("\n    tools:parameterProviderClass=\"${req.parameterProviderFqn}\"")
             if (req.stateIndex >= 0) append("\n    tools:parameterProviderIndex=\"${req.stateIndex}\"")
         } else ""
-        // Pass previewWidth/previewHeight so ComposeViewAdapter sizes the composition.
-        // Without these, wrap_content can collapse to 0x0 and the rendered image is
-        // blank (see SPIKE_NOTES "Result" — that exact bug bit the spike).
-        val sizeAttr = "\n    tools:previewWidth=\"${req.widthDp}\"" +
-            "\n    tools:previewHeight=\"${req.heightDp}\""
+        // Size the root with EXACT dp dimensions (the device size). With the content frame forced
+        // to MATCH_PARENT (see forceContentFrameFill) the ComposeViewAdapter then gets bounded
+        // constraints and the composition fills the device. `tools:previewWidth/previewHeight` are
+        // NOT honored by this ComposeViewAdapter (1.10.x), so explicit dp is required.
         return """
             <androidx.compose.ui.tooling.ComposeViewAdapter
                 xmlns:android="http://schemas.android.com/apk/res/android"
                 xmlns:tools="http://schemas.android.com/tools"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                tools:composableName="${req.composableFqn}"$providerAttr$sizeAttr />
+                android:layout_width="${req.widthDp}dp"
+                android:layout_height="${req.heightDp}dp"
+                tools:composableName="${req.composableFqn}"$providerAttr />
         """.trimIndent()
     }
 
@@ -242,6 +268,19 @@ class WorkerRenderer(
         )
         params.setAssetRepository(assetRepository)
 
+        // Match Android Studio's RenderTask flags. The first two are load-bearing for getting any
+        // pixels at all out of a raw-Bridge render:
+        //  - FLAG_DO_NOT_RENDER_ON_CREATE: Bridge.createSession() otherwise calls render(true)
+        //    internally, BEFORE we can seed the frame clock — and a second render() then comes back
+        //    blank ("the first render consumes the canvas state", per COMPOSABLE_RENDERING.md). With
+        //    this flag, createSession only inflates; our single render() below is the first & only one.
+        //  - FLAG_KEY_DISABLE_BITMAP_CACHING: forces disposeImageSurface()+renderer.setup() each
+        //    render so a fresh ImageReader is created; without it the cached reader can't re-acquire
+        //    ("Unable to acquire a buffer item") and the readback is a stale/empty frame.
+        params.setFlag(RenderParamsFlags.FLAG_DO_NOT_RENDER_ON_CREATE, true)
+        params.setFlag(RenderParamsFlags.FLAG_KEY_DISABLE_BITMAP_CACHING, true)
+        params.setFlag(RenderParamsFlags.FLAG_KEY_RESULT_IMAGE_AUTO_SCALE, true)
+
         // showSystemUi=true => keep decor; showSystemUi=false => strip it.
         // setForceNoDecor() takes no arguments in this Layoutlib version (verified via
         // javap on RenderParams) — call it only when we want decor stripped.
@@ -284,6 +323,29 @@ class WorkerRenderer(
             }
             else -> error("unsupported output format: ${req.outputFormat}")
         }
+    }
+
+    /**
+     * Forces the window's content frame ([android.R.id.content]) to MATCH_PARENT. Layoutlib, when
+     * driven via raw `Bridge.createSession`, lays this frame out with degenerate 0×0 LinearLayout
+     * params (width=0, height=0, weight=0); with `clipChildren=true` that clips the entire app /
+     * Compose subtree to nothing, so only the DecorView background paints and every preview is
+     * blank. Setting it to MATCH_PARENT (weight 1 within the decor LinearLayout) restores a
+     * full-size content frame. Must run after `createSession` (the view tree exists) and before the
+     * render; `requestLayout` lets the subsequent forced-measure render lay it out at full size.
+     */
+    private fun forceContentFrameFill(session: RenderSession) {
+        runCatching {
+            var top = session.rootViews?.firstOrNull()?.viewObject as? android.view.View ?: return
+            while ((top.parent as? android.view.View) != null) top = top.parent as android.view.View
+            val content = top.findViewById<android.view.View>(android.R.id.content) ?: return
+            val lp = content.layoutParams ?: return
+            lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            runCatching { lp.javaClass.getField("weight").setFloat(lp, 1f) }
+            content.layoutParams = lp
+            top.requestLayout()
+        }.onFailure { System.err.println("worker: forceContentFrameFill failed: ${it.message}") }
     }
 
     // ---- Framework resource loading ----
