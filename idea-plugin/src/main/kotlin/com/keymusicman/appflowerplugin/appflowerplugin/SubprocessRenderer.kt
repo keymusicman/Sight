@@ -91,6 +91,25 @@ object SubprocessRenderer {
             logInfo("subprocess render() resolved top-level FQN: $composableFqn → $resolvedFqn")
         }
 
+        // Resolve the device's real pixel size + density plugin-side (the worker has no SDK device
+        // list), mirroring the in-process ComposableRenderer's Configuration. Without this the
+        // worker rendered every device at the custom dp values + a hardcoded 420 dpi — e.g. pixel_5
+        // came out 945×1680 instead of 1080×2340.
+        val deviceSpec = resolveDeviceRenderSpec(previewConfig) { deviceId ->
+            ComposableRenderer.deviceScreenDims(project, modulePath, sourceFilePath, deviceId)
+        }
+        // Mirror the in-process Configuration: when useCustomConfig=false the in-process path resets
+        // night mode / fontScale / locale / system UI to neutral defaults, so the worker must too.
+        // Without this, a persisted custom value (e.g. fontScale=2.0) leaked into default renders and
+        // the worker drew text at 2× while Android Studio drew it at 1×.
+        val effective = resolveEffectivePreviewParams(previewConfig)
+        logInfo(
+            "subprocess render() device=${previewConfig.deviceId} useCustomConfig=${previewConfig.useCustomConfig} " +
+                "-> ${deviceSpec.widthPx}x${deviceSpec.heightPx}px @ ${deviceSpec.densityDpi}dpi " +
+                "fontScale=${effective.fontScale} nightMode=${effective.nightMode} " +
+                "locale='${effective.locale}' showSystemUi=${effective.showSystemUi}"
+        )
+
         val req = RenderRequest(
             requestId            = entry.client.nextRequestId(),
             composableFqn        = resolvedFqn,
@@ -99,21 +118,13 @@ object SubprocessRenderer {
             outputPath           = outFile.absolutePath,
             outputFormat         = outputFormat.name,
             jpegQuality          = state.jpegQuality,
-            widthDp              = previewConfig.customWidthDp,
-            heightDp             = previewConfig.customHeightDp,
-            // TODO(density): the in-process path derives density from the Configuration object,
-            // which depends on the resolved Device. The subprocess path has no Configuration
-            // (the worker doesn't go through ConfigurationManager). 420 dpi matches pixel_5's
-            // xxhdpi bucket — the default device. If the user picks a different preset
-            // (e.g. pixel_tablet at xhdpi) the rendered size will be off. To fix properly we
-            // should either: (a) extend RenderRequest with a precomputed density derived from
-            // deviceId here, or (b) resolve density in the worker once we wire devices into
-            // the worker's classpath. Flagged in Task 11 notes.
-            density              = 420,
-            nightMode            = previewConfig.uiMode == PreviewUiMode.DARK,
-            fontScale            = previewConfig.fontScale,
-            locale               = previewConfig.locale,
-            showSystemUi         = previewConfig.useCustomConfig && previewConfig.showSystemUi,
+            widthPx              = deviceSpec.widthPx,
+            heightPx             = deviceSpec.heightPx,
+            density              = deviceSpec.densityDpi,
+            nightMode            = effective.nightMode,
+            fontScale            = effective.fontScale,
+            locale               = effective.locale,
+            showSystemUi         = effective.showSystemUi,
         )
         outFile.parentFile.mkdirs()
 

@@ -419,10 +419,25 @@ and `FLAG_KEY_RESULT_IMAGE_AUTO_SCALE = true`, both matching `RenderTask`.
 
 ### Exact-dp root sizing
 
-The `ComposeViewAdapter` root XML uses **exact dp** (`android:layout_width="${widthDp}dp"`),
-not `wrap_content`. `tools:previewWidth/previewHeight` are NOT honored by ComposeViewAdapter
-1.10.x. With the content frame forced to `MATCH_PARENT`, the exact-dp root gives the
-composition bounded constraints to fill the device.
+The `ComposeViewAdapter` root XML uses **exact dp**, not `wrap_content`.
+`tools:previewWidth/previewHeight` are NOT honored by ComposeViewAdapter 1.10.x. The
+`RenderRequest` carries the device size in **pixels** (`widthPx`/`heightPx` + `density`); the
+HardwareConfig canvas is those pixels verbatim, and the root dp is derived back via
+`pxToCeilDp(px, density)` (rounded up so the root never undershoots the canvas). With the
+content frame forced to `MATCH_PARENT`, the exact-dp root gives the composition bounded
+constraints to fill the device.
+
+### Match in-process `useCustomConfig` gating — fontScale / night / locale
+
+The `RenderRequest` is built plugin-side from `PreviewRenderConfig`, and it **must reproduce the
+in-process `Configuration` reset**: when `useCustomConfig == false`, `ComposableRenderer` ignores
+the persisted custom settings and renders at neutral defaults (pixel_5, light, `fontScale=1.0`,
+system locale, no decor). The subprocess path resolves these through `resolveDeviceRenderSpec`
+(device pixels) and `resolveEffectivePreviewParams` (night mode / fontScale / locale / system UI) —
+do not read the raw `previewConfig` fields directly. The original bug: `fontScale`, `uiMode` and
+`locale` were sent unconditionally, so a persisted `fontScale = 2.0` with `useCustomConfig = false`
+made the worker draw text at 2× while Android Studio drew it at 1× (same 1080×2340 canvas, doubled
+glyphs). `EffectivePreviewParamsTest` pins this gating.
 
 ### Debugging without IDE restarts
 
@@ -473,9 +488,12 @@ rollout — opt-in). When `false`, `RendererRouter` calls
   is unsupported (all user resources are treated as `RES_AUTO`); the app's
   Android base theme is not resolved (framework `Theme.Material.Light.NoActionBar`
   is used — Compose previews self-wrap their theme).
-- **Density hardcoded to 420 (xxhdpi)** — matches `pixel_5` default. Non-default
-  devices render at the wrong density until per-device density is plumbed
-  through `WorkerInit`/`RenderRequest`.
+- **Device size + density now resolved per-device (since 2026-06)** — the plugin
+  reads the selected device's real screen geometry from `ConfigurationManager`
+  (`ComposableRenderer.deviceScreenDims` → `resolveDeviceRenderSpec`) and ships
+  pixels + density in the `RenderRequest`, mirroring the in-process `Configuration`.
+  Previously the worker hardcoded 420 dpi and used the *custom* dp values for every
+  device, so e.g. `pixel_5` rendered at 945×1680 instead of 1080×2340.
 - **`targetApiLevel` hardcoded to 34** — should derive from the Android
   module's `compileSdk`.
 - **No output cropping** — the in-process renderer crops to root view bounds;

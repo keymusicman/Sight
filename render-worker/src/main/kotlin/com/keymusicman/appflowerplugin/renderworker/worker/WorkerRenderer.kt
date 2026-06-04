@@ -190,16 +190,21 @@ class WorkerRenderer(
             append("\n    tools:parameterProviderClass=\"${req.parameterProviderFqn}\"")
             if (req.stateIndex >= 0) append("\n    tools:parameterProviderIndex=\"${req.stateIndex}\"")
         } else ""
-        // Size the root with EXACT dp dimensions (the device size). With the content frame forced
-        // to MATCH_PARENT (see forceContentFrameFill) the ComposeViewAdapter then gets bounded
-        // constraints and the composition fills the device. `tools:previewWidth/previewHeight` are
-        // NOT honored by this ComposeViewAdapter (1.10.x), so explicit dp is required.
+        // Size the root with EXACT dp dimensions matching the device size. The HardwareConfig
+        // canvas is in pixels (req.widthPx/heightPx); the XML root must be in dp, so convert back
+        // via the request density, rounding UP so the root never undershoots the canvas. With the
+        // content frame forced to MATCH_PARENT (see forceContentFrameFill) the ComposeViewAdapter
+        // then gets bounded constraints and the composition fills the device.
+        // `tools:previewWidth/previewHeight` are NOT honored by this ComposeViewAdapter (1.10.x),
+        // so explicit dp is required.
+        val widthDp = pxToCeilDp(req.widthPx, req.density)
+        val heightDp = pxToCeilDp(req.heightPx, req.density)
         return """
             <androidx.compose.ui.tooling.ComposeViewAdapter
                 xmlns:android="http://schemas.android.com/apk/res/android"
                 xmlns:tools="http://schemas.android.com/tools"
-                android:layout_width="${req.widthDp}dp"
-                android:layout_height="${req.heightDp}dp"
+                android:layout_width="${widthDp}dp"
+                android:layout_height="${heightDp}dp"
                 tools:composableName="${req.composableFqn}"$providerAttr />
         """.trimIndent()
     }
@@ -207,11 +212,11 @@ class WorkerRenderer(
     private fun buildSessionParams(req: RenderRequest, xml: String): SessionParams {
         val parser = WorkerPullParser(xml)
 
-        // Pixel sizing. widthDp/heightDp are in DP; convert to PX using the requested density.
-        // Density.DEFAULT_DENSITY (mdpi = 160) is the divisor for the DP->PX formula.
+        // The request already carries the device size in pixels (resolved plugin-side from the
+        // selected device), so the canvas is those pixels verbatim — no DP->PX conversion here.
         val densityDpi = req.density.takeIf { it > 0 } ?: Density.DEFAULT_DENSITY
-        val widthPx = (req.widthDp.toLong() * densityDpi / Density.DEFAULT_DENSITY).toInt()
-        val heightPx = (req.heightDp.toLong() * densityDpi / Density.DEFAULT_DENSITY).toInt()
+        val widthPx = req.widthPx
+        val heightPx = req.heightPx
 
         val hw = HardwareConfig(
             /* screenWidth     */ widthPx,
@@ -367,5 +372,19 @@ class WorkerRenderer(
         ): Map<ResourceNamespace, Map<ResourceType, com.android.ide.common.resources.ResourceValueMap>> =
             ConfiguredResources.of(repo, folderConfig)
     }
+}
+
+// android.util.DisplayMetrics.DENSITY_DEFAULT (mdpi). Inlined to keep this helper pure/testable.
+private const val MDPI = 160
+
+/**
+ * Converts a pixel dimension to dp at [densityDpi], rounding **up**. Used to size the
+ * ComposeViewAdapter root in dp so it is never smaller than the pixel canvas (an undersized root
+ * would let the composition shrink below the device size). The output image is the HardwareConfig
+ * canvas (exact pixels) regardless, so over-rounding the root by a fraction of a dp is harmless.
+ */
+internal fun pxToCeilDp(px: Int, densityDpi: Int): Int {
+    val dpi = if (densityDpi > 0) densityDpi else MDPI
+    return Math.ceil(px.toDouble() * MDPI / dpi).toInt()
 }
 

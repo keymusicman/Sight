@@ -520,6 +520,29 @@ object ComposableRenderer {
         return resolved
     }
 
+    /**
+     * Reads the natural-orientation screen geometry of the device with id [deviceId] from the
+     * module's [ConfigurationManager], or null if the module/device can't be resolved. Used by
+     * [SubprocessRenderer] (via [resolveDeviceRenderSpec]) to size the worker's render the same way
+     * the in-process path sizes its `Configuration` — the worker JVM has no access to the SDK device
+     * list, so this must run plugin-side.
+     */
+    internal fun deviceScreenDims(
+        project: Project,
+        modulePath: String,
+        sourceFilePath: String?,
+        deviceId: String,
+    ): ScreenDims? {
+        val entry = resolveModuleCached(project, modulePath, sourceFilePath, logInfo = {}, logWarn = {})
+            ?: return null
+        return runCatching {
+            val configManager = ConfigurationManager.getOrCreateInstance(entry.module)
+            configManager.devices.firstOrNull { it.id == deviceId }
+                ?.defaultHardware?.screen
+                ?.let { ScreenDims(it.xDimension, it.yDimension, it.pixelDensity.dpiValue) }
+        }.getOrNull()
+    }
+
     private fun readGcStats(): GcStats {
         var count = 0L
         var timeMs = 0L

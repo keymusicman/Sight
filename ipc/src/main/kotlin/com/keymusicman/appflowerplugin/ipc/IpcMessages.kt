@@ -20,8 +20,10 @@ data class RenderRequest(
     val outputPath: String,
     val outputFormat: String,
     val jpegQuality: Int = 85,
-    val widthDp: Int,
-    val heightDp: Int,
+    // Device size in PIXELS + density (dpi). The plugin resolves these from the selected device
+    // (e.g. pixel_5 → 1080×2340 @ 440dpi); the worker renders the canvas at exactly these pixels.
+    val widthPx: Int,
+    val heightPx: Int,
     val density: Int,
     val nightMode: Boolean,
     val fontScale: Float,
