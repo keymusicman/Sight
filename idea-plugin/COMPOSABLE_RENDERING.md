@@ -330,8 +330,11 @@ through long sessions.
   libs; aliases `ro.system.product.cpu.abilist*` to `ro.product.cpu.abilist*`
   (required by `android.os.Build.<clinit>`); calls the 8-arg `Bridge.init`.
 - **`WorkerRenderer`** — per-render: builds `SessionParams` (direct constructor,
-  no `Builder`), wires `FrameworkResourceRepository` for theme resolution,
-  advances the Compose frame clock, calls `session.render()`, writes PNG/JPEG.
+  no `Builder`), wires `FrameworkResourceRepository` for theme resolution, forces
+  the content frame to MATCH_PARENT, seeds the virtual clocks + advances the Compose
+  frame clock, calls `session.render(true)`, writes PNG/JPEG. The raw-`Bridge` render
+  path has hard constraints `RenderTask` would otherwise handle for you — see
+  "Worker render pipeline (hard constraints)" below.
 - **`WorkerLoggerProvider`** — registered at `Int.MAX_VALUE` priority via SPI to
   shadow Layoutlib's default `IJLoggerProvider` (which would pull in IntelliJ
   Platform classes the worker doesn't have).
@@ -355,6 +358,80 @@ through long sessions.
   platform's `android.jar`.
 - **`RendererRouter`** — chooses `ComposableRenderer` vs `SubprocessRenderer`
   based on `PluginSettingsService.State.useSubprocessRenderer`.
+
+## Worker render pipeline (hard constraints)
+
+The worker drives Layoutlib through the **raw `Bridge.createSession` / `RenderSession` API**
+(no Studio `RenderTask`), so `WorkerRenderer` must reproduce by hand the setup `RenderTask`
+does for free. Each item below was a blank-render bug; treat them as hard constraints. The
+in-process rules at the top of this file still apply conceptually — this section is how the
+raw API satisfies them.
+
+### Force the content frame to MATCH_PARENT — THE blank-render fix
+
+When driven via raw `Bridge.createSession`, Layoutlib lays out the window content frame
+(`android.R.id.content`) with degenerate **0×0 `LinearLayout` params** (width=0, height=0,
+weight=0). With `clipChildren=true` the entire app / Compose subtree — which itself measures
+correctly to the full device size — is clipped to a 0×0 parent and never paints; only the
+DecorView background draws, so every preview is uniform `#FAFAFA`. This affects **all**
+content, even a plain `<View>` with a solid background — it is not Compose-specific.
+
+`WorkerRenderer.forceContentFrameFill()` fixes it: after `createSession`, walk up to the
+DecorView, `findViewById(android.R.id.content)`, set its layout params to `MATCH_PARENT`
+(plus `weight = 1` for the `LinearLayout.LayoutParams`), then `requestLayout()`. The
+subsequent forced-measure render lays it out full-size and content paints. The in-process
+`RenderTask` path receives a `MATCH_PARENT` content frame already, which is why in-process
+never hit this and the subprocess worker was blank from the original spike onward.
+
+This is the proximate cause of the long "subprocess renders are blank" saga. The decor tree
+at the failure looked like:
+
+```
+DecorView    945×1680  clipChildren=true
+  LinearLayout 945×1680
+    FrameLayout 0×0  lp=0x0 weight=0     ← content frame collapsed
+      … → ComposeViewAdapter 945×1680    ← content, full size, clipped to nothing
+```
+
+### Single render — never render twice (raw-API form)
+
+Same rule as the in-process "Never call `render()` twice" above, but the trap is different:
+`Bridge.createSession` runs its **own** `scene.render(true)` internally, so a subsequent
+explicit `render()` is already the second call and comes back blank. Set
+`FLAG_DO_NOT_RENDER_ON_CREATE = true` so `createSession` only inflates; then a single
+`session.render(true)` (forceMeasure) is the first and only render.
+
+### Seed the virtual clocks before advancing the frame clock
+
+Mirrors "Frame clock advancement" above, but the raw API requires seeding the clocks
+manually (`RenderTask` does it for you). Immediately after `createSession`:
+`setSystemBootTimeNanos(0)`, `setSystemTimeNanos(0)`, `setElapsedFrameTimeNanos(500ms)` —
+the elapsed-frame value is what makes `RenderSessionImpl` run its first-frame priming draw
+(it gates on `mElapsedFrameTimeNanos >= 0`). Then in the `executeCallbacks` loop, call
+`setSystemTimeNanos(t)` **before** each `executeCallbacks(t)`: `BridgeRenderSession`
+reads the virtual clock (`System_Delegate.nanoTime`), not the method argument, so without
+this the Compose `MonotonicFrameClock` never advances.
+
+### Other `RenderTask`-parity `SessionParams` flags
+
+`FLAG_KEY_DISABLE_BITMAP_CACHING = true` (fresh image + `ImageReader` surface each render)
+and `FLAG_KEY_RESULT_IMAGE_AUTO_SCALE = true`, both matching `RenderTask`.
+
+### Exact-dp root sizing
+
+The `ComposeViewAdapter` root XML uses **exact dp** (`android:layout_width="${widthDp}dp"`),
+not `wrap_content`. `tools:previewWidth/previewHeight` are NOT honored by ComposeViewAdapter
+1.10.x. With the content frame forced to `MATCH_PARENT`, the exact-dp root gives the
+composition bounded constraints to fill the device.
+
+### Debugging without IDE restarts
+
+The worker speaks newline-delimited JSON IPC (`WorkerInit` then `RenderRequest` on stdin,
+`RenderResponse` on stdout). It can be driven straight from a shell against the freshly
+built `render-worker/build/libs/render-worker-all.jar` and the IDE's bundled Layoutlib JARs
+(see `WorkerClasspathAssembler` for the exact list) — no IDE involved, ~3 s per render. This
+is the fast loop for any future render-path change; verify a real render produces non-uniform
+pixels before deploying.
 
 ## Why a separate JVM
 
