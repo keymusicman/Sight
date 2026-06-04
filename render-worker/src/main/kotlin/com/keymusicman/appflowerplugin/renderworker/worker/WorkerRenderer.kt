@@ -252,6 +252,22 @@ class WorkerRenderer(
                 System.err.println("worker: unresolved resource $key — using placeholder")
             }
         }
+        // Make user fonts loadable through androidx ResourcesCompat (see [fontValueForResourcesCompat]:
+        // it only loads font values that start with "res/", but our user repo resolves fonts to
+        // absolute on-disk paths). Without this every Compose `Font(R.font.x)` falls back to Roboto.
+        combinedMap[ResourceNamespace.RES_AUTO]?.get(ResourceType.FONT)?.let { fontMap ->
+            for (v in fontMap.values().toList()) {
+                val value = v.value ?: continue
+                val rewritten = fontValueForResourcesCompat(value)
+                if (rewritten != value) {
+                    fontMap.put(
+                        com.android.ide.common.rendering.api.ResourceValueImpl(
+                            v.namespace, v.resourceType, v.name, rewritten,
+                        )
+                    )
+                }
+            }
+        }
         val themeRef = ResourceReference(
             ResourceNamespace.ANDROID,
             ResourceType.STYLE,
