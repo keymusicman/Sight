@@ -60,7 +60,8 @@ object GraphAggregator {
         val graphDefs = collectGraphDefs(fragments)
 
         val named = graphDefs.map { (name, def) ->
-            val graph = assembleAppGraph(pool, globalConnections, def.entrySubgraph)
+            val graphConns = resolveGraphTransitions(def.transitions, pool, errors, warnings)
+            val graph = assembleAppGraph(pool, globalConnections + graphConns, def.entrySubgraph)
             NamedGraph(name = name.ifEmpty { DEFAULT_GRAPH_NAME }, graph = graph)
         }
         return AggregationResult(named, errors, warnings)
@@ -177,6 +178,39 @@ object GraphAggregator {
                     if (from == null) errors += "fromScreen '${src.subgraph}:${t.from_screen}' not found (on $source)"
                     else conns += ResolvedConn(src.subgraph, t.from_screen, "screen", src.subgraph, src.id, t.trigger)
                 }
+            }
+        }
+        return conns.distinct()
+    }
+
+    private fun resolveGraphTransitions(
+        transitions: List<com.keymusicman.appflower.model.TransitionDef>,
+        pool: Map<Pair<String, String>, PooledScreen>,
+        errors: MutableList<String>,
+        warnings: MutableList<String>,
+    ): List<ResolvedConn> {
+        val byId = pool.values.groupBy { it.id }
+        val conns = mutableListOf<ResolvedConn>()
+        transitions.forEach { t ->
+            if (t.from_screen.isBlank()) {
+                errors += "Graph-level @AppFlowTransition requires fromScreen"
+                return@forEach
+            }
+            val from = resolveGlobalById(t.from_screen, byId, "fromScreen", "graph", errors) ?: return@forEach
+            when {
+                t.to_screen.isNotBlank() -> {
+                    val to = if (t.to_subgraph.isNotBlank()) {
+                        pool[t.to_subgraph to t.to_screen].also {
+                            if (it == null) warnings += "graph toScreen '${t.to_subgraph}:${t.to_screen}' not found"
+                        }
+                    } else {
+                        resolveGlobalById(t.to_screen, byId, "toScreen", "graph", errors)
+                    }
+                    if (to != null) conns += ResolvedConn(from.subgraph, from.id, "screen", to.subgraph, to.id, t.trigger)
+                }
+                t.to_subgraph.isNotBlank() ->
+                    conns += ResolvedConn(from.subgraph, from.id, "subgraph", t.to_subgraph, null, t.trigger)
+                else -> errors += "Graph-level @AppFlowTransition has neither toScreen nor toSubgraph"
             }
         }
         return conns.distinct()

@@ -150,4 +150,36 @@ class GraphAggregatorTest {
         assertTrue(Triple("onboarding:onboarding", "onboarding:login", "continue") in conns, conns.toString())
         assertTrue(conns.none { it.first == "onboarding_dark:onboarding" }, conns.toString())
     }
+
+    @Test
+    fun graphLevelTransitionOnlyAppliesToItsGraph() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            graphs = listOf(
+                GraphDef(name = "auth_graph"),
+                GraphDef(name = "main", transitions = listOf(
+                    TransitionDef(from_screen = "main", to_subgraph = "auth", trigger = "registration_complete"),
+                )),
+            ),
+            screens = listOf(
+                ScreenDef(subgraph = "auth", id = "login", is_root = true, composable_fqn = "P.Login"),
+                ScreenDef(subgraph = "auth", id = "registration", composable_fqn = "P.Reg"),
+                ScreenDef(subgraph = "main", id = "main", is_root = true, composable_fqn = "P.Main"),
+            ),
+        )))
+        assertTrue(r.errors.isEmpty(), r.errors.toString())
+        val byName = r.graphs.associateBy { it.name }
+        val mainConns = connFromTo(byName.getValue("main").graph)
+        val authConns = connFromTo(byName.getValue("auth_graph").graph)
+        assertTrue(Triple("main:main", "subgraph:auth", "registration_complete") in mainConns, mainConns.toString())
+        assertTrue(authConns.none { it.second == "subgraph:auth" && it.first == "main:main" }, authConns.toString())
+    }
+
+    @Test
+    fun graphLevelTransitionRequiresFromScreen() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            graphs = listOf(GraphDef(name = "g", transitions = listOf(TransitionDef(to_subgraph = "x")))),
+            screens = listOf(ScreenDef(subgraph = "x", id = "X", is_root = true)),
+        )))
+        assertTrue(r.errors.any { it.contains("requires fromScreen") }, r.errors.toString())
+    }
 }
