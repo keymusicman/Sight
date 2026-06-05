@@ -16,7 +16,8 @@ data class Screen(
     val composable_fqn: String = "",
     val location: String = "",
     val preview_provider_fqn: String? = null,
-    val selected_state: Int = 0
+    val selected_state: Int = 0,
+    val module_path: String = "",
 )
 
 @Serializable
