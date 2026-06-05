@@ -9,6 +9,7 @@ import com.keymusicman.appflower.model.GraphMetadata
 import com.keymusicman.appflower.model.NamedGraph
 import com.keymusicman.appflower.model.Screen
 import com.keymusicman.appflower.model.Subgraph
+import com.keymusicman.appflower.model.filterToView
 
 const val DEFAULT_SUBGRAPH = "default"
 const val DEFAULT_GRAPH_NAME = "default"
@@ -61,7 +62,12 @@ object GraphAggregator {
 
         val named = graphDefs.map { (name, def) ->
             val graphConns = resolveGraphTransitions(def.transitions, pool, errors, warnings)
-            val graph = assembleAppGraph(pool, globalConnections + graphConns, def.entrySubgraph)
+            val full = assembleAppGraph(pool, globalConnections + graphConns, def.entrySubgraph)
+            val graph = if (def.entrySubgraph.isNotBlank() && def.dropUnconnected) {
+                dropUnconnected(full, def.entrySubgraph)
+            } else {
+                full
+            }
             NamedGraph(name = name.ifEmpty { DEFAULT_GRAPH_NAME }, graph = graph)
         }
         return AggregationResult(named, errors, warnings)
@@ -214,6 +220,36 @@ object GraphAggregator {
             }
         }
         return conns.distinct()
+    }
+
+    private fun dropUnconnected(graph: AppGraph, entrySubgraph: String): AppGraph {
+        val entry = graph.subgraphs[entrySubgraph] ?: return graph
+        val entryRoot = entry.root_screen
+        if (entryRoot.isBlank()) return graph
+        val entryNode = "$entrySubgraph:$entryRoot"
+
+        val adjacency = mutableMapOf<String, MutableList<String>>()
+        graph.subgraphs.values.forEach { sub ->
+            sub.connections.forEach { c ->
+                val from = "${c.from.subgraph}:${c.from.screen_id}"
+                val targets = when (c.to.type) {
+                    "screen" -> listOf("${c.to.subgraph}:${c.to.screen_id}")
+                    "subgraph" -> {
+                        val root = graph.subgraphs[c.to.subgraph]?.root_screen
+                        if (root.isNullOrBlank()) emptyList() else listOf("${c.to.subgraph}:$root")
+                    }
+                    else -> emptyList()
+                }
+                adjacency.getOrPut(from) { mutableListOf() }.addAll(targets)
+            }
+        }
+
+        val reachable = mutableSetOf(entryNode)
+        val queue = ArrayDeque(listOf(entryNode))
+        while (queue.isNotEmpty()) {
+            adjacency[queue.removeFirst()].orEmpty().forEach { if (reachable.add(it)) queue.add(it) }
+        }
+        return graph.filterToView(reachable)
     }
 
     private fun assembleAppGraph(

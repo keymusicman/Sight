@@ -182,4 +182,59 @@ class GraphAggregatorTest {
         )))
         assertTrue(r.errors.any { it.contains("requires fromScreen") }, r.errors.toString())
     }
+
+    @Test
+    fun dropUnconnectedKeepsOnlyReachable() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            graphs = listOf(GraphDef(name = "g", entry_subgraph = "main_1")),
+            screens = listOf(
+                ScreenDef(subgraph = "main_1", id = "main", is_root = true, composable_fqn = "P.Main1"),
+                ScreenDef(subgraph = "main_2", id = "main", is_root = true, composable_fqn = "P.Main2"),
+            ),
+        )))
+        val g = r.graphs.single().graph
+        assertTrue(g.subgraphs.containsKey("main_1"), g.subgraphs.keys.toString())
+        assertTrue(!g.subgraphs.containsKey("main_2"), g.subgraphs.keys.toString())
+    }
+
+    @Test
+    fun dropUnconnectedFalseKeepsEverything() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            graphs = listOf(GraphDef(name = "g", entry_subgraph = "main_1", drop_unconnected = false)),
+            screens = listOf(
+                ScreenDef(subgraph = "main_1", id = "main", is_root = true, composable_fqn = "P.Main1"),
+                ScreenDef(subgraph = "main_2", id = "main", is_root = true, composable_fqn = "P.Main2"),
+            ),
+        )))
+        val g = r.graphs.single().graph
+        assertTrue(g.subgraphs.containsKey("main_1") && g.subgraphs.containsKey("main_2"), g.subgraphs.keys.toString())
+    }
+
+    @Test
+    fun noEntryKeepsEverything() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            graphs = listOf(GraphDef(name = "g")),
+            screens = listOf(
+                ScreenDef(subgraph = "a", id = "A", is_root = true),
+                ScreenDef(subgraph = "b", id = "B", is_root = true),
+            ),
+        )))
+        val g = r.graphs.single().graph
+        assertEquals(setOf("a", "b"), g.subgraphs.keys)
+    }
+
+    @Test
+    fun reachabilityFollowsSubgraphEdges() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            graphs = listOf(GraphDef(name = "g", entry_subgraph = "main")),
+            screens = listOf(
+                ScreenDef(subgraph = "main", id = "Main", is_root = true, composable_fqn = "P.Main"),
+                ScreenDef(subgraph = "profile", id = "profile", is_root = true, composable_fqn = "P.Profile"),
+                ScreenDef(subgraph = "orphan", id = "Orphan", is_root = true, composable_fqn = "P.Orphan"),
+            ),
+            transitions = listOf(TransitionDef(source_fqn = "P.Main", to_subgraph = "profile")),
+        )))
+        val g = r.graphs.single().graph
+        assertEquals(setOf("main", "profile"), g.subgraphs.keys)
+    }
 }
