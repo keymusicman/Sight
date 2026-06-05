@@ -47,12 +47,14 @@ fun SettingsWindow(
             Spacer(Modifier.height(16.dp))
             ThemePreference.entries.forEach { pref ->
                 ThemeOption(
-                    label = pref.name.lowercase().replaceFirstChar { it.uppercase() },
+                    label = pref.name.lowercase()
+                        .replaceFirstChar { it.uppercase() },
                     selected = pref == current,
                     onClick = { onSelect(pref) },
                 )
                 Spacer(Modifier.height(8.dp))
             }
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

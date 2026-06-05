@@ -12,6 +12,8 @@ import com.intellij.openapi.externalSystem.task.TaskCallback
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.AppExecutorUtil
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import com.keymusicman.appflower.loader.GraphLoader
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.ui.AppTheme
@@ -32,11 +34,15 @@ class ModuleGraphPanel(
 ) : JPanel(BorderLayout()), Disposable {
 
     @Volatile private var disposed = false
+    @Volatile private var lastGraphModifiedAt: Long = 0L
+    private var watcherFuture: ScheduledFuture<*>? = null
     private lateinit var composePanel: ComposePanel
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun dispose() {
         disposed = true
+        watcherFuture?.cancel(false)
+        watcherFuture = null
         if (::composePanel.isInitialized) composePanel.dispose()
     }
 
@@ -160,9 +166,21 @@ class ModuleGraphPanel(
         add(composePanel, BorderLayout.CENTER)
 
         refreshState()
+        watcherFuture = AppExecutorUtil.getAppScheduledExecutorService()
+            .scheduleWithFixedDelay(::checkGraphFileChanged, 2, 2, TimeUnit.SECONDS)
+    }
+
+    private fun checkGraphFileChanged() {
+        if (disposed) return
+        val ts = graphFile.lastModified()
+        if (ts != 0L && ts != lastGraphModifiedAt) {
+            lastGraphModifiedAt = ts
+            refreshState()
+        }
     }
 
     fun refreshState() {
+        lastGraphModifiedAt = graphFile.lastModified()
         buildButton.isEnabled = false
         configButton.isEnabled = false
         statusLabel.text = "Loading…"
