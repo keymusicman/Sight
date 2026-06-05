@@ -305,7 +305,13 @@ class WorkerRenderer(
         // showSystemUi=true => keep decor; showSystemUi=false => strip it.
         // setForceNoDecor() takes no arguments in this Layoutlib version (verified via
         // javap on RenderParams) — call it only when we want decor stripped.
-        if (!req.showSystemUi) params.setForceNoDecor()
+        if (!req.showSystemUi) {
+            params.setForceNoDecor()
+        } else {
+            // Layoutlib's Layout$Builder gates the bottom gesture-nav pill on this flag; without it
+            // the worker drew the status bar but no navigation bar (Studio's RenderTask sets it).
+            params.setFlag(RenderParamsFlags.FLAG_KEY_USE_GESTURE_NAV, true)
+        }
 
         // Locale BCP-47 (RenderParams.setLocale).
         if (req.locale.isNotBlank()) params.setLocale(req.locale)
