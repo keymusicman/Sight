@@ -1,0 +1,8 @@
+{
+  "module": ":mod5", "module_path": "/mod5",
+  "graphs": [
+    { "name": "graph_3", "entry_subgraph": "onboarding", "drop_unconnected": false, "transitions": [] }
+  ],
+  "screens": [],
+  "transitions": []
+}

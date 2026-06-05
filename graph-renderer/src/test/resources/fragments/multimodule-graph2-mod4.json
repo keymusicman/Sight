@@ -1,0 +1,9 @@
+{
+  "module": ":mod4", "module_path": "/mod4",
+  "graphs": [
+    { "name": "graph_2", "entry_subgraph": "onboarding_dark", "drop_unconnected": true,
+      "transitions": [ { "from_screen": "onboarding", "from_subgraph": "onboarding", "to_subgraph": "main" } ] }
+  ],
+  "screens": [],
+  "transitions": []
+}

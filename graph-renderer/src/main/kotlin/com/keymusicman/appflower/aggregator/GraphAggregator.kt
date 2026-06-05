@@ -131,12 +131,13 @@ object GraphAggregator {
         field: String,
         source: String,
         errors: MutableList<String>,
+        warnings: MutableList<String>,
     ): PooledScreen? {
         val matches = byId[id].orEmpty()
         return when {
             matches.isEmpty() -> { errors += "$field='$id' not found in any subgraph (from $source)"; null }
             matches.size > 1 -> {
-                errors += "$field='$id' is ambiguous across subgraphs ${matches.map { it.subgraph }} (from $source)"
+                warnings += "$field='$id' is ambiguous across subgraphs ${matches.map { it.subgraph }} (from $source) — skipping"
                 null
             }
             else -> matches.first()
@@ -169,7 +170,7 @@ object GraphAggregator {
                                 if (it == null) warnings += "toScreen '${t.to_subgraph}:${t.to_screen}' not found (from $source)"
                             }
                         } else {
-                            resolveGlobalById(t.to_screen, byId, "toScreen", source, errors)
+                            resolveGlobalById(t.to_screen, byId, "toScreen", source, errors, warnings)
                         }
                         if (target != null) {
                             conns += ResolvedConn(src.subgraph, src.id, "screen", target.subgraph, target.id, t.trigger)
@@ -202,7 +203,13 @@ object GraphAggregator {
                 errors += "Graph-level @AppFlowTransition requires fromScreen"
                 return@forEach
             }
-            val from = resolveGlobalById(t.from_screen, byId, "fromScreen", "graph", errors) ?: return@forEach
+            val from = if (t.from_subgraph.isNotBlank()) {
+                pool[t.from_subgraph to t.from_screen].also {
+                    if (it == null) warnings += "graph fromScreen '${t.from_subgraph}:${t.from_screen}' not found — skipping"
+                }
+            } else {
+                resolveGlobalById(t.from_screen, byId, "fromScreen", "graph", errors, warnings)
+            } ?: return@forEach
             when {
                 t.to_screen.isNotBlank() -> {
                     val to = if (t.to_subgraph.isNotBlank()) {
@@ -210,7 +217,7 @@ object GraphAggregator {
                             if (it == null) warnings += "graph toScreen '${t.to_subgraph}:${t.to_screen}' not found"
                         }
                     } else {
-                        resolveGlobalById(t.to_screen, byId, "toScreen", "graph", errors)
+                        resolveGlobalById(t.to_screen, byId, "toScreen", "graph", errors, warnings)
                     }
                     if (to != null) conns += ResolvedConn(from.subgraph, from.id, "screen", to.subgraph, to.id, t.trigger)
                 }

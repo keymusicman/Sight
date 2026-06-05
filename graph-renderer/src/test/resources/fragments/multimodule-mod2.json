@@ -1,0 +1,12 @@
+{
+  "module": ":mod2", "module_path": "/mod2",
+  "graphs": [],
+  "screens": [
+    { "subgraph": "onboarding", "id": "onboarding", "is_root": true, "composable_fqn": "P.Onboarding" },
+    { "subgraph": "onboarding_dark", "id": "onboarding", "is_root": true, "composable_fqn": "P.Onboarding" },
+    { "subgraph": "onboarding", "id": "login", "composable_fqn": "P.Login" }
+  ],
+  "transitions": [
+    { "source_fqn": "P.Onboarding", "from_subgraph": "onboarding", "to_screen": "login", "trigger": "continue" }
+  ]
+}

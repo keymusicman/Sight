@@ -122,7 +122,7 @@ class GraphAggregatorTest {
     }
 
     @Test
-    fun ambiguousGlobalToScreenIsError() {
+    fun ambiguousGlobalToScreenIsWarning() {
         val r = GraphAggregator.aggregate(listOf(frag(
             screens = listOf(
                 ScreenDef(subgraph = "main", id = "Main", is_root = true, composable_fqn = "P.Main"),
@@ -131,7 +131,10 @@ class GraphAggregatorTest {
             ),
             transitions = listOf(TransitionDef(source_fqn = "P.Main", to_screen = "dup")),
         )))
-        assertTrue(r.errors.any { it.contains("ambiguous") }, r.errors.toString())
+        assertTrue(r.errors.isEmpty(), r.errors.toString())
+        assertTrue(r.warnings.any { it.contains("ambiguous") }, r.warnings.toString())
+        val conns = connFromTo(r.graphs.single().graph)
+        assertTrue(conns.none { it.second.endsWith(":dup") }, conns.toString())
     }
 
     @Test
@@ -236,5 +239,41 @@ class GraphAggregatorTest {
         )))
         val g = r.graphs.single().graph
         assertEquals(setOf("main", "profile"), g.subgraphs.keys)
+    }
+
+    @Test
+    fun multiModuleMultipleGraphsMatchesExampleSummary() {
+        val r = GraphAggregator.aggregate(listOf(
+            FragmentLoader.load("multimodule-graph1-mod1.json"),
+            FragmentLoader.load("multimodule-mod2.json"),
+            FragmentLoader.load("multimodule-mod3.json"),
+            FragmentLoader.load("multimodule-graph2-mod4.json"),
+            FragmentLoader.load("multimodule-graph3-mod5.json"),
+        ))
+        assertTrue(r.errors.isEmpty(), r.errors.toString())
+        val byName = r.graphs.associateBy { it.name }
+        assertEquals(setOf("graph_1", "graph_2", "graph_3"), byName.keys)
+
+        // graph_1: onboarding -> ... -> main/profile/transaction_details; NOT onboarding_dark
+        val g1 = byName.getValue("graph_1").graph.subgraphs.keys
+        assertTrue(g1.containsAll(setOf("onboarding", "registration", "main", "profile")), g1.toString())
+        assertTrue("onboarding_dark" !in g1, g1.toString())
+
+        // graph_2: entry onboarding_dark (isolated) -> only onboarding_dark
+        assertEquals(setOf("onboarding_dark"), byName.getValue("graph_2").graph.subgraphs.keys)
+
+        // graph_3: dropUnconnected=false -> every subgraph incl. unconnected onboarding_dark
+        val g3 = byName.getValue("graph_3").graph.subgraphs.keys
+        assertTrue(g3.containsAll(setOf("onboarding", "registration", "main", "profile", "onboarding_dark")), g3.toString())
+    }
+
+    @Test
+    fun noGraphDefsProducesSingleDefaultGraph() {
+        val r = GraphAggregator.aggregate(listOf(frag(screens = listOf(
+            ScreenDef(id = "Main", composable_fqn = "P.Main"),
+            ScreenDef(id = "Login", composable_fqn = "P.Login"),
+        ))))
+        assertEquals(listOf("default"), r.graphs.map { it.name })
+        assertEquals(2, r.graphs.single().graph.subgraphs.getValue("default").screens.size)
     }
 }

@@ -1,0 +1,11 @@
+{
+  "module": ":mod3", "module_path": "/mod3",
+  "graphs": [],
+  "screens": [
+    { "subgraph": "registration", "id": "Email", "is_root": true, "composable_fqn": "P.Email" },
+    { "subgraph": "registration", "id": "account_details", "composable_fqn": "P.Account" }
+  ],
+  "transitions": [
+    { "source_fqn": "P.Email", "to_screen": "account_details", "trigger": "continue" }
+  ]
+}

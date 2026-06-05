@@ -1,0 +1,19 @@
+{
+  "module": ":mod1", "module_path": "/mod1",
+  "graphs": [
+    { "name": "graph_1", "entry_subgraph": "onboarding", "drop_unconnected": true,
+      "transitions": [
+        { "from_screen": "login", "to_subgraph": "registration", "trigger": "register_tap" },
+        { "from_screen": "account_details", "to_subgraph": "main", "trigger": "registration_complete" }
+      ] }
+  ],
+  "screens": [
+    { "subgraph": "main", "id": "Main", "is_root": true, "composable_fqn": "P.Main" },
+    { "subgraph": "profile", "id": "profile", "is_root": true, "composable_fqn": "P.Profile" },
+    { "subgraph": "main", "id": "transaction_details", "composable_fqn": "P.Tx" }
+  ],
+  "transitions": [
+    { "source_fqn": "P.Main", "to_subgraph": "profile", "trigger": "profile_tap" },
+    { "source_fqn": "P.Main", "to_screen": "transaction_details", "trigger": "transaction_tap" }
+  ]
+}
