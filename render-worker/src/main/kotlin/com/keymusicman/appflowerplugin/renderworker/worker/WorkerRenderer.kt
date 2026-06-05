@@ -269,6 +269,19 @@ class WorkerRenderer(
                 }
             }
         }
+        // Gesture-nav bottom inset. We render the gesture pill (FLAG_KEY_USE_GESTURE_NAV), but
+        // Layoutlib still reserves the bottom inset from the framework `navigation_bar_height`
+        // (48dp, the 3-button default) — `navigation_bar_frame_height` is `@dimen/navigation_bar_height`.
+        // That pushed app content up by the extra 24dp vs Android Studio (which reserves the 24dp
+        // gesture inset). Override both to the gesture height so the content frame matches.
+        if (req.showSystemUi) {
+            combinedMap[ResourceNamespace.ANDROID]?.get(ResourceType.DIMEN)?.let { d ->
+                for (name in listOf("navigation_bar_frame_height", "navigation_bar_height")) {
+                    d.put(com.android.ide.common.rendering.api.ResourceValueImpl(
+                        ResourceNamespace.ANDROID, ResourceType.DIMEN, name, "${GESTURE_NAV_BAR_HEIGHT_DP}dp"))
+                }
+            }
+        }
         val themeRef = ResourceReference(
             ResourceNamespace.ANDROID,
             ResourceType.STYLE,
@@ -452,6 +465,12 @@ class WorkerRenderer(
 
 // android.util.DisplayMetrics.DENSITY_DEFAULT (mdpi). Inlined to keep this helper pure/testable.
 private const val MDPI = 160
+
+// Bottom inset reserved for the gesture-nav pill (Android's gesture nav bar height). The framework
+// default `@dimen/navigation_bar_height` is 48dp (the 3-button bar); when we draw the gesture pill
+// (FLAG_KEY_USE_GESTURE_NAV) we override the nav-bar dimens to this so the content frame matches
+// Android Studio's in-process render. See the override in [WorkerRenderer.buildSessionParams].
+private const val GESTURE_NAV_BAR_HEIGHT_DP = 24
 
 /**
  * Converts a pixel dimension to dp at [densityDpi], rounding **up**. Used to size the
