@@ -61,6 +61,8 @@ IntelliJ IDEA plugin (targets 2025.1+). Registers a tool window, scans Gradle mo
 
 **Composable rendering**: see [`idea-plugin/COMPOSABLE_RENDERING.md`](idea-plugin/COMPOSABLE_RENDERING.md) for the rules governing how `ComposableRenderer` renders `@Composable` functions via Layoutlib. These rules are hard constraints derived from debugging — violating them causes blank images, inflate failures, or `ClassNotFoundException`.
 
+**Debugging the subprocess renderer**: see [`idea-plugin/LOCAL_REPRO.md`](idea-plugin/LOCAL_REPRO.md) for the local repro harness (`idea-plugin/local-repro/run.sh`) that drives the deployed `render-worker` shadow jar from a shell (~3 s/render, no IDE) — the fast loop for render-path changes (fonts, system UI, sizing, blank renders).
+
 ## Key Architectural Decisions
 
 - **graph-renderer has zero UI dependency** — this is intentional. It can be used from Ktor, IntelliJ, or CLI.
