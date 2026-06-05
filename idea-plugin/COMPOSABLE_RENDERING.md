@@ -393,6 +393,32 @@ DecorView    945×1680  clipChildren=true
       … → ComposeViewAdapter 945×1680    ← content, full size, clipped to nothing
 ```
 
+### System bars: re-measure the status-bar clock + battery
+
+Same degenerate width-0 `createSession` layout pass (above) also breaks the system **status
+bar** when `showSystemUi` is on: it renders, but with **only the wifi icon** — no clock, no
+battery. The bar's `0×0` first-pass layout *bakes* each content child's resolved size into its
+`LayoutParams` at 0 (`status_bar.xml`: clock `TextView` → lp `0×0`, battery `ImageView` → lp
+`0×0`) and caches their content metrics at 0 (the TextView's text `Layout`, the ImageView's
+`mDrawableWidth/Height`). The wifi icon survives only because its size is **explicit dp** in the
+bar XML (`20.65dp×22.4dp` → baked `57×62`). `render(forceMeasure=true)` re-measures the bar
+children from those baked-0 params, so the clock/battery stay `0×0` and never paint. Confirmed
+via the worker view tree: clock `text='15:00'` but `0×0`; battery `BitmapDrawable` loaded
+(`33×49` intrinsic) but laid out `0×0`; `paint.measureText("15:00")=112` — i.e. the **font and
+drawable are fine, only the measure is degenerate**.
+
+`forceLayout()` alone does not help (it doesn't invalidate the content caches), and measuring
+*through the bar's own `onMeasure`* keeps returning 0 (it hands content children a degenerate
+zero-width spec). `WorkerRenderer.forceSystemBarsRelayout()` fixes it: after `createSession`,
+for each `bars.StatusBar`/`bars.NavigationBar` descendant whose baked lp size is degenerate,
+re-set its content (`setText` / `setImageDrawable` to drop the stale cache), measure the child
+**directly** with a generous `AT_MOST` spec (bypassing the bar), then write the real measured
+pixels back into its `LayoutParams`. `render` then sizes those children like the explicitly-sized
+wifi icon. The weighted spacer (a plain `View`) is left alone so it still absorbs the remaining
+width. The clock text/time and battery/wifi icon set come from Layoutlib's `Config` /
+`SysUiResources` keyed by `simulatedPlatformVersion` (note `Config.isGreaterOrEqual` treats
+version `0` as "latest", so the clock defaults to `15:00`).
+
 ### Single render — never render twice (raw-API form)
 
 Same rule as the in-process "Never call `render()` twice" above, but the trap is different:

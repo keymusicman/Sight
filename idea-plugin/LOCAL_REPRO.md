@@ -49,7 +49,8 @@ grep -iE "DIAG|error|exception" /tmp/af-repro/stderr.log
 ```
 
 Overridable via env: `APPFLOWER_STUDIO` (Studio install), `AF_REPRO_WORK` (work dir),
-`AF_WORKER_INIT` (captured input dump).
+`AF_WORKER_INIT` (captured input dump), `AF_SHOW_SYSTEM_UI` (set `1`/`true` to render with the
+status + navigation bars without editing `make_input.py`).
 
 To change what's rendered, edit the `render_req` dict in `make_input.py`:
 - `composableFqn` must be the **layoutlib-resolved** name (file-facade class), e.g.

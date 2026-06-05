@@ -110,6 +110,7 @@ class WorkerRenderer(
             // this, EVERY preview is blank regardless of content — even a plain View with a solid
             // background. See the long investigation in the subprocess-blank-render memory.
             forceContentFrameFill(session)
+            forceSystemBarsRelayout(session, req.widthPx)
 
             // Seed the virtual clocks immediately after createSession, exactly as Android Studio's
             // RenderTask does, so Compose's MonotonicFrameClock ticks and the first-frame priming
@@ -417,6 +418,71 @@ class WorkerRenderer(
             }
             else -> error("unsupported output format: ${req.outputFormat}")
         }
+    }
+
+    /**
+     * Re-measures and re-lays-out the system [StatusBar]/[NavigationBar] subtrees so their
+     * content-sized children (the clock TextView, the battery ImageView) get real sizes.
+     *
+     * Layoutlib, driven via raw `Bridge.createSession`, performs its first layout pass at width 0
+     * (the same degenerate pass behind the blank content-frame bug — see [forceContentFrameFill]).
+     * That pass bakes each content child's resolved size into its layout params at 0 (a wrap_content
+     * clock TextView -> lp 0×0, the battery ImageView -> lp 0×0) and caches their content-derived
+     * metrics at zero too: the TextView's text `Layout` built at 0 width, the ImageView's
+     * `mDrawableWidth/Height` from a drawable whose intrinsic size wasn't ready yet. The wifi icon
+     * survives only because its explicit dp size baked to a real 57×62. `render(forceMeasure=true)`
+     * later sets each bar's outer frame directly (window layout) but re-measures the children from
+     * those baked-0 layout params, so the clock and battery stay 0×0 and never paint. `forceLayout()`
+     * alone doesn't help (it doesn't invalidate the content caches), and measuring through the bar's
+     * own `onMeasure` keeps returning 0 (it hands content children a degenerate zero-width spec).
+     *
+     * Fix: for each content child whose baked lp size is degenerate, re-set its content
+     * (`setText`/`setImageDrawable`) to drop the stale cache, measure it **directly** with a generous
+     * AT_MOST spec (bypassing the bar's degenerate child spec), then write the real measured pixel
+     * size back into its layout params. `render` then measures those children to their fixed sizes,
+     * exactly like the explicitly-sized wifi icon. The weighted spacer (a plain View) is left alone
+     * so it still absorbs the remaining width. Must run after `createSession` and before `render`.
+     */
+    private fun forceSystemBarsRelayout(session: RenderSession, deviceWidthPx: Int) {
+        runCatching {
+            var top = session.rootViews?.firstOrNull()?.viewObject as? android.view.View ?: return
+            while ((top.parent as? android.view.View) != null) top = top.parent as android.view.View
+            val atMost = android.view.View.MeasureSpec.AT_MOST
+            fun pinContentChild(v: android.view.View, barHeight: Int) {
+                val lp = v.layoutParams ?: return
+                // The degenerate createSession measure baked content children's layout params to 0px
+                // (wifi survives because its dp size baked to a real 57x62). Only fix the content
+                // views whose baked size is degenerate; leave the weighted spacer (a plain View).
+                if (lp.width > 0 && lp.height > 0) return
+                when (v) {
+                    is android.widget.TextView -> v.text = v.text
+                    is android.widget.ImageView -> v.drawable?.let { v.setImageDrawable(null); v.setImageDrawable(it) }
+                    else -> return
+                }
+                v.forceLayout()
+                v.measure(
+                    android.view.View.MeasureSpec.makeMeasureSpec(deviceWidthPx, atMost),
+                    android.view.View.MeasureSpec.makeMeasureSpec(barHeight, atMost),
+                )
+                if (v.measuredWidth > 0 && v.measuredHeight > 0) {
+                    lp.width = v.measuredWidth
+                    lp.height = v.measuredHeight
+                    v.layoutParams = lp
+                }
+            }
+            fun pinAll(v: android.view.View, barHeight: Int) {
+                pinContentChild(v, barHeight)
+                if (v is android.view.ViewGroup) for (i in 0 until v.childCount) pinAll(v.getChildAt(i), barHeight)
+            }
+            fun walk(v: android.view.View) {
+                val cls = v.javaClass.name
+                if (cls.endsWith("bars.StatusBar") || cls.endsWith("bars.NavigationBar")) {
+                    val h = if (v.height > 0) v.height else v.layoutParams?.height ?: 0
+                    if (h > 0) pinAll(v, h)
+                } else if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(top)
+        }.onFailure { System.err.println("worker: forceSystemBarsRelayout failed: ${it::class.java.name}: ${it.message}") }
     }
 
     /**

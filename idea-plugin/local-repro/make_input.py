@@ -6,8 +6,9 @@ Edit the `render_req` block below to change which composable / device / flags ar
 See idea-plugin/LOCAL_REPRO.md.
 
 Env:
-  AF_REPRO_WORK   work dir for init.json / req.json / out.png (default: /tmp/af-repro)
-  AF_WORKER_INIT  captured WorkerInit dump (default: /tmp/af-worker-init.txt)
+  AF_REPRO_WORK     work dir for init.json / req.json / out.png (default: /tmp/af-repro)
+  AF_WORKER_INIT    captured WorkerInit dump (default: /tmp/af-worker-init.txt)
+  AF_SHOW_SYSTEM_UI override showSystemUi (1/true/yes -> True) without editing this file
 """
 import json, os
 
@@ -65,7 +66,7 @@ render_req = {
     "nightMode": False,
     "fontScale": 1.0,
     "locale": "",
-    "showSystemUi": False,
+    "showSystemUi": os.environ.get("AF_SHOW_SYSTEM_UI", "").lower() in ("1", "true", "yes"),
 }
 
 with open(os.path.join(WORK, "init.json"), "w") as f:
