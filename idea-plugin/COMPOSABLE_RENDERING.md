@@ -439,6 +439,27 @@ do not read the raw `previewConfig` fields directly. The original bug: `fontScal
 made the worker draw text at 2× while Android Studio drew it at 1× (same 1080×2340 canvas, doubled
 glyphs). `EffectivePreviewParamsTest` pins this gating.
 
+### User fonts: `res/` value rewrite + populated `Build` stub
+
+Custom user fonts (`Font(R.font.x)`) need two worker-specific fixes; without them text falls back
+to Roboto and/or renders at the wrong weight (see the long font investigation):
+
+1. **`res/` value rewrite** ([`fontValueForResourcesCompat`]). androidx `ResourcesCompat.loadFont`
+   (the path Compose's `Font(R.font.x)` ends in) only loads a font whose resolved resource value
+   **starts with `"res/"`**, and opens that value as a path via `AssetManager`. The worker resolves
+   user fonts to absolute on-disk paths, so each font-file value is rewritten to `res/<abs-path>`;
+   [`WorkerAssetRepository`] strips the `res` prefix back to the real file in **both** `openAsset`
+   (API-29 font loader) and `openNonAsset` (legacy loader). Without the rewrite → Roboto fallback.
+
+2. **Populated `android.os.Build` stub** ([`populateBuildStub`]). The user app's compile-SDK
+   `android.jar` puts an *unpopulated* `Build` on the worker's user classloader: `SDK_INT = 0` and
+   every `String` field null. Layoutlib/Studio populate these from the platform; the standalone
+   worker must too. `SDK_INT = 0` makes Compose **skip the variable-font weight axis**
+   (`Font(…, variationSettings)` is only applied at `SDK_INT >= 26`) → Inter renders at its default
+   weight (≈7% narrower than Studio). The fix sets `SDK_INT = 36` (matching the framework) and fills
+   null `Build` strings (else `FINGERPRINT.toLowerCase()` etc. NPE during `<clinit>`, blanking the
+   render). Fields are `static final` → written via `sun.misc.Unsafe`.
+
 ### Debugging without IDE restarts
 
 The worker speaks newline-delimited JSON IPC (`WorkerInit` then `RenderRequest` on stdin,

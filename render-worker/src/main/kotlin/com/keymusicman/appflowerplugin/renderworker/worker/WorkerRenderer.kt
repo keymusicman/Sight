@@ -76,6 +76,7 @@ class WorkerRenderer(
     }
 
     fun render(req: RenderRequest): RenderResponse {
+        populateBuildStub(userClassLoader)
         val startMs = System.currentTimeMillis()
         var session: com.android.ide.common.rendering.api.RenderSession? = null
         return try {
@@ -325,6 +326,59 @@ class WorkerRenderer(
         params.uiMode = uiMode
 
         return params
+    }
+
+    /**
+     * Populates the `android.os.Build` stub that the user app's compile-SDK `android.jar` puts on
+     * the worker's user classloader. Layoutlib/Studio populate these from the platform; the
+     * standalone worker doesn't, so the stub leaves `SDK_INT = 0` and every `String` field null.
+     *
+     * Why it matters:
+     *  - `SDK_INT = 0` made Compose skip the variable-font weight axis (`Font(…, variationSettings)`
+     *    is only applied when `SDK_INT >= 26`), so Inter rendered at its default weight instead of the
+     *    requested W500/W600 — text came out narrower than Android Studio.
+     *  - Null `Build.FINGERPRINT` (and similar) crash the `<clinit>` of classes reached once SDK_INT
+     *    is non-trivial (`NullPointerException` in `FINGERPRINT.toLowerCase()`), blanking the render.
+     *
+     * SDK_INT is set to 36 to match the framework the worker renders against; the API-29 font loader
+     * that this enables opens fonts via `AssetManager`, which [WorkerAssetRepository] now serves
+     * (including the `res/`-rewritten font values).
+     *
+     * Fields are `static final`, so they're written via `sun.misc.Unsafe` (the worker is launched
+     * with the matching `--add-opens`). Runs once per worker; failures are non-fatal.
+     */
+    private var buildStubPopulated = false
+    private fun populateBuildStub(cl: ClassLoader) {
+        if (buildStubPopulated) return
+        runCatching {
+            val unsafeCls = Class.forName("sun.misc.Unsafe")
+            val unsafe = unsafeCls.getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
+            val staticBase = unsafeCls.getMethod("staticFieldBase", java.lang.reflect.Field::class.java)
+            val staticOff = unsafeCls.getMethod("staticFieldOffset", java.lang.reflect.Field::class.java)
+            val putInt = unsafeCls.getMethod("putInt", Any::class.java, Long::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            val putObj = unsafeCls.getMethod("putObject", Any::class.java, Long::class.javaPrimitiveType, Any::class.java)
+            fun setInt(f: java.lang.reflect.Field, value: Int) =
+                putInt.invoke(unsafe, staticBase.invoke(unsafe, f), staticOff.invoke(unsafe, f) as Long, value)
+            fun setObj(f: java.lang.reflect.Field, value: Any?) =
+                putObj.invoke(unsafe, staticBase.invoke(unsafe, f), staticOff.invoke(unsafe, f) as Long, value)
+
+            val version = Class.forName("android.os.Build\$VERSION", true, cl)
+            version.getDeclaredField("SDK_INT").let { if (it.getInt(null) < 36) setInt(it, 36) }
+            version.declaredFields.firstOrNull { it.name == "RELEASE" }
+                ?.let { it.isAccessible = true; if (it.get(null) == null) setObj(it, "14") }
+
+            // Any null static String field on Build (FINGERPRINT, MANUFACTURER, MODEL, …) → a
+            // non-null placeholder so framework/Compose <clinit>s that read them don't NPE.
+            val build = Class.forName("android.os.Build", true, cl)
+            for (f in build.declaredFields) {
+                if (!java.lang.reflect.Modifier.isStatic(f.modifiers)) continue
+                if (f.type != String::class.java) continue
+                f.isAccessible = true
+                if (f.get(null) == null) setObj(f, "unknown")
+            }
+            buildStubPopulated = true
+            System.err.println("worker: populated android.os.Build stub (SDK_INT=${version.getDeclaredField("SDK_INT").getInt(null)})")
+        }.onFailure { System.err.println("worker: populateBuildStub failed: ${it::class.java.name}: ${it.message}") }
     }
 
     private fun writeImage(image: BufferedImage, req: RenderRequest) {
