@@ -300,7 +300,7 @@ fun AccountDetails() {}
 
 ```kotlin
 @AppFlowGraph(entrySubgraph = "onboarding_dark", name = "graph_2")
-@AppFlowTransition(fromScreen = "onboarding", toSubgraph = "main")
+@AppFlowTransition(fromScreen = "onboarding", fromSubgraph = "onboarding", toSubgraph = "main")
 object Graph
 ```
 
