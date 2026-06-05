@@ -34,7 +34,7 @@
 - [-] Bookmark frequently inspected screens
 - [x] Search for screens by name or route
 - [ ] Jump to source code from graph node
-- [ ] Jump to composable preview in IDE
+- [x] Jump to composable preview in IDE
 - [-] Detect duplicate screens/routes
 - [-] Detect unused navigation arguments
 - [ ] Show analytics events triggered by screens
@@ -49,11 +49,18 @@
 # Planned
 
 ## Plugin settings UI
-- [ ] Plugin settings page (persistent per-project or IDE-level)
-- [ ] Setting: output image format (PNG / JPEG / BMP) with quality slider for JPEG
+- [x] Plugin settings page (persistent per-project or IDE-level)
+- [x] Setting: output image format (PNG / JPEG / BMP) with quality slider for JPEG
 - [ ] Setting: incremental rendering (skip composables whose source hasn't changed since last render)
 
 ## Rendering performance
 - [ ] JPEG output format experiment (target: ~15–25ms write vs current 132ms PNG)
-- [ ] BMP output format experiment (zero encode cost, large files)
+- [x] BMP output format experiment (zero encode cost, large files)
 - [ ] Incremental rendering: compare source file lastModified vs existing image timestamp, skip if unchanged
+
+## Features
+- [ ] Render all previews
+- [ ] No graph mode (only marked nodes)
+- [ ] Multi-graph support. Per-graph observation rather than per-module
+- [ ] Stop rendering (show what was rendered)
+- [ ] On load jump to graph starting node rather than leftmost node
