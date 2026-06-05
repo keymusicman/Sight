@@ -1,6 +1,8 @@
 package com.keymusicman.appflower.aggregator
 
 import com.keymusicman.appflower.model.AppGraph
+import com.keymusicman.appflower.model.Connection
+import com.keymusicman.appflower.model.ConnectionEndpoint
 import com.keymusicman.appflower.model.GraphDef
 import com.keymusicman.appflower.model.GraphFragment
 import com.keymusicman.appflower.model.GraphMetadata
@@ -29,6 +31,24 @@ internal data class PooledScreen(
     val modulePath: String,
 )
 
+internal data class ResolvedConn(
+    val fromSubgraph: String,
+    val fromId: String,
+    val toType: String,        // "screen" | "subgraph"
+    val toSubgraph: String,
+    val toId: String?,
+    val trigger: String,
+) {
+    fun toConnection() = Connection(
+        from = ConnectionEndpoint(type = "screen", subgraph = fromSubgraph, screen_id = fromId),
+        to = if (toType == "screen")
+            ConnectionEndpoint(type = "screen", subgraph = toSubgraph, screen_id = toId)
+        else
+            ConnectionEndpoint(type = "subgraph", subgraph = toSubgraph, screen_id = null),
+        trigger = trigger,
+    )
+}
+
 object GraphAggregator {
 
     fun aggregate(fragments: List<GraphFragment>): AggregationResult {
@@ -36,10 +56,11 @@ object GraphAggregator {
         val warnings = mutableListOf<String>()
 
         val pool = buildScreenPool(fragments, errors)
+        val globalConnections = resolveFunctionTransitions(fragments, pool, errors, warnings)
         val graphDefs = collectGraphDefs(fragments)
 
         val named = graphDefs.map { (name, def) ->
-            val graph = assembleAppGraph(pool, def.entrySubgraph)
+            val graph = assembleAppGraph(pool, globalConnections, def.entrySubgraph)
             NamedGraph(name = name.ifEmpty { DEFAULT_GRAPH_NAME }, graph = graph)
         }
         return AggregationResult(named, errors, warnings)
@@ -97,8 +118,73 @@ object GraphAggregator {
         }
     }
 
+    private fun resolveGlobalById(
+        id: String,
+        byId: Map<String, List<PooledScreen>>,
+        field: String,
+        source: String,
+        errors: MutableList<String>,
+    ): PooledScreen? {
+        val matches = byId[id].orEmpty()
+        return when {
+            matches.isEmpty() -> { errors += "$field='$id' not found in any subgraph (from $source)"; null }
+            matches.size > 1 -> {
+                errors += "$field='$id' is ambiguous across subgraphs ${matches.map { it.subgraph }} (from $source)"
+                null
+            }
+            else -> matches.first()
+        }
+    }
+
+    private fun resolveFunctionTransitions(
+        fragments: List<GraphFragment>,
+        pool: Map<Pair<String, String>, PooledScreen>,
+        errors: MutableList<String>,
+        warnings: MutableList<String>,
+    ): List<ResolvedConn> {
+        val byFqn = pool.values.filter { it.composableFqn.isNotBlank() }.groupBy { it.composableFqn }
+        val byId = pool.values.groupBy { it.id }
+        val conns = mutableListOf<ResolvedConn>()
+
+        fragments.flatMap { it.transitions }.filter { it.source_fqn != null }.forEach { t ->
+            val source = t.source_fqn!!
+            val sources = byFqn[source].orEmpty()
+                .let { s -> if (t.from_subgraph.isNotBlank()) s.filter { it.subgraph == t.from_subgraph } else s }
+            if (sources.isEmpty()) {
+                warnings += "Transition source '$source' has no matching @AppFlowScreen — skipping"
+                return@forEach
+            }
+            sources.forEach { src ->
+                when {
+                    t.to_screen.isNotBlank() -> {
+                        val target = if (t.to_subgraph.isNotBlank()) {
+                            pool[t.to_subgraph to t.to_screen].also {
+                                if (it == null) warnings += "toScreen '${t.to_subgraph}:${t.to_screen}' not found (from $source)"
+                            }
+                        } else {
+                            resolveGlobalById(t.to_screen, byId, "toScreen", source, errors)
+                        }
+                        if (target != null) {
+                            conns += ResolvedConn(src.subgraph, src.id, "screen", target.subgraph, target.id, t.trigger)
+                        }
+                    }
+                    t.to_subgraph.isNotBlank() -> {
+                        conns += ResolvedConn(src.subgraph, src.id, "subgraph", t.to_subgraph, null, t.trigger)
+                    }
+                }
+                if (t.from_screen.isNotBlank()) {
+                    val from = pool[src.subgraph to t.from_screen]
+                    if (from == null) errors += "fromScreen '${src.subgraph}:${t.from_screen}' not found (on $source)"
+                    else conns += ResolvedConn(src.subgraph, t.from_screen, "screen", src.subgraph, src.id, t.trigger)
+                }
+            }
+        }
+        return conns.distinct()
+    }
+
     private fun assembleAppGraph(
         pool: Map<Pair<String, String>, PooledScreen>,
+        connections: List<ResolvedConn>,
         entrySubgraph: String,
     ): AppGraph {
         val subgraphs = pool.values.groupBy { it.subgraph }.mapValues { (key, screens) ->
@@ -114,7 +200,7 @@ object GraphAggregator {
                         module_path = it.modulePath,
                     )
                 },
-                connections = emptyList(),
+                connections = connections.filter { it.fromSubgraph == key }.map { it.toConnection() },
             )
         }
         return AppGraph(

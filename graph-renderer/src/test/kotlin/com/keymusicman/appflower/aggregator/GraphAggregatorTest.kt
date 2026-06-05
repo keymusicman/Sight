@@ -3,6 +3,8 @@ package com.keymusicman.appflower.aggregator
 import com.keymusicman.appflower.model.GraphDef
 import com.keymusicman.appflower.model.GraphFragment
 import com.keymusicman.appflower.model.ScreenDef
+import com.keymusicman.appflower.model.TransitionDef
+import com.keymusicman.appflower.model.AppGraph
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -73,5 +75,79 @@ class GraphAggregatorTest {
             ScreenDef(subgraph = "onboarding_dark", id = "onboarding", is_root = true),
         ))))
         assertTrue(r.errors.isEmpty(), r.errors.toString())
+    }
+
+    private fun connFromTo(g: AppGraph): Set<Triple<String, String, String?>> =
+        g.subgraphs.values.flatMap { sub ->
+            sub.connections.map { c ->
+                Triple(
+                    "${c.from.subgraph}:${c.from.screen_id}",
+                    if (c.to.type == "screen") "${c.to.subgraph}:${c.to.screen_id}" else "subgraph:${c.to.subgraph}",
+                    c.trigger.ifEmpty { null },
+                )
+            }
+        }.toSet()
+
+    @Test
+    fun functionToScreenResolvesGloballyAcrossSubgraphs() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            screens = listOf(
+                ScreenDef(subgraph = "main", id = "MainScreen", is_root = true, composable_fqn = "P.MainScreen"),
+                ScreenDef(subgraph = "profile", id = "profile", is_root = true, composable_fqn = "P.Profile"),
+                ScreenDef(subgraph = "profile", id = "profile_2", composable_fqn = "P.Profile2"),
+            ),
+            transitions = listOf(
+                TransitionDef(source_fqn = "P.MainScreen", to_screen = "profile_2", trigger = "profile_tap"),
+            ),
+        )))
+        assertTrue(r.errors.isEmpty(), r.errors.toString())
+        val conns = connFromTo(r.graphs.single().graph)
+        assertTrue(Triple("main:MainScreen", "profile:profile_2", "profile_tap") in conns, conns.toString())
+        assertTrue(conns.none { it.second == "profile:profile" }, "must not connect to profile")
+    }
+
+    @Test
+    fun functionToSubgraphMakesSubgraphEdge() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            screens = listOf(
+                ScreenDef(subgraph = "main", id = "Main", is_root = true, composable_fqn = "P.Main"),
+                ScreenDef(subgraph = "profile", id = "profile", is_root = true, composable_fqn = "P.Profile"),
+            ),
+            transitions = listOf(
+                TransitionDef(source_fqn = "P.Main", to_subgraph = "profile", trigger = "profile_tap"),
+            ),
+        )))
+        val conns = connFromTo(r.graphs.single().graph)
+        assertTrue(Triple("main:Main", "subgraph:profile", "profile_tap") in conns, conns.toString())
+    }
+
+    @Test
+    fun ambiguousGlobalToScreenIsError() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            screens = listOf(
+                ScreenDef(subgraph = "main", id = "Main", is_root = true, composable_fqn = "P.Main"),
+                ScreenDef(subgraph = "a", id = "dup", is_root = true),
+                ScreenDef(subgraph = "b", id = "dup", is_root = true),
+            ),
+            transitions = listOf(TransitionDef(source_fqn = "P.Main", to_screen = "dup")),
+        )))
+        assertTrue(r.errors.any { it.contains("ambiguous") }, r.errors.toString())
+    }
+
+    @Test
+    fun fromSubgraphSelectsRepeatedScreenMembership() {
+        val r = GraphAggregator.aggregate(listOf(frag(
+            screens = listOf(
+                ScreenDef(subgraph = "onboarding", id = "onboarding", is_root = true, composable_fqn = "P.Onboarding"),
+                ScreenDef(subgraph = "onboarding_dark", id = "onboarding", is_root = true, composable_fqn = "P.Onboarding"),
+                ScreenDef(subgraph = "onboarding", id = "login", composable_fqn = "P.Login"),
+            ),
+            transitions = listOf(
+                TransitionDef(source_fqn = "P.Onboarding", from_subgraph = "onboarding", to_screen = "login", trigger = "continue"),
+            ),
+        )))
+        val conns = connFromTo(r.graphs.single().graph)
+        assertTrue(Triple("onboarding:onboarding", "onboarding:login", "continue") in conns, conns.toString())
+        assertTrue(conns.none { it.first == "onboarding_dark:onboarding" }, conns.toString())
     }
 }
