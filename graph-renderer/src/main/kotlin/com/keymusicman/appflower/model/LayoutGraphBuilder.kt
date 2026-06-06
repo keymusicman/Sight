@@ -38,7 +38,8 @@ object LayoutGraphBuilder {
             appGraph.subgraphs.forEach { (subgraphKey, subgraph) ->
                 subgraph.screens.forEach { screen ->
                     val nodeId = "$subgraphKey:${screen.id}"
-                    val imagePaths = findPreviewImages(screen.composable_fqn, projectPath)
+                    val screenModulePath = screen.module_path.ifBlank { projectPath ?: "" }.ifBlank { null }
+                    val imagePaths = findPreviewImages(screen.composable_fqn, screenModulePath)
                     nodesMap[nodeId] = GraphNode(
                         id = nodeId,
                         imagePaths = imagePaths,
