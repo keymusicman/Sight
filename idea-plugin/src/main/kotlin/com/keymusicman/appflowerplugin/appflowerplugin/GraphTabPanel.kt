@@ -50,6 +50,7 @@ class GraphTabPanel(
     private val onBuild: () -> Unit,
     private val onRefreshPreviews: () -> Unit,
     private val onConfigure: () -> Unit,
+    private val onStop: () -> Unit,
 ) : JPanel(BorderLayout()), Disposable {
 
     private val viewModel = GraphViewModel()
@@ -67,6 +68,10 @@ class GraphTabPanel(
     private val buildButton = JButton("Build graph").apply { addActionListener { onBuild() } }
     private val refreshButton = JButton("Refresh previews").apply { addActionListener { onRefreshPreviews() } }
     private val configButton = JButton("Configure…").apply { addActionListener { onConfigure() } }
+    private val stopButton = JButton("Stop").apply {
+        isVisible = false
+        addActionListener { isEnabled = false; onStop() }
+    }
 
     private val problemsListModel = DefaultListModel<String>()
     private val problemsList = JBList(problemsListModel)
@@ -94,6 +99,7 @@ class GraphTabPanel(
             add(JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply {
                 add(progressLabel)
                 add(problemsBadge)
+                add(stopButton)
                 add(buildButton)
                 add(refreshButton)
                 add(configButton)
@@ -120,10 +126,13 @@ class GraphTabPanel(
         updateProblemsList()
     }
 
-    fun setBusy(busy: Boolean, status: String) {
+    fun setBusy(busy: Boolean, status: String, cancellable: Boolean = false) {
         buildButton.isEnabled = !busy
         refreshButton.isEnabled = !busy
         configButton.isEnabled = !busy
+        // The Stop button only appears for cancellable operations (rendering, not Gradle builds).
+        stopButton.isVisible = busy && cancellable
+        stopButton.isEnabled = busy && cancellable
         progressLabel.text = status
         if (!busy) updateBadge()
     }

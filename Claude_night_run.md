@@ -93,3 +93,17 @@ Falls back to all graphs if no tab is active (defensive). Done before task 8 sin
 `refreshPreviews`.
 
 ---
+
+## ✅ Stop rendering button (task 8)
+
+Added a **Stop** button (toolbar, left of Build/Refresh) that appears only during cancellable
+operations. `GraphController` gained a `@Volatile cancelRequested` flag, reset at the start of
+each render and checked in both render loops (`refreshPreviews` outer/inner loops and
+`onRefreshNode`'s state loop). On Stop the loop breaks **after the current item** and still runs
+its final `reloadView`/`updateNodeImages`, so whatever was rendered so far is shown.
+
+`setBusy` got a `cancellable` flag — Stop shows for renders, not for Gradle builds (which the
+flag can't cancel). The forEach in `refreshPreviews` was converted to a `for…withIndex` so it can
+`break` (instead of `return@submit`, which would have skipped the final reload). Tests pass.
+
+---

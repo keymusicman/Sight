@@ -35,6 +35,8 @@ class GraphController(
 
     private val log = Logger.getInstance(GraphController::class.java)
     @Volatile private var disposed = false
+    /** Set by the Stop button to break out of a render loop early, keeping what was rendered so far. */
+    @Volatile private var cancelRequested = false
     private val moduleDirs = modules.map { it.modulePath }
     private val projectRoots = modules.map { it.projectRootPath }.distinct()
     @Volatile private var graphSet = GraphSet(emptyList())
@@ -56,7 +58,7 @@ class GraphController(
     fun addTab() {
         val tab = GraphTabPanel(
             graphSet, ::onViewSource, ::onRefreshNode,
-            ::runExportGraph, ::refreshPreviews, ::openConfig,
+            ::runExportGraph, ::refreshPreviews, ::openConfig, ::cancelRendering,
         )
         tabPanels += tab
         val content = ContentFactory.getInstance().createContent(tab, "Graph ${tabPanels.size}", false)
@@ -147,7 +149,8 @@ class GraphController(
         val screen = appGraph.subgraphs[sub]?.screens?.firstOrNull { it.id == id } ?: return
         if (screen.composable_fqn.isBlank()) return
         val mp = modulePath.ifBlank { screen.module_path }.ifBlank { return }
-        setAllBusy(true, "Rendering $id…")
+        cancelRequested = false
+        setAllBusy(true, "Rendering $id…", cancellable = true)
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val config = PreviewConfigService.getInstance(project).config
@@ -157,7 +160,7 @@ class GraphController(
                 // matches exactly what the provider yields (same approach as refreshPreviews).
                 PreviewCache.clearIndexedFiles(mp, screen.composable_fqn)
                 var stateIndex = 0
-                while (!disposed) {
+                while (!disposed && !cancelRequested) {
                     val result = runCatching {
                         RendererRouter.render(project, mp, screen.composable_fqn,
                             parameterProviderFqn = screen.preview_provider_fqn, stateIndex = stateIndex,
@@ -197,7 +200,8 @@ class GraphController(
         // Scope the refresh to the graph shown in the active tab — not every aggregated graph.
         val activeTab = toolWindow.contentManager.selectedContent?.getUserData(TAB_KEY)
         val selectedGraphName = activeTab?.selectedGraphName()
-        setAllBusy(true, "Rendering previews…")
+        cancelRequested = false
+        setAllBusy(true, "Rendering previews…", cancellable = true)
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val config = PreviewConfigService.getInstance(project).config
@@ -225,15 +229,16 @@ class GraphController(
                 log.warn("refreshPreviews: no renderable screens (skippedNoFqn=$skippedNoFqn)")
             }
             val renderErrors = mutableListOf<String>()
-            units.forEachIndexed { i, u ->
+            for ((i, u) in units.withIndex()) {
                 if (disposed) return@submit
+                if (cancelRequested) break   // Stop pressed — keep what's been rendered so far.
                 if (u.provider != null) {
                     // Start from a clean slate so the on-disk state set matches exactly what the
                     // provider yields — removes phantom duplicate states left by earlier over-renders
                     // and prevents incremental skip from reading stale higher-index files as valid.
                     PreviewCache.clearIndexedFiles(u.modulePath, u.fqn)
                     var stateIndex = 0
-                    while (!disposed) {
+                    while (!disposed && !cancelRequested) {
                         val result = runCatching {
                             RendererRouter.render(project, u.modulePath, u.fqn,
                                 parameterProviderFqn = u.provider, stateIndex = stateIndex,
@@ -272,9 +277,16 @@ class GraphController(
         }
     }
 
+    /** Stop button handler — requests the in-flight render loop to break after the current item. */
+    private fun cancelRendering() {
+        cancelRequested = true
+        setAllStatus("Stopping…")
+    }
+
     private fun setAllStatus(text: String) = tabPanels.forEach { it.setStatus(text) }
     private fun setAllProblems(errors: List<String>, warnings: List<String>) = tabPanels.forEach { it.setProblems(errors, warnings) }
-    private fun setAllBusy(busy: Boolean, status: String) = tabPanels.forEach { it.setBusy(busy, status) }
+    private fun setAllBusy(busy: Boolean, status: String, cancellable: Boolean = false) =
+        tabPanels.forEach { it.setBusy(busy, status, cancellable) }
 
     override fun dispose() { disposed = true }
 
