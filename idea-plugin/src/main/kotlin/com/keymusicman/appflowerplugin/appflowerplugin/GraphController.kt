@@ -10,94 +10,88 @@ import com.intellij.openapi.externalSystem.task.TaskCallback
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.ui.components.JBTabbedPane
+import com.intellij.openapi.util.Key
+import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.wm.WindowManager
+import com.intellij.ui.content.ContentFactory
+import com.intellij.ui.content.ContentManagerEvent
+import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.keymusicman.appflower.model.GraphSet
 import org.jetbrains.plugins.gradle.util.GradleConstants
-import java.awt.BorderLayout
-import java.awt.FlowLayout
 import java.io.File
-import javax.swing.JButton
-import javax.swing.JLabel
-import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
 /**
- * Tool-window panel for the multi-graph view. Owns the aggregated [GraphSet] and a tab strip;
- * each tab ([GraphTabPanel]) shows a "Graph" dropdown over the canvas. "+" adds a tab.
- * Preview rendering is added in a follow-up; this panel handles discovery/aggregation/display,
- * graph (re)build, configuration, and source navigation.
+ * Owns the aggregated [GraphSet] and manages the tool window's [ContentManager] tabs.
+ * Each tab is a [GraphTabPanel] wrapped in a native [com.intellij.ui.content.Content]
+ * (closeable, proper hover). [addTab] creates a new tab; [rebuild] re-aggregates fragments.
  */
-class MultiGraphPanel(
+class GraphController(
     private val project: Project,
+    private val toolWindow: ToolWindow,
     modules: List<GradleModuleInfo>,
-) : JPanel(BorderLayout()), Disposable {
+) : Disposable {
 
-    private val log = Logger.getInstance(MultiGraphPanel::class.java)
-
+    private val log = Logger.getInstance(GraphController::class.java)
     @Volatile private var disposed = false
-    private val moduleDirs: List<String> = modules.map { it.modulePath }
-    private val projectRoots: List<String> = modules.map { it.projectRootPath }.distinct()
-
-    @Volatile private var graphSet: GraphSet = GraphSet(emptyList())
-
-    private val tabbedPane = JBTabbedPane()
-    private val tabs = mutableListOf<GraphTabPanel>()
-
-    private val statusLabel = JLabel()
-    private val buildButton = JButton("Build graph").apply { addActionListener { runExportGraph() } }
-    private val refreshButton = JButton("Refresh previews").apply { addActionListener { refreshPreviews() } }
-    private val configButton = JButton("Configure…").apply { addActionListener { openConfig() } }
-    private val addTabButton = JButton("+").apply {
-        toolTipText = "Add another graph tab"
-        addActionListener { addTab() }
-    }
+    private val moduleDirs = modules.map { it.modulePath }
+    private val projectRoots = modules.map { it.projectRootPath }.distinct()
+    @Volatile private var graphSet = GraphSet(emptyList())
+    private val tabPanels = mutableListOf<GraphTabPanel>()
 
     init {
-        add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
-            add(buildButton); add(refreshButton); add(configButton); add(addTabButton); add(statusLabel)
-        }, BorderLayout.NORTH)
-        add(tabbedPane, BorderLayout.CENTER)
-
-        addTab()       // start with one tab
-        rebuild()      // discover + aggregate + display
+        toolWindow.contentManager.addContentManagerListener(object : ContentManagerListener {
+            override fun contentRemoveQuery(event: ContentManagerEvent) {
+                if (tabPanels.size <= 1) event.consume()
+            }
+            override fun contentRemoved(event: ContentManagerEvent) {
+                tabPanels.remove(event.content.getUserData(TAB_KEY))
+            }
+        })
+        addTab()
+        rebuild()
     }
 
-    private fun addTab() {
-        val tab = GraphTabPanel(graphSet, ::onViewSource, ::onRefreshNode)
-        Disposer.register(this, tab)
-        tabs += tab
-        tabbedPane.addTab("Graph ${tabs.size}", tab)
-        tabbedPane.selectedComponent = tab
+    fun addTab() {
+        val tab = GraphTabPanel(
+            graphSet, ::onViewSource, ::onRefreshNode,
+            ::runExportGraph, ::refreshPreviews, ::openConfig,
+        )
+        tabPanels += tab
+        val content = ContentFactory.getInstance().createContent(tab, "Graph ${tabPanels.size}", false)
+        content.isCloseable = true
+        content.putUserData(TAB_KEY, tab)
+        Disposer.register(content, tab)
+        toolWindow.contentManager.addContent(content)
+        toolWindow.contentManager.setSelectedContent(content)
     }
 
-    /** Re-reads every module's fragment, re-aggregates, and pushes the new GraphSet to all tabs. */
     fun rebuild() {
-        statusLabel.text = "Loading…"
+        setAllStatus("Loading…")
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val result = FragmentRepository.aggregate(moduleDirs)
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
                 graphSet = GraphSet(result.graphs)
-                tabs.forEach { it.updateGraphSet(graphSet) }
+                tabPanels.forEach { it.updateGraphSet(graphSet) }
                 val parts = buildList {
                     if (result.errors.isNotEmpty()) add("${result.errors.size} error(s)")
                     if (result.warnings.isNotEmpty()) add("${result.warnings.size} warning(s)")
                     if (result.graphs.isEmpty()) add("No graphs — click Build graph")
                 }
-                statusLabel.text = parts.joinToString("  ")
-                statusLabel.toolTipText = (result.errors + result.warnings).joinToString("\n").ifBlank { null }
+                val tooltip = (result.errors + result.warnings).joinToString("\n").ifBlank { null }
+                setAllStatus(parts.joinToString("  "), tooltip)
                 if (result.errors.isNotEmpty()) log.warn("Aggregation errors: ${result.errors}")
             }
         }
     }
 
     private fun runExportGraph() {
-        buildButton.isEnabled = false
-        statusLabel.text = "Building…"
+        setAllBusy(true, "Building…")
         var remaining = projectRoots.size
-        if (remaining == 0) { buildButton.isEnabled = true; return }
+        if (remaining == 0) { setAllBusy(false, ""); return }
         projectRoots.forEach { root ->
             val settings = ExternalSystemTaskExecutionSettings().apply {
                 externalProjectPath = root
@@ -115,10 +109,10 @@ class MultiGraphPanel(
                     private fun onRootDone(failed: Boolean = false) {
                         SwingUtilities.invokeLater {
                             if (disposed) return@invokeLater
-                            if (failed) statusLabel.text = "Build failed — see Gradle console."
+                            if (failed) setAllStatus("Build failed — see Gradle console.")
                             remaining--
                             if (remaining <= 0) {
-                                buildButton.isEnabled = true
+                                setAllBusy(false, "")
                                 rebuild()
                             }
                         }
@@ -130,16 +124,16 @@ class MultiGraphPanel(
     }
 
     private fun openConfig() {
-        val parent = SwingUtilities.getWindowAncestor(this) as? java.awt.Frame
+        val frame = WindowManager.getInstance().getFrame(project)
         val current = PreviewConfigService.getInstance(project).config
-        PreviewConfigDialog(parent, current) { newConfig ->
+        PreviewConfigDialog(frame, current) { newConfig ->
             PreviewConfigService.getInstance(project).updateConfig(newConfig)
             rebuild()
         }.isVisible = true
     }
 
     private fun onViewSource(nodeId: String, modulePath: String) {
-        val tab = tabbedPane.selectedComponent as? GraphTabPanel ?: return
+        val tab = toolWindow.contentManager.selectedContent?.getUserData(TAB_KEY) ?: return
         val appGraph = tab.currentAppGraph() ?: return
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
@@ -149,9 +143,8 @@ class MultiGraphPanel(
         }
     }
 
-    /** Re-render a single node's selected preview against its owning module, then reload that tab. */
     private fun onRefreshNode(nodeId: String, modulePath: String) {
-        val tab = tabbedPane.selectedComponent as? GraphTabPanel ?: return
+        val tab = toolWindow.contentManager.selectedContent?.getUserData(TAB_KEY) ?: return
         val appGraph = tab.currentAppGraph() ?: return
         val colon = nodeId.indexOf(':')
         if (colon < 0) return
@@ -160,7 +153,7 @@ class MultiGraphPanel(
         val screen = appGraph.subgraphs[sub]?.screens?.firstOrNull { it.id == id } ?: return
         if (screen.composable_fqn.isBlank()) return
         val mp = modulePath.ifBlank { screen.module_path }.ifBlank { return }
-        setBusy(true, "Rendering ${id}…")
+        setAllBusy(true, "Rendering $id…")
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val config = PreviewConfigService.getInstance(project).config
@@ -174,7 +167,7 @@ class MultiGraphPanel(
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
                 tab.reloadView()
-                setBusy(false, "")
+                setAllBusy(false, "")
             }
         }
     }
@@ -187,9 +180,8 @@ class MultiGraphPanel(
         val sourceFile: String?,
     )
 
-    /** Renders the selected state of every screen across all graphs (deduped), then reloads tabs. */
     private fun refreshPreviews() {
-        setBusy(true, "Rendering previews…")
+        setAllBusy(true, "Rendering previews…")
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val config = PreviewConfigService.getInstance(project).config
@@ -217,24 +209,22 @@ class MultiGraphPanel(
                         sourceFilePath = u.sourceFile, previewConfig = config)
                 }.onFailure { e -> log.warn("render failed for ${u.fqn}", e) }
                 val done = i + 1
-                SwingUtilities.invokeLater { if (!disposed) statusLabel.text = "Rendering $done/$total…" }
+                SwingUtilities.invokeLater { if (!disposed) setAllStatus("Rendering $done/$total…") }
             }
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
-                tabs.forEach { it.reloadView() }
-                setBusy(false, "")
+                tabPanels.forEach { it.reloadView() }
+                setAllBusy(false, "")
             }
         }
     }
 
-    private fun setBusy(busy: Boolean, status: String) {
-        buildButton.isEnabled = !busy
-        refreshButton.isEnabled = !busy
-        configButton.isEnabled = !busy
-        statusLabel.text = status
-    }
+    private fun setAllStatus(text: String, tooltip: String? = null) = tabPanels.forEach { it.setStatus(text, tooltip) }
+    private fun setAllBusy(busy: Boolean, status: String) = tabPanels.forEach { it.setBusy(busy, status) }
 
-    override fun dispose() {
-        disposed = true
+    override fun dispose() { disposed = true }
+
+    companion object {
+        val TAB_KEY: Key<GraphTabPanel> = Key.create("appflower.graphTab")
     }
 }

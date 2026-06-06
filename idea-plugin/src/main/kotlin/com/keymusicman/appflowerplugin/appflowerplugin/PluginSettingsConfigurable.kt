@@ -38,7 +38,7 @@ class PluginSettingsConfigurable : Configurable {
 
         formatCombo.addActionListener { syncQualityEnabled() }
 
-        val panel = JPanel().apply {
+        val rows = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(8, 0, 8, 0)
             add(row("Output format:", formatCombo))
@@ -49,7 +49,7 @@ class PluginSettingsConfigurable : Configurable {
         }
 
         reset()
-        return panel
+        return JPanel(java.awt.BorderLayout()).apply { add(rows, java.awt.BorderLayout.NORTH) }
     }
 
     override fun isModified(): Boolean {

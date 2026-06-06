@@ -1,11 +1,13 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.ex.ToolWindowEx
 import com.intellij.ui.content.ContentFactory
 import java.awt.BorderLayout
 import javax.swing.JLabel
@@ -15,6 +17,18 @@ import javax.swing.SwingUtilities
 class FlowToolWindowFactory : ToolWindowFactory {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        // controller is set asynchronously once module scanning finishes;
+        // the lambda captures it by reference via the array wrapper.
+        val controllerRef = arrayOfNulls<GraphController>(1)
+
+        // "+" lives in the tab strip (right of the last tab), Debug Renderer in the title bar.
+        (toolWindow as? ToolWindowEx)?.setTabActions(
+            object : DumbAwareAction("Add Graph Tab", null, AllIcons.General.Add) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    controllerRef[0]?.addTab()
+                }
+            }
+        )
         toolWindow.setTitleActions(listOf(
             object : DumbAwareAction("Debug Renderer") {
                 override fun actionPerformed(e: AnActionEvent) {
@@ -22,11 +36,11 @@ class FlowToolWindowFactory : ToolWindowFactory {
                         ComposableRenderDebugDialog(project).isVisible = true
                     }
                 }
-            }
+            },
         ))
 
         val loading = makeMessagePanel("Scanning for modules with exportGraph task…")
-        val loadingContent = ContentFactory.getInstance().createContent(loading, "Modules", false)
+        val loadingContent = ContentFactory.getInstance().createContent(loading, "Loading…", false)
         toolWindow.contentManager.addContent(loadingContent)
 
         Thread {
@@ -39,17 +53,13 @@ class FlowToolWindowFactory : ToolWindowFactory {
                         ContentFactory.getInstance().createContent(msg, "App Flow", false)
                     )
                 } else {
-                    val panel = MultiGraphPanel(project, modules)
-                    val content = ContentFactory.getInstance().createContent(panel, "App Flow", false)
-                    Disposer.register(content, panel)
-                    toolWindow.contentManager.addContent(content)
-                    toolWindow.contentManager.setSelectedContent(content)
+                    val controller = GraphController(project, toolWindow, modules)
+                    Disposer.register(toolWindow.disposable, controller)
+                    controllerRef[0] = controller
                 }
             }
         }.start()
     }
-
-    // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun makeMessagePanel(message: String) = JPanel(BorderLayout()).apply {
         add(JLabel("<html>${message.replace("\n", "<br>")}</html>", JLabel.CENTER), BorderLayout.CENTER)

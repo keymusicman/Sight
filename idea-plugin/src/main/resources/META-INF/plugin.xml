@@ -33,7 +33,8 @@
         <toolWindow id="Flow Preview"
                     factoryClass="com.keymusicman.appflowerplugin.appflowerplugin.FlowToolWindowFactory"
                     anchor="bottom"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"/>
+                    icon="AllIcons.Toolwindows.ToolWindowPalette"
+                    canCloseContents="true"/>
         <projectService serviceImplementation="com.keymusicman.appflowerplugin.appflowerplugin.PreviewConfigService"/>
         <applicationService serviceImplementation="com.keymusicman.appflowerplugin.appflowerplugin.PluginSettingsService"/>
         <applicationService serviceImplementation="com.keymusicman.appflowerplugin.appflowerplugin.TelemetryService"/>
