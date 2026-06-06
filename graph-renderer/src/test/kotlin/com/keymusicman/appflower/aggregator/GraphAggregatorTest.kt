@@ -107,6 +107,44 @@ class GraphAggregatorTest {
     }
 
     @Test
+    fun functionToScreenInSameSubgraphConnects() {
+        // The user's pattern: MainScreen and ReferralProgramDetailsBottomSheet both in "main",
+        // wired by a function-level @AppFlowTransition(toScreen = "ReferralProgramDetailsBottomSheet").
+        val r = GraphAggregator.aggregate(listOf(frag(
+            screens = listOf(
+                ScreenDef(subgraph = "main", id = "MainScreen", is_root = true, composable_fqn = "P.MainScreen"),
+                ScreenDef(subgraph = "main", id = "ReferralProgramDetailsBottomSheet", composable_fqn = "P.Referral"),
+            ),
+            transitions = listOf(
+                TransitionDef(source_fqn = "P.MainScreen", to_screen = "ReferralProgramDetailsBottomSheet"),
+            ),
+        )))
+        assertTrue(r.errors.isEmpty(), r.errors.toString())
+        val conns = connFromTo(r.graphs.single().graph)
+        assertTrue(Triple("main:MainScreen", "main:ReferralProgramDetailsBottomSheet", null) in conns, conns.toString())
+    }
+
+    @Test
+    fun functionToScreenPrefersSourceSubgraphOverAmbiguousGlobal() {
+        // "Settings" exists in both "main" and "profile". A transition from a screen in "main"
+        // must bind to main:Settings (its own subgraph) and warn about the ambiguity,
+        // rather than be dropped.
+        val r = GraphAggregator.aggregate(listOf(frag(
+            screens = listOf(
+                ScreenDef(subgraph = "main", id = "MainScreen", is_root = true, composable_fqn = "P.MainScreen"),
+                ScreenDef(subgraph = "main", id = "Settings", composable_fqn = "P.MainSettings"),
+                ScreenDef(subgraph = "profile", id = "Settings", is_root = true, composable_fqn = "P.ProfileSettings"),
+            ),
+            transitions = listOf(TransitionDef(source_fqn = "P.MainScreen", to_screen = "Settings")),
+        )))
+        assertTrue(r.errors.isEmpty(), r.errors.toString())
+        assertTrue(r.warnings.any { it.contains("ambiguous") }, r.warnings.toString())
+        val conns = connFromTo(r.graphs.single().graph)
+        assertTrue(Triple("main:MainScreen", "main:Settings", null) in conns, conns.toString())
+        assertTrue(conns.none { it.second == "profile:Settings" }, "must not connect to the other subgraph's Settings: $conns")
+    }
+
+    @Test
     fun functionToSubgraphMakesSubgraphEdge() {
         val r = GraphAggregator.aggregate(listOf(frag(
             screens = listOf(
@@ -122,7 +160,9 @@ class GraphAggregatorTest {
     }
 
     @Test
-    fun ambiguousGlobalToScreenIsWarning() {
+    fun ambiguousToScreenWithNoSameSubgraphMatchIsError() {
+        // "dup" exists in "a" and "b" but not in the source's subgraph "main" — ambiguous with
+        // no local match, so the connection is dropped with an error.
         val r = GraphAggregator.aggregate(listOf(frag(
             screens = listOf(
                 ScreenDef(subgraph = "main", id = "Main", is_root = true, composable_fqn = "P.Main"),
@@ -131,8 +171,7 @@ class GraphAggregatorTest {
             ),
             transitions = listOf(TransitionDef(source_fqn = "P.Main", to_screen = "dup")),
         )))
-        assertTrue(r.errors.isEmpty(), r.errors.toString())
-        assertTrue(r.warnings.any { it.contains("ambiguous") }, r.warnings.toString())
+        assertTrue(r.errors.any { it.contains("ambiguous") }, r.errors.toString())
         val conns = connFromTo(r.graphs.single().graph)
         assertTrue(conns.none { it.second.endsWith(":dup") }, conns.toString())
     }

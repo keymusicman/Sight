@@ -144,6 +144,39 @@ object GraphAggregator {
         }
     }
 
+    /**
+     * Resolves a bare `toScreen` reference (no explicit subgraph) by screen id, scoped to the
+     * transition's source subgraph:
+     *  - exactly one screen has the id           -> that screen (unambiguous),
+     *  - several, one of them in [sourceSubgraph] -> warn and pick the same-subgraph screen,
+     *  - several, none in [sourceSubgraph]        -> error and drop (ambiguous reference).
+     */
+    private fun resolveToScreenById(
+        id: String,
+        sourceSubgraph: String,
+        byId: Map<String, List<PooledScreen>>,
+        source: String,
+        errors: MutableList<String>,
+        warnings: MutableList<String>,
+    ): PooledScreen? {
+        val matches = byId[id].orEmpty()
+        val local = matches.firstOrNull { it.subgraph == sourceSubgraph }
+        return when {
+            matches.isEmpty() -> { errors += "toScreen='$id' not found in any subgraph (from $source)"; null }
+            matches.size == 1 -> matches.first()
+            local != null -> {
+                warnings += "toScreen='$id' is ambiguous across subgraphs ${matches.map { it.subgraph }}; " +
+                    "resolved to same-subgraph '$sourceSubgraph:$id' (from $source)"
+                local
+            }
+            else -> {
+                errors += "toScreen='$id' is ambiguous across subgraphs ${matches.map { it.subgraph }}, " +
+                    "none in source subgraph '$sourceSubgraph' (from $source)"
+                null
+            }
+        }
+    }
+
     private fun resolveFunctionTransitions(
         fragments: List<GraphFragment>,
         pool: Map<Pair<String, String>, PooledScreen>,
@@ -165,12 +198,13 @@ object GraphAggregator {
             sources.forEach { src ->
                 when {
                     t.to_screen.isNotBlank() -> {
-                        val target = if (t.to_subgraph.isNotBlank()) {
-                            pool[t.to_subgraph to t.to_screen].also {
-                                if (it == null) warnings += "toScreen '${t.to_subgraph}:${t.to_screen}' not found (from $source)"
-                            }
-                        } else {
-                            resolveGlobalById(t.to_screen, byId, "toScreen", source, errors, warnings)
+                        val target = when {
+                            t.to_subgraph.isNotBlank() ->
+                                pool[t.to_subgraph to t.to_screen].also {
+                                    if (it == null) warnings += "toScreen '${t.to_subgraph}:${t.to_screen}' not found (from $source)"
+                                }
+                            // A bare toScreen is resolved by id, scoped to the source's subgraph.
+                            else -> resolveToScreenById(t.to_screen, src.subgraph, byId, source, errors, warnings)
                         }
                         if (target != null) {
                             conns += ResolvedConn(src.subgraph, src.id, "screen", target.subgraph, target.id, t.trigger)
@@ -217,7 +251,7 @@ object GraphAggregator {
                             if (it == null) warnings += "graph toScreen '${t.to_subgraph}:${t.to_screen}' not found"
                         }
                     } else {
-                        resolveGlobalById(t.to_screen, byId, "toScreen", "graph", errors, warnings)
+                        resolveToScreenById(t.to_screen, from.subgraph, byId, "graph", errors, warnings)
                     }
                     if (to != null) conns += ResolvedConn(from.subgraph, from.id, "screen", to.subgraph, to.id, t.trigger)
                 }

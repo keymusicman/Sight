@@ -37,6 +37,48 @@ fun Profile() {}
 
 The `MainScreen` should be considered the root of the graph in this case
 
+## Default graph, connection to a screen by id when unambiguous
+
+A function-level `@AppFlowTransition(toScreen = ...)` without a `toSubgraph` is resolved by screen id:
+
+```kotlin
+@AppFlowTransition(toScreen = "TransactionDetails")
+@AppFlowScreen(subgraph = "main", id = "MainScreen", isRoot = true)
+@Composable
+@Preview
+fun MainScreen() {}
+
+@AppFlowScreen(subgraph = "history", id = "TransactionDetails")
+@Composable
+@Preview
+fun TransactionDetails() {}
+```
+
+`MainScreen` connects to `history:TransactionDetails`. Resolution rules for a bare `toScreen` (scoped to the source screen's subgraph):
+
+- **Exactly one screen has that id** → connect to it, whatever subgraph it lives in.
+- **Several screens share the id and one is in the source's subgraph** → emit a **warning** and connect to the same-subgraph screen.
+- **Several screens share the id and none is in the source's subgraph** → drop the connection with an **error** (the reference is ambiguous).
+
+## Default graph, connection to a screen in the same subgraph
+
+A function-level `@AppFlowTransition(toScreen = ...)` may target another screen in the **same** subgraph as the source:
+
+```kotlin
+@AppFlowTransition(toScreen = "ReferralProgramDetailsBottomSheet")
+@AppFlowScreen(subgraph = "main", id = "MainScreen", isRoot = true)
+@Composable
+@Preview
+fun MainScreen() {}
+
+@AppFlowScreen(subgraph = "main", id = "ReferralProgramDetailsBottomSheet")
+@Composable
+@Preview
+fun ReferralProgramDetails() {}
+```
+
+`MainScreen` should be connected to `ReferralProgramDetailsBottomSheet`. A bare `toScreen` (no `toSubgraph`) resolves against the **source screen's own subgraph first**, then falls back to a global lookup by id. So if the same `id` also exists in another subgraph, the same-subgraph target wins rather than the connection being dropped as ambiguous.
+
 ## Default graph, Subgraphs with explicit entry points
 
 ```kotlin
