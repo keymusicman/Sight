@@ -82,3 +82,14 @@ state clamped to the new range, image revision bumped. So a node that gained/los
 it without a full rebuild. Unit-tested (`listStateImages` ordering + fallback).
 
 ---
+
+## ✅ "Refresh previews" renders the selected graph only (task 9)
+
+`refreshPreviews` iterated every aggregated graph. It now reads the active tab
+(`toolWindow.contentManager.selectedContent`) and its selected graph name, filters
+`graphSet.graphs` to just that graph, and reloads / reports problems only on the active tab.
+`setAllBusy` is kept (single shared render worker — block all tabs' buttons while one renders).
+Falls back to all graphs if no tab is active (defensive). Done before task 8 since both touch
+`refreshPreviews`.
+
+---

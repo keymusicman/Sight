@@ -194,6 +194,9 @@ class GraphController(
     )
 
     private fun refreshPreviews() {
+        // Scope the refresh to the graph shown in the active tab — not every aggregated graph.
+        val activeTab = toolWindow.contentManager.selectedContent?.getUserData(TAB_KEY)
+        val selectedGraphName = activeTab?.selectedGraphName()
         setAllBusy(true, "Rendering previews…")
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
@@ -201,7 +204,10 @@ class GraphController(
             val seen = mutableSetOf<Pair<String, String>>()
             val units = mutableListOf<RenderUnit>()
             var skippedNoFqn = 0
-            graphSet.graphs.forEach { ng ->
+            val graphsToRender = if (selectedGraphName != null)
+                graphSet.graphs.filter { it.name == selectedGraphName }
+            else graphSet.graphs
+            graphsToRender.forEach { ng ->
                 ng.graph.subgraphs.values.forEach { sub ->
                     sub.screens.forEach { s ->
                         if (s.composable_fqn.isBlank()) { skippedNoFqn++; return@forEach }
@@ -254,12 +260,13 @@ class GraphController(
             }
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
-                tabPanels.forEach { it.reloadView() }
+                // Only the active tab rendered, so only it needs reloading / problem reporting.
+                (activeTab ?: tabPanels.firstOrNull())?.reloadView()
                 val warnings = buildList {
                     if (skippedNoFqn > 0) add("$skippedNoFqn screen(s) skipped — composable_fqn not set in fragment JSON")
                     addAll(renderErrors)
                 }
-                if (warnings.isNotEmpty()) setAllProblems(emptyList(), warnings)
+                if (warnings.isNotEmpty()) (activeTab ?: tabPanels.firstOrNull())?.setProblems(emptyList(), warnings)
                 setAllBusy(false, "")
             }
         }

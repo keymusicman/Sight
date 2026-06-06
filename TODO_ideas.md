@@ -46,5 +46,5 @@
 - [x] Do not refresh the whole graph when a single node is refreshed. At the moment, after refreshing the whole graph jumps to the beginning
 - [x] On node refresh via context menu should refresh all the states (at the moment only selected state is updated)
 - [ ] User can stop rendering with a button (and show what was rendered before stop)
-- [ ] "Refresh previews" should refresh the currently selected graph only
+- [x] "Refresh previews" should refresh the currently selected graph only
 - [ ] For some reason SettingsContentPreview renders light while it is dark theme, investigate and fix
