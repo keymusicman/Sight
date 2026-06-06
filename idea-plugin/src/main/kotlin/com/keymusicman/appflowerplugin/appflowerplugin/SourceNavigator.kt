@@ -32,8 +32,9 @@ object SourceNavigator {
             return
         }
 
-        val locationPath = "$projectRootPath/${screen.location}"
-        log.info("navigateToSource: nodeId=$nodeId fqn=${screen.composable_fqn} location=${screen.location} resolvedPath=$locationPath")
+        val base = screen.module_path.ifBlank { projectRootPath }
+        val locationPath = "$base/${screen.location}"
+        log.info("navigateToSource: nodeId=$nodeId fqn=${screen.composable_fqn} location=${screen.location} base=$base resolvedPath=$locationPath")
 
         val screenshotVFile = resolveVirtualFile(locationPath)
         if (screenshotVFile == null) {
