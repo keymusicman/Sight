@@ -45,7 +45,7 @@ class WorkerRenderer(
     private val userResDirs: List<String> = emptyList(),
     private val rJarPaths: List<String> = emptyList(),
 ) {
-    private val log: ILayoutLog = StdErrLayoutLog()
+    private val log = StdErrLayoutLog()
 
     private val idRegistry: ResourceIdRegistry by lazy {
         ResourceIdRegistry.fromJars(rJarPaths, userClassLoader).also {
@@ -77,6 +77,7 @@ class WorkerRenderer(
 
     fun render(req: RenderRequest): RenderResponse {
         populateBuildStub(userClassLoader)
+        log.resetProviderExhausted()
         val startMs = System.currentTimeMillis()
         var session: com.android.ide.common.rendering.api.RenderSession? = null
         return try {
@@ -184,6 +185,22 @@ class WorkerRenderer(
                     providerExhausted = providerExhausted,
                 )
             }
+            // ComposeViewAdapter can LOG "Sequence doesn't contain element" for an out-of-range
+            // PreviewParameterProvider index while still producing a (duplicate) frame, instead of
+            // failing the render. The in-process ComposableRenderer treats that logged sentinel as
+            // the multi-state loop's stop signal; mirror it here so we don't write a duplicate image
+            // (the "14 rendered for 7 states" bug). Must be checked after the executeCallbacks loop,
+            // since the provider is read during composition.
+            if (log.sawProviderExhausted) {
+                return RenderResponse(
+                    requestId = req.requestId,
+                    outcome = Outcome.FAIL,
+                    durationMs = System.currentTimeMillis() - startMs,
+                    errorMessage = "provider exhausted (logged ${StdErrLayoutLog.PROVIDER_EXHAUSTED_MARKER})",
+                    providerExhausted = true,
+                )
+            }
+
             val image = session.image
                 ?: return RenderResponse(
                     requestId = req.requestId,

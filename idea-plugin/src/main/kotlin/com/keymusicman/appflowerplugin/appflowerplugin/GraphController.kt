@@ -203,6 +203,10 @@ class GraphController(
             units.forEachIndexed { i, u ->
                 if (disposed) return@submit
                 if (u.provider != null) {
+                    // Start from a clean slate so the on-disk state set matches exactly what the
+                    // provider yields — removes phantom duplicate states left by earlier over-renders
+                    // and prevents incremental skip from reading stale higher-index files as valid.
+                    PreviewCache.clearIndexedFiles(u.modulePath, u.fqn)
                     var stateIndex = 0
                     while (!disposed) {
                         val result = runCatching {

@@ -42,7 +42,7 @@
 - [x] "View source" -> "Jump to source"
 
 ## Features and fixes
-- [ ] In a separate process, previews are duplicated. For example, for SelectAddressFromListGlobalPreview there is 1 state, but 2 are rendered (same). For AuthorizeBottomSheetGlobalPreview there are 14 previews rendered while there are only 7 states 
+- [x] In a separate process, previews are duplicated. For example, for SelectAddressFromListGlobalPreview there is 1 state, but 2 are rendered (same). For AuthorizeBottomSheetGlobalPreview there are 14 previews rendered while there are only 7 states 
 - [ ] Do not refresh the whole graph when a single node is refreshed. At the moment, after refreshing the whole graph jumps to the beginning
 - [ ] On node refresh via context menu should refresh all the states (at the moment only selected state is updated)
 - [ ] User can stop rendering with a button (and show what was rendered before stop)

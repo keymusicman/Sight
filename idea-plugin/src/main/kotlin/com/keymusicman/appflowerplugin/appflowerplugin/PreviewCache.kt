@@ -32,4 +32,18 @@ object PreviewCache {
     fun clearAll(modulePath: String) {
         outDir(modulePath).listFiles()?.forEach { it.delete() }
     }
+
+    /**
+     * Deletes every `${safeName}_<index>.<ext>` state image for [composableFqn] in this module's
+     * preview dir (any extension). Used before re-rendering a multi-state provider so the on-disk
+     * set ends up matching exactly the states the provider actually yields — otherwise stale higher
+     * indices left over from an over-render (see the worker's provider-exhausted handling) keep
+     * showing as phantom duplicate states, and with incremental rendering they even suppress the
+     * re-render that would correct the count.
+     */
+    fun clearIndexedFiles(modulePath: String, composableFqn: String) {
+        val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val rx = Regex("${Regex.escape(safeName)}_\\d+\\.[A-Za-z0-9]+")
+        outDir(modulePath).listFiles()?.forEach { if (rx.matches(it.name)) it.delete() }
+    }
 }

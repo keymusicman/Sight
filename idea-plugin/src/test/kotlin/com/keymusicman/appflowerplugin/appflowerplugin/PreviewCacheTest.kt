@@ -93,4 +93,33 @@ class PreviewCacheTest {
         val file = PreviewCache.expectedFile(tmpDir.absolutePath, "com.example.HomeScreen", stateIndex = 2, format = OutputFormat.JPEG)
         assertEquals("com.example.HomeScreen_2.jpg", file.name)
     }
+
+    @Test
+    fun `clearIndexedFiles deletes only indexed state images for the given composable`() {
+        val dir = PreviewCache.outDir(tmpDir.absolutePath).also { it.mkdirs() }
+        val fqn = "com.example.HomeScreen"
+        // Indexed state files for the target composable (should be deleted, any extension).
+        dir.resolve("com.example.HomeScreen_0.png").writeText("0")
+        dir.resolve("com.example.HomeScreen_1.png").writeText("1")
+        dir.resolve("com.example.HomeScreen_7.jpg").writeText("7")
+        // Must be left untouched: the no-index single image, a different composable, the sentinel.
+        dir.resolve("com.example.HomeScreen.png").writeText("single")
+        dir.resolve("com.example.OtherScreen_0.png").writeText("other")
+        PreviewCache.writeSentinel(tmpDir.absolutePath, PreviewRenderConfig())
+
+        PreviewCache.clearIndexedFiles(tmpDir.absolutePath, fqn)
+
+        assertFalse(dir.resolve("com.example.HomeScreen_0.png").exists())
+        assertFalse(dir.resolve("com.example.HomeScreen_1.png").exists())
+        assertFalse(dir.resolve("com.example.HomeScreen_7.jpg").exists())
+        assertTrue(dir.resolve("com.example.HomeScreen.png").exists())
+        assertTrue(dir.resolve("com.example.OtherScreen_0.png").exists())
+        assertTrue(PreviewCache.sentinelFile(tmpDir.absolutePath).exists())
+    }
+
+    @Test
+    fun `clearIndexedFiles is a no-op when outDir does not exist`() {
+        val emptyDir = File(tmpDir, "nonexistent-indexed").absolutePath
+        PreviewCache.clearIndexedFiles(emptyDir, "com.example.HomeScreen")   // must not throw
+    }
 }
