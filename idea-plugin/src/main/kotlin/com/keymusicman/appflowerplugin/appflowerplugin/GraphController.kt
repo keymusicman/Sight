@@ -160,7 +160,9 @@ class GraphController(
             }.onFailure { e -> log.warn("onRefreshNode render failed for $nodeId", e) }
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
-                tab.reloadView()
+                // Refresh only this node's image — rebuilding the whole layout (reloadView) reset
+                // pan/zoom and made the graph jump back to the entry node on every node refresh.
+                tab.bumpNodeImageRevision(nodeId)
                 setAllBusy(false, "")
             }
         }

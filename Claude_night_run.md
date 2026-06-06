@@ -55,3 +55,16 @@ over-render). Worth a quick run-verify on the real project: render `AuthorizeBot
 and confirm 7 files, not 14.
 
 ---
+
+## ✅ Single-node refresh no longer resets the view (task 6)
+
+**Cause:** `onRefreshNode` called `tab.reloadView()`, which runs `buildFromAppGraphV2` and rebuilds
+the entire layout. The display graph briefly becomes null, the `GraphVisualizerInternal`
+composable leaves composition, its `rememberSaveable loadedOnce` flag is dropped, and on
+re-entry the `LaunchedEffect` re-centers on the entry node — so the canvas jumped to the start.
+
+**Fix:** refresh just the affected node's image via `tab.bumpNodeImageRevision(nodeId)` (the
+`AsyncImage` re-keys on the revision and reloads the same-path file from disk). No layout rebuild,
+so pan/zoom are preserved. Task 7 (below) extends this to update the full image list.
+
+---
