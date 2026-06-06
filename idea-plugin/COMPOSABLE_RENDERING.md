@@ -393,6 +393,43 @@ DecorView    945×1680  clipChildren=true
       … → ComposeViewAdapter 945×1680    ← content, full size, clipped to nothing
 ```
 
+### Popup windows (bottom sheet / dialog / dropdown): fill EVERY window's content frame, per-frame
+
+Compose `ModalBottomSheet`, `Dialog`, and `Popup` do not render in the main window — each adds its
+**own** window to the `WindowManager` during composition. Layoutlib draws all of them (`RenderSessionImpl`
+composites every `WindowManagerGlobal.getWindowViews()` into the one image), so the popup *can* render —
+but each new window hits the **same** degenerate 0×0 `android.R.id.content` frame as the main window
+(above). `forceContentFrameFill` only ever fixes the main window: it runs right after `createSession`,
+walks `session.rootViews.first()` (which is `getViewInfos()` — the main content root only; popups land in
+`getSystemViewInfos()`, populated later), and the popup window **does not exist yet** — it's created from
+*inside* the `executeCallbacks` composition loop. So the sheet's full-size DecorView wraps a 0×0 content
+frame and the whole sheet subtree is clipped to nothing → the sheet paints blank while the main window
+renders fine. The failing decor tree of the popup window:
+
+```
+DecorView   1080×2340
+  FrameLayout 1080×2340
+    FrameLayout 0×0                       ← popup content frame collapsed (android.R.id.content)
+      ModalBottomSheetDialogLayout 0×0    ← sheet, clipped to nothing
+        AndroidComposeView 0×0
+```
+
+`WorkerRenderer.forceAllWindowContentFramesFill()` fixes it: enumerate **all** windows via
+`WindowManagerGlobal.getInstance().getWindowViews()` (the same API `RenderSessionImpl` uses) and force
+each one's content frame to `MATCH_PARENT` (`fillContentFrame`, idempotent — no-ops once a window is
+already `MATCH_PARENT`).
+
+Timing is load-bearing and is **not** "just before render": a bottom sheet derives its anchors / rest
+offset from the **container size at composition time**, so if the popup composes while 0×0, the sheet
+resolves to a 0-size / off-screen rest position that a later content-frame resize does *not* recompute
+(you get a full-size `AndroidComposeView` whose composed content is still 0×0 → still blank). So the fill
+runs on **every frame** of the `executeCallbacks` loop, and when a new window appears the loop grants it a
+**settle budget** (extra frames, loop cap raised 10 → 30) so its composition re-lays-out and any
+enter-animation finishes at the corrected size before the snapshot. Verified against two independent
+`ModalBottomSheet` previews (`AccountClosureWarningBottomSheet`, `RemittanceOptionsBottomSheet`); the
+sheet correctly wraps its content at the bottom rather than stretching, confirming a real measure, not a
+forced full-bleed.
+
 ### System bars: re-measure the status-bar clock + battery
 
 Same degenerate width-0 `createSession` layout pass (above) also breaks the system **status
@@ -485,6 +522,21 @@ to Roboto and/or renders at the wrong weight (see the long font investigation):
    weight (≈7% narrower than Studio). The fix sets `SDK_INT = 36` (matching the framework) and fills
    null `Build` strings (else `FINGERPRINT.toLowerCase()` etc. NPE during `<clinit>`, blanking the
    render). Fields are `static final` → written via `sun.misc.Unsafe`.
+
+### R class loading: derive the type from the binary name, never `getSimpleName()`
+
+`ResourceIdRegistry.fromRClasses` reads each `R$<type>` class to map resource ids. It must derive
+the type (`drawable`, `string`, …) from the **binary class name** (`cls.name.substringAfterLast('$')`),
+NOT `Class.getSimpleName()`. `getSimpleName()` reads the `InnerClasses` attribute and validates that
+the inner (`androidx.credentials.R$id`) and its declaring outer (`androidx.credentials.R`) agree —
+and on the worker's merged user classloader they often **don't**: under `android.nonTransitiveRClass`
+the merged app R.jar and a feature module's thin R.jar (or an AAR's own bundled `R.class`) can each
+contribute a differently-compiled `androidx.credentials.R`, so the inner/outer pair disagrees and the
+JVM throws `IncompatibleClassChangeError: … R and … R$id disagree on InnerClasses attribute`. That
+killed the whole registry → `createSession` failed → blank/half render (seen with the `feature/registration`
+`KycSafetyGlobalPreview`). The binary name is a plain constant-pool string that triggers no such
+validation; the per-class loop is also wrapped so one bad R class is skipped, not fatal. Studio's
+in-process `ModuleClassLoader` never hits this because it synthesizes a single consistent R per package.
 
 ### Debugging without IDE restarts
 

@@ -103,3 +103,13 @@ Run with Studio's bundled JBR (`Contents/jbr/.../bin/java`) and these `--add-ope
 - stdout is reserved for the `RenderResponse` JSON; everything diagnostic goes to stderr.
 - `targetApiLevel` is pinned to 36 in `make_input.py` (android-36 `build.prop` carries
   `ro.build.version.sdk_full`, which `Build.VERSION.<clinit>` needs — older platforms throw).
+- **The app module's merged R.jar must exist on the captured classpath**, or *every* render fails
+  at `createSession` with `ClassNotFoundException: androidx.customview.poolingcontainer.R$id` (or
+  another library's `R$id`). This project uses `android.nonTransitiveRClass=true`, so per-library R
+  classes are never compiled to disk; only the application module's
+  `build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar` carries
+  the merged set (`androidx.customview.poolingcontainer.R$id` is read by `PoolingContainer.<clinit>`,
+  triggered by the first `ComposeView` — i.e. every render). In-process rendering survives this
+  because Studio's `ModuleClassLoader` synthesizes missing R classes on the fly; the worker's plain
+  `URLClassLoader` does not. A `clean`/partial build deletes that merged R.jar — regenerate it with
+  `./gradlew :app:<module>:processDebugResources` and re-capture (or repoint) the init dump.

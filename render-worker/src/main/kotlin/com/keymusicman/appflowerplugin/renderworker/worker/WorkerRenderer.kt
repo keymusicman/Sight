@@ -123,17 +123,45 @@ class WorkerRenderer(
             // BridgeRenderSession.executeCallbacks() reads the *virtual* clock (System_Delegate,
             // driven by setSystemTimeNanos), not its nanos argument — so setSystemTimeNanos() must
             // precede each call, exactly as RenderTask.executeCallbacks() does.
+            //
+            // Compose ModalBottomSheet / Dialog / Popup render in their OWN windows, added to the
+            // WindowManager during composition (i.e. from inside this executeCallbacks loop). Each such
+            // window gets the same degenerate 0×0 `android.R.id.content` frame from the raw
+            // Bridge.createSession layout pass that forceContentFrameFill fixes for the main window —
+            // but forceContentFrameFill ran before composition, so it never saw them. Left at 0×0 the
+            // popup's whole subtree is clipped to nothing and it paints blank, even though the main
+            // window renders fine.
+            //
+            // We must expand a popup's content frame BEFORE the composition inside it settles its layout
+            // and enter-position, not just before render(): the sheet anchors/offset are derived from the
+            // container size, so if the popup is 0×0 while it composes, the sheet resolves to a 0-size /
+            // off-screen rest position that a later resize doesn't recompute. So: fill content frames on
+            // EVERY frame (cheap — fillContentFrame no-ops once a window is already MATCH_PARENT), and
+            // when a new window appears, grant extra frames so its composition lays out + settles at the
+            // corrected size before we snapshot.
             var nowNs = 0L
             var frames = 0
+            var windowCount = forceAllWindowContentFramesFill()
+            var settleFrames = 0
             session.setSystemTimeNanos(nowNs)
             var more = session.executeCallbacks(nowNs)
             frames++
-            while ((more || frames < 5) && frames < 10) {
+            while ((more || frames < 5 || settleFrames > 0) && frames < 30) {
                 nowNs += 16_666_666L
                 session.setSystemTimeNanos(nowNs)
+                val n = forceAllWindowContentFramesFill()
+                if (n > windowCount) {
+                    // A popup/sheet/dialog window just appeared — give it a settle budget so its
+                    // composition re-lays-out and any enter animation finishes at the corrected size.
+                    windowCount = n
+                    settleFrames = 6
+                } else if (settleFrames > 0) {
+                    settleFrames--
+                }
                 more = session.executeCallbacks(nowNs)
                 frames++
             }
+            forceAllWindowContentFramesFill()
 
             // Single render — createSession did NOT render (FLAG_DO_NOT_RENDER_ON_CREATE), so this is
             // the first and only session render ("never render twice" — the first consumes the canvas
@@ -498,14 +526,55 @@ class WorkerRenderer(
         runCatching {
             var top = session.rootViews?.firstOrNull()?.viewObject as? android.view.View ?: return
             while ((top.parent as? android.view.View) != null) top = top.parent as android.view.View
-            val content = top.findViewById<android.view.View>(android.R.id.content) ?: return
-            val lp = content.layoutParams ?: return
-            lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT
-            lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
-            runCatching { lp.javaClass.getField("weight").setFloat(lp, 1f) }
-            content.layoutParams = lp
-            top.requestLayout()
+            fillContentFrame(top)
         }.onFailure { System.err.println("worker: forceContentFrameFill failed: ${it.message}") }
+    }
+
+    /**
+     * Applies [fillContentFrame] to **every** window registered with `WindowManagerGlobal`, not just
+     * the main one. Compose `ModalBottomSheet` / `Dialog` / `Popup` each render in a separate window
+     * that is added during composition; like the main window, the raw `Bridge.createSession` layout
+     * pass leaves each one's `android.R.id.content` frame at 0×0, clipping the popup's content to
+     * nothing (a full-size DecorView wrapping a 0×0 content frame). [forceContentFrameFill] runs
+     * before composition and so only ever sees the main window; this pass runs after the
+     * `executeCallbacks` loop, once the popup windows exist, and before `render`.
+     */
+    private fun forceAllWindowContentFramesFill(): Int {
+        return runCatching {
+            val wmg = Class.forName("android.view.WindowManagerGlobal")
+            val instance = wmg.getMethod("getInstance").invoke(null)
+            @Suppress("UNCHECKED_CAST")
+            val views = wmg.getMethod("getWindowViews").invoke(instance) as List<android.view.View>
+            for (v in views) {
+                var top = v
+                while ((top.parent as? android.view.View) != null) top = top.parent as android.view.View
+                fillContentFrame(top)
+            }
+            views.size
+        }.onFailure {
+            System.err.println("worker: forceAllWindowContentFramesFill failed: ${it::class.java.name}: ${it.message}")
+        }.getOrDefault(0)
+    }
+
+    /**
+     * Forces the content frame ([android.R.id.content]) of the window rooted at [top] to
+     * MATCH_PARENT (weight 1 within a decor LinearLayout). Layoutlib, when driven via raw
+     * `Bridge.createSession`, lays this frame out with degenerate 0×0 params; with
+     * `clipChildren=true` that clips the entire content subtree to nothing, so only the DecorView
+     * background paints. `requestLayout` lets the subsequent forced-measure render lay it out full
+     * size. Must run after the view tree exists and before the render.
+     */
+    private fun fillContentFrame(top: android.view.View) {
+        val content = top.findViewById<android.view.View>(android.R.id.content) ?: return
+        val lp = content.layoutParams ?: return
+        if (lp.width == android.view.ViewGroup.LayoutParams.MATCH_PARENT &&
+            lp.height == android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        ) return
+        lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        lp.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        runCatching { lp.javaClass.getField("weight").setFloat(lp, 1f) }
+        content.layoutParams = lp
+        top.requestLayout()
     }
 
     // ---- Framework resource loading ----

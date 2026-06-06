@@ -42,10 +42,16 @@ class ResourceIdRegistry private constructor(
             var synthCounter = 0
             // distinct(): the same R class can be enumerated from several jars (thin + fat) but
             // the classloader returns one Class — process it once so synthetic ids aren't churned.
-            for (cls in rTypeClasses.distinct()) {
-                val typeName = cls.simpleName // "R$drawable".simpleName == "drawable"
-                if (typeName in IGNORED_TYPES) continue
-                val type = ResourceType.fromClassName(typeName) ?: continue
+            for (cls in rTypeClasses.distinct()) runCatching {
+                // Derive the resource type from the BINARY name (e.g. "androidx.credentials.R$id"
+                // -> "id"), NOT Class.getSimpleName(): getSimpleName() reads the InnerClasses
+                // attribute and validates outer/inner consistency, which throws
+                // IncompatibleClassChangeError when the R outer class and its R$<type> inner come
+                // from different jars on the merged user classloader (thin feature R.jar + merged
+                // app R.jar) that disagree on that attribute. The binary name is a plain string.
+                val typeName = cls.name.substringAfterLast('$')
+                if (typeName in IGNORED_TYPES) return@runCatching
+                val type = ResourceType.fromClassName(typeName) ?: return@runCatching
                 for (f in cls.declaredFields) {
                     val mods = f.modifiers
                     // Read every `static int` field. Real AGP app/library R classes use
@@ -76,6 +82,8 @@ class ResourceIdRegistry private constructor(
                     idToRef[id] = ref
                     refToId[ref] = id
                 }
+            }.onFailure {
+                System.err.println("worker: skipped R class ${cls.name}: ${it::class.java.name}: ${it.message}")
             }
             return ResourceIdRegistry(idToRef, refToId)
         }
