@@ -52,6 +52,16 @@ class GraphRenderingServiceTest {
     }
 
     @Test
+    fun clampsNegativeSelectedStateToZero() {
+        val states = mutableListOf<Int>()
+        val g = graph(Screen(id = "A", composable_fqn = "P.A", preview_provider_fqn = "P.P", selected_state = -5, module_path = "/m"))
+        GraphRenderingService.renderSelectedStates(g, defaultModulePath = "/f") { _, _, _, stateIndex ->
+            states += stateIndex; null
+        }
+        assertEquals(listOf(0), states)
+    }
+
+    @Test
     fun skipsScreensWithBlankComposableFqn() {
         val calls = mutableListOf<String>()
         val g = graph(Screen(id = "A", composable_fqn = "", module_path = "/modA"))

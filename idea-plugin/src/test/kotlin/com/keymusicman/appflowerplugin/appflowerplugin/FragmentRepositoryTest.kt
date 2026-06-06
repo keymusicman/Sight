@@ -39,6 +39,14 @@ class FragmentRepositoryTest {
     }
 
     @Test
+    fun skipsModulesWithUnparseableFragment() {
+        val good = tmpModule("good", """{"module":":good","screens":[]}""")
+        val bad = tmpModule("baad", """{ this is not valid json """)
+        val frags = FragmentRepository.readFragments(listOf(good.absolutePath, bad.absolutePath))
+        assertEquals(listOf(":good"), frags.map { it.module })
+    }
+
+    @Test
     fun aggregatesAcrossModules() {
         val a = tmpModule("a", """{"module":":a","screens":[{"subgraph":"main","id":"Main","is_root":true,"composable_fqn":"P.Main"}]}""")
         val b = tmpModule("b", """{"module":":b","screens":[{"subgraph":"profile","id":"Profile","is_root":true,"composable_fqn":"P.Profile"}]}""")

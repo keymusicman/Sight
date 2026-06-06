@@ -1,5 +1,6 @@
 package com.keymusicman.appflowerplugin.appflowerplugin
 
+import com.intellij.openapi.diagnostic.Logger
 import com.keymusicman.appflower.aggregator.AggregationResult
 import com.keymusicman.appflower.aggregator.GraphAggregator
 import com.keymusicman.appflower.model.GraphFragment
@@ -14,6 +15,7 @@ object FragmentRepository {
 
     const val FRAGMENT_RELATIVE_PATH = "build/graph/app-graph-fragment.json"
 
+    private val log = Logger.getInstance(FragmentRepository::class.java)
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /** Reads + parses the fragment of every module dir that has one. Fills blank module_path with the dir. */
@@ -24,7 +26,10 @@ object FragmentRepository {
             runCatching {
                 val frag = json.decodeFromString<GraphFragment>(file.readText())
                 if (frag.module_path.isBlank()) frag.copy(module_path = dir) else frag
-            }.getOrNull()
+            }.getOrElse { e ->
+                log.warn("Failed to parse fragment at ${file.absolutePath}: ${e.message}")
+                null
+            }
         }
 
     fun aggregate(moduleDirs: List<String>): AggregationResult =
