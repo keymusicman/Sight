@@ -179,7 +179,7 @@ class GraphController(
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val config = PreviewConfigService.getInstance(project).config
-            val seen = mutableSetOf<Triple<String, String, Int>>()
+            val seen = mutableSetOf<Pair<String, String>>()
             val units = mutableListOf<RenderUnit>()
             var skippedNoFqn = 0
             graphSet.graphs.forEach { ng ->
@@ -187,8 +187,8 @@ class GraphController(
                     sub.screens.forEach { s ->
                         if (s.composable_fqn.isBlank()) { skippedNoFqn++; return@forEach }
                         val mp = s.module_path.ifBlank { moduleDirs.firstOrNull() }.takeUnless { it.isNullOrBlank() } ?: return@forEach
-                        val state = if (s.preview_provider_fqn != null) s.selected_state.coerceAtLeast(0) else -1
-                        if (seen.add(Triple(mp, s.composable_fqn, state))) {
+                        val state = if (s.preview_provider_fqn != null) 0 else -1
+                        if (seen.add(Pair(mp, s.composable_fqn))) {
                             val sourceFile = s.location.takeIf { it.isNotBlank() }?.let { File(mp, it).absolutePath }
                             units += RenderUnit(mp, s.composable_fqn, s.preview_provider_fqn, state, sourceFile)
                         }
@@ -202,13 +202,29 @@ class GraphController(
             val renderErrors = mutableListOf<String>()
             units.forEachIndexed { i, u ->
                 if (disposed) return@submit
-                runCatching {
-                    RendererRouter.render(project, u.modulePath, u.fqn,
-                        parameterProviderFqn = u.provider, stateIndex = u.stateIndex,
-                        sourceFilePath = u.sourceFile, previewConfig = config)
-                }.onFailure { e ->
-                    log.warn("render failed for ${u.fqn}", e)
-                    renderErrors += "${u.fqn}: ${e.message ?: e::class.simpleName}"
+                if (u.provider != null) {
+                    var stateIndex = 0
+                    while (!disposed) {
+                        val result = runCatching {
+                            RendererRouter.render(project, u.modulePath, u.fqn,
+                                parameterProviderFqn = u.provider, stateIndex = stateIndex,
+                                sourceFilePath = u.sourceFile, previewConfig = config)
+                        }.onFailure { e ->
+                            log.warn("render failed for ${u.fqn} stateIndex=$stateIndex", e)
+                            renderErrors += "${u.fqn}: ${e.message ?: e::class.simpleName}"
+                        }.getOrNull()
+                        if (result == null) break
+                        stateIndex++
+                    }
+                } else {
+                    runCatching {
+                        RendererRouter.render(project, u.modulePath, u.fqn,
+                            parameterProviderFqn = null, stateIndex = -1,
+                            sourceFilePath = u.sourceFile, previewConfig = config)
+                    }.onFailure { e ->
+                        log.warn("render failed for ${u.fqn}", e)
+                        renderErrors += "${u.fqn}: ${e.message ?: e::class.simpleName}"
+                    }
                 }
                 val done = i + 1
                 SwingUtilities.invokeLater { if (!disposed) setAllStatus("Rendering $done/$total…") }

@@ -377,6 +377,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .size(iconSize)
+                                            .background(Color.White.copy(alpha = 0.85f))
                                             .alpha(iconAlpha)
                                             .clickable { viewModel.openStatePicker(ln.id) }
                                             .onPointerEvent(PointerEventType.Enter) {
