@@ -89,7 +89,7 @@ class GraphController(
         projectRoots.forEach { root ->
             val settings = ExternalSystemTaskExecutionSettings().apply {
                 externalProjectPath = root
-                taskNames = listOf("exportGraph")
+                taskNames = listOf("exportGraph", "compileDebugKotlin")
                 externalSystemIdString = GradleConstants.SYSTEM_ID.id
             }
             ExternalSystemUtil.runTask(
@@ -181,10 +181,11 @@ class GraphController(
             val config = PreviewConfigService.getInstance(project).config
             val seen = mutableSetOf<Triple<String, String, Int>>()
             val units = mutableListOf<RenderUnit>()
+            var skippedNoFqn = 0
             graphSet.graphs.forEach { ng ->
                 ng.graph.subgraphs.values.forEach { sub ->
                     sub.screens.forEach { s ->
-                        if (s.composable_fqn.isBlank()) return@forEach
+                        if (s.composable_fqn.isBlank()) { skippedNoFqn++; return@forEach }
                         val mp = s.module_path.ifBlank { moduleDirs.firstOrNull() }.takeUnless { it.isNullOrBlank() } ?: return@forEach
                         val state = if (s.preview_provider_fqn != null) s.selected_state.coerceAtLeast(0) else -1
                         if (seen.add(Triple(mp, s.composable_fqn, state))) {
@@ -195,19 +196,31 @@ class GraphController(
                 }
             }
             val total = units.size
+            if (total == 0) {
+                log.warn("refreshPreviews: no renderable screens (skippedNoFqn=$skippedNoFqn)")
+            }
+            val renderErrors = mutableListOf<String>()
             units.forEachIndexed { i, u ->
                 if (disposed) return@submit
                 runCatching {
                     RendererRouter.render(project, u.modulePath, u.fqn,
                         parameterProviderFqn = u.provider, stateIndex = u.stateIndex,
                         sourceFilePath = u.sourceFile, previewConfig = config)
-                }.onFailure { e -> log.warn("render failed for ${u.fqn}", e) }
+                }.onFailure { e ->
+                    log.warn("render failed for ${u.fqn}", e)
+                    renderErrors += "${u.fqn}: ${e.message ?: e::class.simpleName}"
+                }
                 val done = i + 1
                 SwingUtilities.invokeLater { if (!disposed) setAllStatus("Rendering $done/$total…") }
             }
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
                 tabPanels.forEach { it.reloadView() }
+                val warnings = buildList {
+                    if (skippedNoFqn > 0) add("$skippedNoFqn screen(s) skipped — composable_fqn not set in fragment JSON")
+                    addAll(renderErrors)
+                }
+                if (warnings.isNotEmpty()) setAllProblems(emptyList(), warnings)
                 setAllBusy(false, "")
             }
         }

@@ -141,64 +141,102 @@ object UserModuleClasspathResolver {
      * AGP build outputs that the IntelliJ project model often does not expose cleanly.
      * Paths derived from `render-worker/SPIKE_NOTES.md` ("User classpath construction").
      * Returned even if missing — caller filters via [File.exists].
+     *
+     * Compiled Kotlin classes live in different directories depending on AGP version:
+     *   - `build/tmp/kotlin-classes/debug`                                         — AGP < 8
+     *   - `build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes`  — AGP 8+
+     * Library modules also produce a compiled classes JAR:
+     *   - `build/intermediates/compile_library_classes_jar/debug/.../classes.jar`
      */
     private fun explicitAgpOutputs(modulePath: String): List<String> {
         val moduleDir = File(modulePath)
         return buildList {
             add(File(moduleDir, "build/tmp/kotlin-classes/debug").absolutePath)
+            add(File(moduleDir, "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes").absolutePath)
+            // Library module compiled JAR (bundleLibCompileToJarDebug task output)
+            val libClassesJar = File(moduleDir,
+                "build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar")
+            add(libClassesJar.absolutePath)
             findGeneratedRJars(moduleDir).forEach { add(it.absolutePath) }
         }
     }
 
-    /**
-     * Discovers the AGP-generated R class jar(s) for [moduleDir]'s debug variant.
-     *
-     * **Why this matters:** the standalone worker loads user/AAR bytecode with a plain
-     * [java.net.URLClassLoader]. Unlike Studio's `ModuleClassLoader` (used by the in-process
-     * [ComposableRenderer]), it does **not** synthesize R classes on the fly — so the
-     * *transitive* generated R.jar must be on the classpath. Dependency bytecode references R
-     * classes that exist only in this generated jar, never in the AAR's own `classes.jar`: e.g.
-     * `androidx.customview.poolingcontainer.R$id`, touched by `PoolingContainer.<clinit>` during
-     * **every** `ComposeViewAdapter` inflation. Missing it ⇒ `NoClassDefFoundError` ⇒ every
-     * preview fails at `createSession`.
-     *
-     * The intermediate directory name varies by module type and AGP version:
-     *   - `compile_and_runtime_not_namespaced_r_class_jar` — older AGP application modules
-     *   - `compile_and_runtime_r_class_jar`                — newer AGP (Gradle 9.x) / features
-     *   - `compile_r_class_jar`                            — the module's own, non-transitive R
-     * so we glob every `*r_class_jar*` intermediate rather than hardcode one path (the hardcoded
-     * `compile_and_runtime_not_namespaced_r_class_jar` path was the original bug — it doesn't
-     * exist for this project's AGP version). Jars are returned largest-first so the fat
-     * transitive jar wins [java.net.URLClassLoader] lookups over the thin own-module jar.
-     */
     /**
      * Ensures the user classloader resolves the app's **runtime** R classes (real resource ids),
      * not the compile-time placeholder R whose ids are all `0`.
      *
      * AGP emits two R.jars: the runtime `compile_and_runtime_*r_class_jar` (real, merged,
      * transitive ids) and the compile-only `compile_r_class_jar` (own-module, all-zero
-     * placeholders — values get linked in only at packaging). The placeholder jar reaches the
-     * classpath first via the IDE/AGP compile classpath, so a plain `URLClassLoader` resolves
-     * `R$drawable.foo` to `0`, and `painterResource(0)` throws during composition → blank render.
+     * placeholders). The placeholder jar reaches the classpath first via the IDE/AGP compile
+     * classpath, so a plain `URLClassLoader` resolves `R$drawable.foo` to `0` → blank render.
      *
-     * When a runtime R.jar is present we hoist it to the front (so it wins first-match lookups)
-     * and drop the placeholder jars entirely (the runtime jar is a strict superset). With no
-     * runtime jar we leave the list untouched — the placeholder is all that's available.
+     * When a runtime R.jar is present we hoist it to the front (URLClassLoader first-match wins)
+     * but keep the placeholder: when the runtime jar comes from a sibling APPLICATION module
+     * (see [findGeneratedRJars]) it won't include the current module's own R classes, making
+     * the placeholder their only source.
      */
     internal fun prioritizeRuntimeRJars(entries: List<String>): List<String> {
         fun isRJar(p: String) = p.endsWith("R.jar")
-        // `compile_and_runtime_r_class_jar` and the older `compile_and_runtime_not_namespaced_…`
-        // are the real merged runtime ids; `compile_r_class_jar` is the all-zero placeholder.
         fun isRuntimeRJar(p: String) = isRJar(p) && p.contains("compile_and_runtime")
-        fun isPlaceholderRJar(p: String) = isRJar(p) && p.contains("compile_r_class_jar")
 
         val runtime = entries.filter { isRuntimeRJar(it) }
         if (runtime.isEmpty()) return entries
-        val rest = entries.filterNot { isRuntimeRJar(it) || isPlaceholderRJar(it) }
+        val rest = entries.filterNot { isRuntimeRJar(it) }
         return runtime + rest
     }
 
+    /**
+     * Discovers the AGP-generated R class jar(s) for [moduleDir]'s debug variant.
+     *
+     * For APPLICATION modules the merged transitive R.jar lives in `compile_and_runtime_*r_class_jar`
+     * and is returned directly (it includes all library R classes such as
+     * `androidx.customview.poolingcontainer.R$id`).
+     *
+     * For LIBRARY/FEATURE modules only `compile_r_class_jar` is generated (own-module R only —
+     * no transitive library R classes). In this case we walk sibling and ancestor directories
+     * for an APPLICATION module whose `compile_and_runtime_r_class_jar` carries the transitive
+     * library R classes. The feature module's own thin jar is still included so URLClassLoader
+     * can resolve the module's own R classes (which the sibling app's jar won't contain).
+     */
     internal fun findGeneratedRJars(moduleDir: File): List<File> {
+        val own = findRJarsInDir(moduleDir)
+        if (own.any { it.absolutePath.contains("compile_and_runtime") }) return own
+
+        // Library/feature module: no transitive R.jar of its own.
+        // Walk sibling/ancestor module directories for an app module that has one.
+        val transitive = findTransitiveRJarInAncestors(moduleDir)
+        return (transitive + own).distinctBy { it.absolutePath }
+    }
+
+    private fun findTransitiveRJarInAncestors(moduleDir: File): List<File> {
+        var dir: File? = moduleDir.parentFile
+        var prevDir: File = moduleDir
+        var depth = 0
+        // depth < 3: scan up 3 ancestor levels (sufficient for deeply nested modules like
+        // android/feature/group/login while staying well within any real project root).
+        while (dir != null && depth < 3) {
+            val found = dir.listFiles { f -> f.isDirectory && f != prevDir }
+                ?.flatMap { sibling ->
+                    // Scan the sibling itself AND one level of its children: app modules
+                    // are often one level down (e.g. android/app/example-module), so a plain
+                    // sibling scan of android/ would see app/ but not app/example-module.
+                    findRJarsInDir(sibling) +
+                        (sibling.listFiles { f -> f.isDirectory }
+                            ?.flatMap { findRJarsInDir(it) }
+                            .orEmpty())
+                }
+                ?.filter { it.absolutePath.contains("compile_and_runtime") }
+                ?.sortedByDescending { it.length() }
+                .orEmpty()
+            if (found.isNotEmpty()) return found
+            prevDir = dir
+            dir = dir.parentFile
+            depth++
+        }
+        return emptyList()
+    }
+
+    private fun findRJarsInDir(moduleDir: File): List<File> {
         val intermediates = File(moduleDir, "build/intermediates")
         val rClassDirs = intermediates.listFiles { f -> f.isDirectory && f.name.contains("r_class_jar") }
             ?: return emptyList()

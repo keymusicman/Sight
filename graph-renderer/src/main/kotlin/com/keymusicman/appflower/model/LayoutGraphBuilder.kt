@@ -463,19 +463,27 @@ class DefaultImageDimensionResolver : ImageDimensionResolver {
         withContext(Dispatchers.IO) { getImageDimension(imagePath) }
 }
 
+private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "bmp")
+
 private fun findPreviewImages(composableFqn: String, modulePath: String?): List<String> {
     if (modulePath.isNullOrBlank() || composableFqn.isBlank()) return emptyList()
     val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
     val previewDir = File(modulePath, "build/appflower-previews")
     if (!previewDir.isDirectory) return emptyList()
     val indexed = previewDir.listFiles { f ->
-        f.name.matches(Regex("${Regex.escape(safeName)}_\\d+\\.png"))
+        val dot = f.name.lastIndexOf('.')
+        if (dot < 0) return@listFiles false
+        val ext = f.name.substring(dot + 1).lowercase()
+        val stem = f.name.substring(0, dot)
+        ext in IMAGE_EXTENSIONS && stem.matches(Regex("${Regex.escape(safeName)}_\\d+"))
     }?.sortedBy { f ->
-        f.name.removePrefix("${safeName}_").removeSuffix(".png").toIntOrNull() ?: 0
+        f.name.substringBeforeLast('.').removePrefix("${safeName}_").toIntOrNull() ?: 0
     }?.map { it.absolutePath }.orEmpty()
     if (indexed.isNotEmpty()) return indexed
-    val single = File(previewDir, "$safeName.png")
-    return if (single.exists()) listOf(single.absolutePath) else emptyList()
+    val single = IMAGE_EXTENSIONS.firstNotNullOfOrNull { ext ->
+        File(previewDir, "$safeName.$ext").takeIf { it.exists() }
+    }
+    return if (single != null) listOf(single.absolutePath) else emptyList()
 }
 
 data class LayoutGaps(
