@@ -62,6 +62,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -104,6 +105,20 @@ import kotlin.math.sqrt
 
 const val DOWNSCALE_IMAGES = true
 
+/**
+ * A right-click on a graph node, reported to the host so it can show a platform-native context
+ * menu (e.g. the IntelliJ plugin shows a Swing [javax.swing.JPopupMenu] instead of the Compose
+ * one). [imagePath] is the absolute path of the currently displayed state image (null if none).
+ * [screenX]/[screenY] are absolute screen coordinates captured at click time, suitable for
+ * positioning a native popup.
+ */
+data class NodeContextMenuRequest(
+    val nodeId: String,
+    val imagePath: String?,
+    val screenX: Int,
+    val screenY: Int,
+)
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GraphVisualizer(
@@ -112,6 +127,7 @@ fun GraphVisualizer(
     viewModel: GraphViewModel,
     onViewSource: ((nodeId: String) -> Unit)? = null,
     onRefreshNode: ((nodeId: String) -> Unit)? = null,
+    onNodeContextMenu: ((NodeContextMenuRequest) -> Unit)? = null,
 ) {
     val layoutGraph by viewModel.displayLayoutGraphState
 
@@ -128,7 +144,7 @@ fun GraphVisualizer(
             }
 
             else -> {
-                GraphVisualizerInternal(layoutGraph, viewModel, onViewSource, onRefreshNode)
+                GraphVisualizerInternal(layoutGraph, viewModel, onViewSource, onRefreshNode, onNodeContextMenu)
             }
         }
     }
@@ -141,6 +157,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
     viewModel: GraphViewModel,
     onViewSource: ((nodeId: String) -> Unit)? = null,
     onRefreshNode: ((nodeId: String) -> Unit)? = null,
+    onNodeContextMenu: ((NodeContextMenuRequest) -> Unit)? = null,
 ) {
     var loadedOnce by rememberSaveable { mutableStateOf(false) }
     val colors = LocalAppColors.current
@@ -278,12 +295,7 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                     val hasMultipleStates = imagePaths.size > 1
                     val showStateIcon = hasMultipleStates && hoveredNodeId == ln.id
                     val isSelected = viewModel.selectedNodeIds.value.contains(ln.id)
-                    ContextMenuArea(items = {
-                        buildList {
-                            if (onViewSource != null) add(ContextMenuItem("View source") { onViewSource(ln.id) })
-                            if (onRefreshNode != null) add(ContextMenuItem("Refresh") { onRefreshNode(ln.id) })
-                        }
-                    }) {
+                    val nodeCell: @Composable () -> Unit = {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -316,6 +328,21 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                         }
                                     }
                                 }
+                                .then(
+                                    if (onNodeContextMenu != null) Modifier.onPointerEvent(PointerEventType.Press) { event ->
+                                        if (event.button == PointerButton.Secondary) {
+                                            val loc = java.awt.MouseInfo.getPointerInfo()?.location
+                                            onNodeContextMenu(
+                                                NodeContextMenuRequest(
+                                                    nodeId = ln.id,
+                                                    imagePath = selectedPath,
+                                                    screenX = loc?.x ?: 0,
+                                                    screenY = loc?.y ?: 0,
+                                                )
+                                            )
+                                        }
+                                    } else Modifier
+                                )
                         ) {
                             if (ln.isPlaceholder) {
                                 val subgraphLabel = ln.id.removePrefix("[")
@@ -420,7 +447,19 @@ private fun BoxWithConstraintsScope.GraphVisualizerInternal(
                                 )
                             }
                         }
-                    } // end ContextMenuArea
+                    } // end nodeCell
+
+                    if (onNodeContextMenu != null) {
+                        // Host (e.g. the IntelliJ plugin) shows a native context menu via the callback.
+                        nodeCell()
+                    } else {
+                        ContextMenuArea(items = {
+                            buildList {
+                                if (onViewSource != null) add(ContextMenuItem("Jump to source") { onViewSource(ln.id) })
+                                if (onRefreshNode != null) add(ContextMenuItem("Refresh") { onRefreshNode(ln.id) })
+                            }
+                        }) { nodeCell() }
+                    }
                 }
             }
         ) { measurables, constraints ->

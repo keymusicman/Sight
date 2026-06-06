@@ -2,7 +2,9 @@ package com.keymusicman.appflowerplugin.appflowerplugin
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.ComposePanel
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.ui.JBPopupMenu
 import com.intellij.ui.JBSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -10,20 +12,29 @@ import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.GraphSet
 import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
+import com.keymusicman.appflower.ui.NodeContextMenuRequest
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import java.awt.BorderLayout
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.Point
+import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.Transferable
+import java.awt.datatransfer.UnsupportedFlavorException
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.imageio.ImageIO
 import javax.swing.BorderFactory
 import javax.swing.DefaultComboBoxModel
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JLabel
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 
 /**
  * One tab in the multi-graph view. Hosts a toolbar row:
@@ -155,8 +166,57 @@ class GraphTabPanel(
                     viewModel = viewModel,
                     onViewSource = { nodeId -> onViewSource(nodeId, modulePathFor(nodeId)) },
                     onRefreshNode = { nodeId -> onRefreshNode(nodeId, modulePathFor(nodeId)) },
+                    onNodeContextMenu = ::showNodeContextMenu,
                 )
             }
+        }
+    }
+
+    /**
+     * Shows a native IntelliJ (Swing) context menu for a graph node, replacing the previous
+     * Compose-rendered menu. Built + shown on the EDT; positioned at the click's screen
+     * coordinates (captured in [req]) relative to the Compose canvas.
+     */
+    private fun showNodeContextMenu(req: NodeContextMenuRequest) {
+        SwingUtilities.invokeLater {
+            if (!composePanel.isShowing) return@invokeLater
+            val imagePath = req.imagePath
+            val menu = JBPopupMenu()
+            menu.add(JMenuItem("Copy").apply {
+                isEnabled = imagePath != null
+                addActionListener { imagePath?.let(::copyImageToClipboard) }
+            })
+            menu.add(JMenuItem("Open in Finder").apply {
+                isEnabled = imagePath != null
+                addActionListener { imagePath?.let { RevealFileAction.openFile(java.io.File(it)) } }
+            })
+            menu.addSeparator()
+            menu.add(JMenuItem("Jump to source").apply {
+                addActionListener { onViewSource(req.nodeId, modulePathFor(req.nodeId)) }
+            })
+            menu.add(JMenuItem("Refresh").apply {
+                addActionListener { onRefreshNode(req.nodeId, modulePathFor(req.nodeId)) }
+            })
+            val pt = Point(req.screenX, req.screenY)
+            SwingUtilities.convertPointFromScreen(pt, composePanel)
+            menu.show(composePanel, pt.x, pt.y)
+        }
+    }
+
+    private fun copyImageToClipboard(path: String) {
+        runCatching {
+            val image = ImageIO.read(java.io.File(path)) ?: return
+            Toolkit.getDefaultToolkit().systemClipboard.setContents(ImageTransferable(image), null)
+        }
+    }
+
+    /** Wraps a [java.awt.Image] so it can be placed on the system clipboard as an image. */
+    private class ImageTransferable(private val image: java.awt.Image) : Transferable {
+        override fun getTransferDataFlavors(): Array<DataFlavor> = arrayOf(DataFlavor.imageFlavor)
+        override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = flavor == DataFlavor.imageFlavor
+        override fun getTransferData(flavor: DataFlavor): Any {
+            if (flavor != DataFlavor.imageFlavor) throw UnsupportedFlavorException(flavor)
+            return image
         }
     }
 

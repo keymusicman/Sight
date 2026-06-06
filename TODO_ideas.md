@@ -34,12 +34,12 @@
 
 # Planned
 
-- [ ] Use native idea context menu instead of the custom one
+- [x] Use native idea context menu instead of the custom one
 
 ## Image context menu features
-- [ ] "Copy" (image to clipboard)
-- [ ] "Open in Finder"
-- [ ] "View source" -> "Jump to source"
+- [x] "Copy" (image to clipboard)
+- [x] "Open in Finder"
+- [x] "View source" -> "Jump to source"
 
 ## Features and fixes
 - [ ] In a separate process, previews are duplicated. For example, for SelectAddressFromListGlobalPreview there is 1 state, but 2 are rendered (same). For AuthorizeBottomSheetGlobalPreview there are 14 previews rendered while there are only 7 states 

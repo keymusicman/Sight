@@ -17,6 +17,7 @@ fun GraphPanel(
     modifier: Modifier = Modifier,
     onViewSource: ((nodeId: String) -> Unit)? = null,
     onRefreshNode: ((nodeId: String) -> Unit)? = null,
+    onNodeContextMenu: ((NodeContextMenuRequest) -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     Row(modifier) {
@@ -28,6 +29,12 @@ fun GraphPanel(
                 .fillMaxHeight()
                 .background(colors.divider)
         )
-        GraphVisualizer(viewModel = viewModel, modifier = Modifier.weight(1f).fillMaxSize().clipToBounds(), onViewSource = onViewSource, onRefreshNode = onRefreshNode)
+        GraphVisualizer(
+            viewModel = viewModel,
+            modifier = Modifier.weight(1f).fillMaxSize().clipToBounds(),
+            onViewSource = onViewSource,
+            onRefreshNode = onRefreshNode,
+            onNodeContextMenu = onNodeContextMenu,
+        )
     }
 }
