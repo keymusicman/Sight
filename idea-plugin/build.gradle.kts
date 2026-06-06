@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.keymusicman.appflowerplugin"
-version = "1.0.64-SNAPSHOT"
+version = "1.0.65-SNAPSHOT"
 
 repositories {
     mavenCentral()

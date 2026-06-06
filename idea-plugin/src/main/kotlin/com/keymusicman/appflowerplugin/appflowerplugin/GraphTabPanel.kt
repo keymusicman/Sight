@@ -3,15 +3,23 @@ package com.keymusicman.appflowerplugin.appflowerplugin
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.ComposePanel
 import com.intellij.openapi.Disposable
+import com.intellij.ui.JBSplitter
+import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBScrollPane
 import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.GraphSet
 import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
 import com.keymusicman.appflower.viewmodel.GraphViewModel
 import java.awt.BorderLayout
+import java.awt.Cursor
+import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
 import javax.swing.DefaultComboBoxModel
+import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JLabel
@@ -19,8 +27,9 @@ import javax.swing.JPanel
 
 /**
  * One tab in the multi-graph view. Hosts a toolbar row:
- *   Graph: [dropdown]  ···space···  [status]  [Build graph]  [Refresh previews]  [Configure]
- * followed by the Compose canvas. Action buttons delegate to [MultiGraphPanel] via callbacks.
+ *   Graph: [dropdown]  ···space···  [progress]  [badge]  [Build graph]  [Refresh previews]  [Configure]
+ * followed by a horizontal splitter: Compose canvas on the left, collapsible Problems panel on the right.
+ * The badge shows error/warning counts; clicking it toggles the Problems panel.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 class GraphTabPanel(
@@ -37,10 +46,32 @@ class GraphTabPanel(
     private var graphSet: GraphSet = initialGraphSet
     internal val selector = JComboBox(DefaultComboBoxModel(initialGraphSet.graphs.map { it.name }.toTypedArray()))
 
-    private val statusLabel = JLabel()
+    private val progressLabel = JLabel()
+    private val problemsBadge = JLabel().apply {
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) { toggleProblemsPanel() }
+        })
+    }
     private val buildButton = JButton("Build graph").apply { addActionListener { onBuild() } }
     private val refreshButton = JButton("Refresh previews").apply { addActionListener { onRefreshPreviews() } }
     private val configButton = JButton("Configure…").apply { addActionListener { onConfigure() } }
+
+    private val problemsListModel = DefaultListModel<String>()
+    private val problemsList = JBList(problemsListModel)
+    private val problemsPanel = JPanel(BorderLayout()).apply {
+        border = BorderFactory.createTitledBorder("Problems")
+        add(JBScrollPane(problemsList), BorderLayout.CENTER)
+        minimumSize = Dimension(0, 0)
+        preferredSize = Dimension(260, 0)
+    }
+    private val splitter = JBSplitter(false).apply {
+        firstComponent = composePanel
+    }
+
+    private var problemsPanelVisible = false
+    private var currentErrors: List<String> = emptyList()
+    private var currentWarnings: List<String> = emptyList()
 
     init {
         val toolbar = JPanel(BorderLayout()).apply {
@@ -50,7 +81,8 @@ class GraphTabPanel(
                 add(selector)
             }, BorderLayout.WEST)
             add(JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply {
-                add(statusLabel)
+                add(progressLabel)
+                add(problemsBadge)
                 add(buildButton)
                 add(refreshButton)
                 add(configButton)
@@ -59,22 +91,61 @@ class GraphTabPanel(
         add(toolbar, BorderLayout.NORTH)
 
         initComposeContent()
-        add(composePanel, BorderLayout.CENTER)
+        add(splitter, BorderLayout.CENTER)
 
         selector.addActionListener { showSelected() }
         showSelected()
     }
 
-    fun setStatus(text: String, tooltip: String? = null) {
-        statusLabel.text = text
-        statusLabel.toolTipText = tooltip
+    fun setStatus(text: String) {
+        progressLabel.text = text
+    }
+
+    fun setProblems(errors: List<String>, warnings: List<String>) {
+        currentErrors = errors
+        currentWarnings = warnings
+        progressLabel.text = ""
+        updateBadge()
+        updateProblemsList()
     }
 
     fun setBusy(busy: Boolean, status: String) {
         buildButton.isEnabled = !busy
         refreshButton.isEnabled = !busy
         configButton.isEnabled = !busy
-        statusLabel.text = status
+        progressLabel.text = status
+        if (!busy) updateBadge()
+    }
+
+    private fun updateBadge() {
+        val e = currentErrors.size
+        val w = currentWarnings.size
+        problemsBadge.text = when {
+            e > 0 && w > 0 -> "<html><font color='#FF6B68'>$e ✖</font>&nbsp;&nbsp;<font color='#FFC66D'>$w ⚠</font></html>"
+            e > 0 -> "<html><font color='#FF6B68'>$e ✖</font></html>"
+            w > 0 -> "<html><font color='#FFC66D'>$w ⚠</font></html>"
+            else -> ""
+        }
+        problemsBadge.cursor = if (e + w > 0) Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                               else Cursor.getDefaultCursor()
+        problemsBadge.toolTipText = if (e + w > 0) "Click to show/hide problems" else null
+    }
+
+    private fun updateProblemsList() {
+        problemsListModel.clear()
+        currentErrors.forEach { problemsListModel.addElement("✖  $it") }
+        currentWarnings.forEach { problemsListModel.addElement("⚠  $it") }
+    }
+
+    private fun toggleProblemsPanel() {
+        if (currentErrors.isEmpty() && currentWarnings.isEmpty()) return
+        problemsPanelVisible = !problemsPanelVisible
+        if (problemsPanelVisible) {
+            splitter.secondComponent = problemsPanel
+            splitter.proportion = 0.70f
+        } else {
+            splitter.secondComponent = null
+        }
     }
 
     private fun initComposeContent() {
@@ -89,10 +160,8 @@ class GraphTabPanel(
         }
     }
 
-    /** The AppGraph currently shown in this tab (selected graph), or null before first build. */
     fun currentAppGraph(): AppGraph? = viewModel.appGraphState.value
 
-    /** The currently selected graph name, or null if none. */
     fun selectedGraphName(): String? = selector.selectedItem as? String
 
     fun updateGraphSet(newSet: GraphSet) {
@@ -103,10 +172,8 @@ class GraphTabPanel(
         showSelected()
     }
 
-    /** Re-builds the current graph's layout, re-reading preview images from disk. */
     fun reloadView() = showSelected()
 
-    /** Bumps the image revision for a node so its preview re-loads from disk. */
     fun bumpNodeImageRevision(nodeId: String) = viewModel.bumpNodeImageRevision(nodeId)
 
     private fun showSelected() {
@@ -115,7 +182,6 @@ class GraphTabPanel(
         viewModel.buildFromAppGraphV2(graph, projectPath = null)
     }
 
-    /** The owning module of a node's screen, for render/navigation routing. */
     private fun modulePathFor(nodeId: String): String {
         val appGraph = viewModel.appGraphState.value ?: return ""
         val colon = nodeId.indexOf(':')

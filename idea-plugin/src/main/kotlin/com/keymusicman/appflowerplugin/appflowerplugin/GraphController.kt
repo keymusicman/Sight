@@ -76,13 +76,7 @@ class GraphController(
                 if (disposed) return@invokeLater
                 graphSet = GraphSet(result.graphs)
                 tabPanels.forEach { it.updateGraphSet(graphSet) }
-                val parts = buildList {
-                    if (result.errors.isNotEmpty()) add("${result.errors.size} error(s)")
-                    if (result.warnings.isNotEmpty()) add("${result.warnings.size} warning(s)")
-                    if (result.graphs.isEmpty()) add("No graphs — click Build graph")
-                }
-                val tooltip = (result.errors + result.warnings).joinToString("\n").ifBlank { null }
-                setAllStatus(parts.joinToString("  "), tooltip)
+                setAllProblems(result.errors, result.warnings)
                 if (result.errors.isNotEmpty()) log.warn("Aggregation errors: ${result.errors}")
             }
         }
@@ -219,7 +213,8 @@ class GraphController(
         }
     }
 
-    private fun setAllStatus(text: String, tooltip: String? = null) = tabPanels.forEach { it.setStatus(text, tooltip) }
+    private fun setAllStatus(text: String) = tabPanels.forEach { it.setStatus(text) }
+    private fun setAllProblems(errors: List<String>, warnings: List<String>) = tabPanels.forEach { it.setProblems(errors, warnings) }
     private fun setAllBusy(busy: Boolean, status: String) = tabPanels.forEach { it.setBusy(busy, status) }
 
     override fun dispose() { disposed = true }
