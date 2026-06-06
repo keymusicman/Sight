@@ -107,3 +107,37 @@ flag can't cancel). The forEach in `refreshPreviews` was converted to a `for…w
 `break` (instead of `return@submit`, which would have skipped the final reload). Tests pass.
 
 ---
+
+## ◑ SettingsContentPreview renders light in dark theme (task 10) — fix applied, needs run-verify
+
+**Investigation.** Night mode is a single **global** setting (`PreviewRenderConfig.uiMode`), applied
+to all previews; there is no per-`@Preview` ui-mode anywhere in the data model
+(`Screen`/fragment JSON carry no uiMode/night field). The worker (`WorkerRenderer`) set the night
+bit only on `params.uiMode` — which drives Compose `isSystemInDarkTheme()` — but **built its
+`FolderConfiguration` without a `NightModeQualifier`**. So qualified resources (`values-night`
+themes/colors) were always resolved as *notnight*. A theme whose dark variant lives in
+`values-night` therefore rendered light even with `nightMode=true`. The in-process renderer doesn't
+hit this because Studio's `Configuration.setNightMode` updates both the qualifier and the uiMode.
+
+**Fix.** `WorkerRenderer.buildSessionParams` now sets
+`folderConfig.nightModeQualifier = NightModeQualifier(NIGHT/NOTNIGHT)` from `req.nightMode`, mirroring
+the in-process path. Compiles.
+
+**Caveats / needs your eyes:**
+1. Couldn't run-verify (needs a dark-themed composable from the real app module + pixel check; the
+   AppFlower repo has none). Please render `SettingsContentPreview` with the UI-mode config set to
+   **Dark** and confirm it's now dark.
+2. This only helps when the **global** config is Dark. If the symptom is that *this one* preview
+   should be dark while others are light (i.e. it relies on its own `@Preview(uiMode=NIGHT_YES)`),
+   the real gap is that **per-preview uiMode is never captured/honored**. Fixing that needs the
+   `exportGraph` task to emit each preview's uiMode into the fragment JSON, then threading
+   `Screen.ui_mode` → `RenderRequest.nightMode`. Added to the improvement ideas section of the TODO.
+
+---
+
+## Summary
+
+All 10 Planned items addressed. Tasks 1–4, 6, 7, 8, 9 are code-complete and compile/test-green.
+Tasks 5 and 10 are principled, code-evidenced fixes that align the subprocess worker with the
+in-process renderer but couldn't be run-verified in this session (no Android module / IDE GUI) —
+both flagged above for a quick check on the real project. No task was left unattempted.

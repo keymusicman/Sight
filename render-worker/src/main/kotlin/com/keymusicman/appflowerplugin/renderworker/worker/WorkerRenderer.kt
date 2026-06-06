@@ -286,6 +286,16 @@ class WorkerRenderer(
             densityQualifier = com.android.ide.common.resources.configuration.DensityQualifier(
                 Density.create(densityDpi)
             )
+            // Match the night bit set on params.uiMode below. Without a NightModeQualifier on the
+            // folder config, qualified resources (values-night themes/colors) are always resolved as
+            // notnight — so an app/Material theme whose dark variant lives in values-night rendered
+            // light even with nightMode=true, while Compose's isSystemInDarkTheme() (which reads the
+            // uiMode) said dark. The in-process renderer avoids this because Studio's
+            // Configuration.setNightMode updates both the qualifier and the uiMode; mirror it here.
+            nightModeQualifier = com.android.ide.common.resources.configuration.NightModeQualifier(
+                if (req.nightMode) com.android.resources.NightMode.NIGHT
+                else com.android.resources.NightMode.NOTNIGHT
+            )
         }
         val frameworkMap = framework.configuredFor(folderConfig)
         val userMap = userResources.configuredFor(folderConfig)
