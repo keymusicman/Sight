@@ -142,6 +142,25 @@ class GraphViewModel {
         nodeImageRevisions.value = nodeImageRevisions.value + (nodeId to current + 1)
     }
 
+    /**
+     * Replaces a single node's image-state list in place (both the full and the displayed layout),
+     * preserving every node position so the canvas does not jump. Clamps the selected state to the
+     * new range and bumps the image revision so the currently shown image reloads from disk. Used
+     * after a targeted node re-render that may have added or removed states.
+     */
+    fun updateNodeImages(nodeId: String, imagePaths: List<String>) {
+        fun updateGraph(graph: LayoutGraph): LayoutGraph {
+            val node = graph.nodes[nodeId] ?: return graph
+            val clampedState = node.selectedState.coerceIn(0, (imagePaths.size - 1).coerceAtLeast(0))
+            return graph.copy(
+                nodes = graph.nodes + (nodeId to node.copy(imagePaths = imagePaths, selectedState = clampedState))
+            )
+        }
+        layoutGraphState.value = layoutGraphState.value?.let { updateGraph(it) }
+        displayLayoutGraphState.value = displayLayoutGraphState.value?.let { updateGraph(it) }
+        bumpNodeImageRevision(nodeId)
+    }
+
     fun createView(name: String) {
         val nodeIds = selectedNodeIds.value
         if (nodeIds.isEmpty()) return

@@ -151,18 +151,35 @@ class GraphController(
         AppExecutorUtil.getAppExecutorService().submit {
             if (disposed) return@submit
             val config = PreviewConfigService.getInstance(project).config
-            val state = if (screen.preview_provider_fqn != null) screen.selected_state.coerceAtLeast(0) else -1
             val sourceFile = screen.location.takeIf { it.isNotBlank() }?.let { File(mp, it).absolutePath }
-            runCatching {
-                RendererRouter.render(project, mp, screen.composable_fqn,
-                    parameterProviderFqn = screen.preview_provider_fqn, stateIndex = state,
-                    sourceFilePath = sourceFile, previewConfig = config)
-            }.onFailure { e -> log.warn("onRefreshNode render failed for $nodeId", e) }
+            if (screen.preview_provider_fqn != null) {
+                // Re-render every state, not just the selected one. Clear first so the on-disk set
+                // matches exactly what the provider yields (same approach as refreshPreviews).
+                PreviewCache.clearIndexedFiles(mp, screen.composable_fqn)
+                var stateIndex = 0
+                while (!disposed) {
+                    val result = runCatching {
+                        RendererRouter.render(project, mp, screen.composable_fqn,
+                            parameterProviderFqn = screen.preview_provider_fqn, stateIndex = stateIndex,
+                            sourceFilePath = sourceFile, previewConfig = config)
+                    }.onFailure { e -> log.warn("onRefreshNode render failed for $nodeId stateIndex=$stateIndex", e) }
+                        .getOrNull()
+                    if (result == null) break
+                    stateIndex++
+                }
+            } else {
+                runCatching {
+                    RendererRouter.render(project, mp, screen.composable_fqn,
+                        parameterProviderFqn = null, stateIndex = -1,
+                        sourceFilePath = sourceFile, previewConfig = config)
+                }.onFailure { e -> log.warn("onRefreshNode render failed for $nodeId", e) }
+            }
+            val images = PreviewCache.listStateImages(mp, screen.composable_fqn)
             SwingUtilities.invokeLater {
                 if (disposed) return@invokeLater
-                // Refresh only this node's image — rebuilding the whole layout (reloadView) reset
-                // pan/zoom and made the graph jump back to the entry node on every node refresh.
-                tab.bumpNodeImageRevision(nodeId)
+                // Update only this node's images in place — rebuilding the whole layout (reloadView)
+                // reset pan/zoom and made the graph jump back to the entry node on every refresh.
+                tab.updateNodeImages(nodeId, images)
                 setAllBusy(false, "")
             }
         }

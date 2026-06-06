@@ -122,4 +122,36 @@ class PreviewCacheTest {
         val emptyDir = File(tmpDir, "nonexistent-indexed").absolutePath
         PreviewCache.clearIndexedFiles(emptyDir, "com.example.HomeScreen")   // must not throw
     }
+
+    @Test
+    fun `listStateImages returns indexed images sorted by state index`() {
+        val dir = PreviewCache.outDir(tmpDir.absolutePath).also { it.mkdirs() }
+        // Out of order on disk, double-digit index to catch lexical vs numeric sorting.
+        dir.resolve("com.example.HomeScreen_10.png").writeText("10")
+        dir.resolve("com.example.HomeScreen_2.png").writeText("2")
+        dir.resolve("com.example.HomeScreen_0.png").writeText("0")
+        // Noise that must be excluded.
+        dir.resolve("com.example.HomeScreen.png").writeText("single")
+        dir.resolve("com.example.OtherScreen_0.png").writeText("other")
+
+        val names = PreviewCache.listStateImages(tmpDir.absolutePath, "com.example.HomeScreen").map { File(it).name }
+        assertEquals(
+            listOf("com.example.HomeScreen_0.png", "com.example.HomeScreen_2.png", "com.example.HomeScreen_10.png"),
+            names,
+        )
+    }
+
+    @Test
+    fun `listStateImages falls back to single no-index image`() {
+        val dir = PreviewCache.outDir(tmpDir.absolutePath).also { it.mkdirs() }
+        dir.resolve("com.example.HomeScreen.png").writeText("single")
+        val names = PreviewCache.listStateImages(tmpDir.absolutePath, "com.example.HomeScreen").map { File(it).name }
+        assertEquals(listOf("com.example.HomeScreen.png"), names)
+    }
+
+    @Test
+    fun `listStateImages returns empty when outDir does not exist`() {
+        val emptyDir = File(tmpDir, "nonexistent-list").absolutePath
+        assertTrue(PreviewCache.listStateImages(emptyDir, "com.example.HomeScreen").isEmpty())
+    }
 }

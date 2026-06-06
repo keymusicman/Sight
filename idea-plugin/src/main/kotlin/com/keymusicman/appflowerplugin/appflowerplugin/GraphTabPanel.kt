@@ -236,6 +236,9 @@ class GraphTabPanel(
 
     fun bumpNodeImageRevision(nodeId: String) = viewModel.bumpNodeImageRevision(nodeId)
 
+    fun updateNodeImages(nodeId: String, imagePaths: List<String>) =
+        viewModel.updateNodeImages(nodeId, imagePaths)
+
     private fun showSelected() {
         val name = selector.selectedItem as? String ?: return
         val graph = graphSet.graphs.firstOrNull { it.name == name }?.graph ?: return

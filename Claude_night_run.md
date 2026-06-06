@@ -68,3 +68,17 @@ re-entry the `LaunchedEffect` re-centers on the entry node — so the canvas jum
 so pan/zoom are preserved. Task 7 (below) extends this to update the full image list.
 
 ---
+
+## ✅ Node refresh re-renders all states (task 7)
+
+**Before:** `onRefreshNode` rendered only `screen.selected_state`. Now, for a provider-backed
+screen it clears the indexed files and loops over every state (same exhaustion-driven loop as
+"Refresh previews"); for a plain screen it renders the single image.
+
+After rendering, it reads the node's images from disk via the new `PreviewCache.listStateImages`
+(mirrors the layout builder's `findPreviewImages` so indices line up) and updates **only that
+node** in place via the new `GraphViewModel.updateNodeImages` — positions preserved, selected
+state clamped to the new range, image revision bumped. So a node that gained/lost states reflects
+it without a full rebuild. Unit-tested (`listStateImages` ordering + fallback).
+
+---
