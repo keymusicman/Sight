@@ -16,6 +16,7 @@ import com.keymusicman.appflower.model.GraphSet
 import org.jetbrains.plugins.gradle.util.GradleConstants
 import java.awt.BorderLayout
 import java.awt.FlowLayout
+import java.io.File
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -45,10 +46,7 @@ class MultiGraphPanel(
 
     private val statusLabel = JLabel()
     private val buildButton = JButton("Build graph").apply { addActionListener { runExportGraph() } }
-    private val refreshButton = JButton("Refresh previews").apply {
-        isEnabled = false
-        toolTipText = "Preview rendering wired in a follow-up step"
-    }
+    private val refreshButton = JButton("Refresh previews").apply { addActionListener { refreshPreviews() } }
     private val configButton = JButton("Configure…").apply { addActionListener { openConfig() } }
     private val addTabButton = JButton("+").apply {
         toolTipText = "Add another graph tab"
@@ -151,9 +149,89 @@ class MultiGraphPanel(
         }
     }
 
-    /** Per-node preview refresh — wired in the rendering follow-up. */
+    /** Re-render a single node's selected preview against its owning module, then reload that tab. */
     private fun onRefreshNode(nodeId: String, modulePath: String) {
-        // Intentionally empty until preview rendering is added (B2 part 2).
+        val tab = tabbedPane.selectedComponent as? GraphTabPanel ?: return
+        val appGraph = tab.currentAppGraph() ?: return
+        val colon = nodeId.indexOf(':')
+        if (colon < 0) return
+        val sub = nodeId.substring(0, colon)
+        val id = nodeId.substring(colon + 1)
+        val screen = appGraph.subgraphs[sub]?.screens?.firstOrNull { it.id == id } ?: return
+        if (screen.composable_fqn.isBlank()) return
+        val mp = modulePath.ifBlank { screen.module_path }.ifBlank { return }
+        setBusy(true, "Rendering ${id}…")
+        AppExecutorUtil.getAppExecutorService().submit {
+            if (disposed) return@submit
+            val config = PreviewConfigService.getInstance(project).config
+            val state = if (screen.preview_provider_fqn != null) screen.selected_state.coerceAtLeast(0) else -1
+            val sourceFile = screen.location.takeIf { it.isNotBlank() }?.let { File(mp, it).absolutePath }
+            runCatching {
+                RendererRouter.render(project, mp, screen.composable_fqn,
+                    parameterProviderFqn = screen.preview_provider_fqn, stateIndex = state,
+                    sourceFilePath = sourceFile, previewConfig = config)
+            }.onFailure { e -> log.warn("onRefreshNode render failed for $nodeId", e) }
+            SwingUtilities.invokeLater {
+                if (disposed) return@invokeLater
+                tab.reloadView()
+                setBusy(false, "")
+            }
+        }
+    }
+
+    private data class RenderUnit(
+        val modulePath: String,
+        val fqn: String,
+        val provider: String?,
+        val stateIndex: Int,
+        val sourceFile: String?,
+    )
+
+    /** Renders the selected state of every screen across all graphs (deduped), then reloads tabs. */
+    private fun refreshPreviews() {
+        setBusy(true, "Rendering previews…")
+        AppExecutorUtil.getAppExecutorService().submit {
+            if (disposed) return@submit
+            val config = PreviewConfigService.getInstance(project).config
+            val seen = mutableSetOf<Triple<String, String, Int>>()
+            val units = mutableListOf<RenderUnit>()
+            graphSet.graphs.forEach { ng ->
+                ng.graph.subgraphs.values.forEach { sub ->
+                    sub.screens.forEach { s ->
+                        if (s.composable_fqn.isBlank()) return@forEach
+                        val mp = s.module_path.ifBlank { moduleDirs.firstOrNull() }.takeUnless { it.isNullOrBlank() } ?: return@forEach
+                        val state = if (s.preview_provider_fqn != null) s.selected_state.coerceAtLeast(0) else -1
+                        if (seen.add(Triple(mp, s.composable_fqn, state))) {
+                            val sourceFile = s.location.takeIf { it.isNotBlank() }?.let { File(mp, it).absolutePath }
+                            units += RenderUnit(mp, s.composable_fqn, s.preview_provider_fqn, state, sourceFile)
+                        }
+                    }
+                }
+            }
+            val total = units.size
+            units.forEachIndexed { i, u ->
+                if (disposed) return@submit
+                runCatching {
+                    RendererRouter.render(project, u.modulePath, u.fqn,
+                        parameterProviderFqn = u.provider, stateIndex = u.stateIndex,
+                        sourceFilePath = u.sourceFile, previewConfig = config)
+                }.onFailure { e -> log.warn("render failed for ${u.fqn}", e) }
+                val done = i + 1
+                SwingUtilities.invokeLater { if (!disposed) statusLabel.text = "Rendering $done/$total…" }
+            }
+            SwingUtilities.invokeLater {
+                if (disposed) return@invokeLater
+                tabs.forEach { it.reloadView() }
+                setBusy(false, "")
+            }
+        }
+    }
+
+    private fun setBusy(busy: Boolean, status: String) {
+        buildButton.isEnabled = !busy
+        refreshButton.isEnabled = !busy
+        configButton.isEnabled = !busy
+        statusLabel.text = status
     }
 
     override fun dispose() {

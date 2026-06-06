@@ -71,6 +71,9 @@ class GraphTabPanel(
         showSelected()
     }
 
+    /** Re-builds the current graph's layout, re-reading preview images from disk. */
+    fun reloadView() = showSelected()
+
     /** Bumps the image revision for a node so its preview re-loads from disk. */
     fun bumpNodeImageRevision(nodeId: String) = viewModel.bumpNodeImageRevision(nodeId)
 
