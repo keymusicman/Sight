@@ -3,6 +3,7 @@ package com.keymusicman.appflowerplugin.appflowerplugin
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.ComposePanel
 import com.intellij.openapi.Disposable
+import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.GraphSet
 import com.keymusicman.appflower.ui.AppTheme
 import com.keymusicman.appflower.ui.GraphPanel
@@ -55,6 +56,9 @@ class GraphTabPanel(
             }
         }
     }
+
+    /** The AppGraph currently shown in this tab (selected graph), or null before first build. */
+    fun currentAppGraph(): AppGraph? = viewModel.appGraphState.value
 
     /** The currently selected graph name, or null if none. */
     fun selectedGraphName(): String? = selector.selectedItem as? String
