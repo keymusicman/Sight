@@ -35,7 +35,20 @@ object SubprocessRenderer {
     /** Recycle the worker after this many renders to bound resident memory. Tunable. */
     private const val RECYCLE_AFTER_RENDERS = 50
 
-    private data class ClientEntry(val client: SubprocessRendererClient, var renders: Int)
+    /**
+     * A pooled worker plus the fingerprint of the compiled output it was started against.
+     * [cheapStamp]/[contentHash] form the baseline for [decideStaleness]: when the module is
+     * rebuilt, the worker's [URLClassLoader][java.net.URLClassLoader] still serves the old
+     * bytecode, so we detect the change and respawn instead. [cheapStamp] is `var` so a no-op
+     * rebuild can refresh the gate without re-hashing on every subsequent render.
+     */
+    private data class ClientEntry(
+        val client: SubprocessRendererClient,
+        var renders: Int,
+        val classpath: List<String>,
+        var cheapStamp: Long,
+        val contentHash: String,
+    )
 
     private val clients = ConcurrentHashMap<String, ClientEntry>()
 
@@ -72,11 +85,39 @@ object SubprocessRenderer {
             return outFile.absolutePath
         }
 
-        val entry = try {
+        var entry = try {
             clientFor(project, modulePath)
         } catch (e: Throwable) {
             logError("subprocess render failed: could not start worker for module=$modulePath", e)
             return null
+        }
+
+        // A pooled worker loaded the user's classes into a URLClassLoader at startup; the JVM never
+        // reloads an already-loaded class. So if the module was rebuilt since the worker started,
+        // recycle it — otherwise a newly added composable fails with NoSuchMethodException. The
+        // cheap stat-only gate runs every render; the content hash only when that gate moves.
+        val decision = decideStaleness(
+            storedCheapStamp = entry.cheapStamp,
+            storedContentHash = entry.contentHash,
+            currentCheapStamp = ClasspathFingerprint.cheapStamp(entry.classpath),
+            currentContentHash = { ClasspathFingerprint.contentHash(entry.classpath) },
+        )
+        when (decision) {
+            is StalenessDecision.Fresh -> {}
+            is StalenessDecision.NoOpRefresh -> {
+                entry.cheapStamp = decision.newCheapStamp
+                logInfo("subprocess: $modulePath output touched but bytecode unchanged — keeping worker")
+            }
+            is StalenessDecision.Recycle -> {
+                logInfo("subprocess: $modulePath bytecode changed since worker started — recycling worker to pick up new classes")
+                recycle(modulePath)
+                entry = try {
+                    clientFor(project, modulePath)
+                } catch (e: Throwable) {
+                    logError("subprocess render failed: could not restart worker for module=$modulePath", e)
+                    return null
+                }
+            }
         }
 
         // Resolve top-level composable FQNs to their file-facade class form (e.g.
@@ -208,7 +249,15 @@ object SubprocessRenderer {
             val client = SubprocessRendererClient(init, WorkerClasspathAssembler.assemble())
             client.start()
             log.info("subprocess: started worker for modulePath=$modulePath")
-            ClientEntry(client, 0)
+            // Capture the output fingerprint baseline NOW, before any later rebuild — see
+            // decideStaleness. contentHash must be the pre-rebuild snapshot to detect a change.
+            ClientEntry(
+                client = client,
+                renders = 0,
+                classpath = userCp,
+                cheapStamp = ClasspathFingerprint.cheapStamp(userCp),
+                contentHash = ClasspathFingerprint.contentHash(userCp),
+            )
         }
 
     private fun recycle(modulePath: String) {
