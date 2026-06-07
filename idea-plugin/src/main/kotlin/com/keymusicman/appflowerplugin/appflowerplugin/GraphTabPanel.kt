@@ -191,6 +191,11 @@ class GraphTabPanel(
             if (!composePanel.isShowing) return@invokeLater
             val imagePath = req.imagePath
             val menu = JBPopupMenu()
+            // The Compose canvas is a heavyweight AWT component (SkiaLayer). A lightweight
+            // popup paints on top but the canvas keeps swallowing mouse-motion events, so the
+            // items never get MOUSE_ENTERED and don't highlight on hover. Force a heavyweight
+            // popup window so it owns its own mouse events.
+            menu.isLightWeightPopupEnabled = false
             menu.add(JMenuItem("Copy").apply {
                 isEnabled = imagePath != null
                 addActionListener { imagePath?.let(::copyImageToClipboard) }
