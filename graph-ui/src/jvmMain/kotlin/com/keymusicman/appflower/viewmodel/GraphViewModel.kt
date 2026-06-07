@@ -9,6 +9,7 @@ import com.keymusicman.appflower.model.AppGraph
 import com.keymusicman.appflower.model.LayoutGraph
 import com.keymusicman.appflower.model.buildLayoutGraph
 import com.keymusicman.appflower.model.filterToView
+import com.keymusicman.appflower.model.getImageDimension
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +53,12 @@ class GraphViewModel {
         const val ZOOM_MIN = 0.1f
         const val ZOOM_MAX = 3.0f
         private const val DEFAULT_ZOOM = 0.5f
+
+        /** Scale applied to image dimensions when sizing nodes. Must match every buildLayoutGraph call. */
+        private const val LAYOUT_SCALE = 0.5f
+
+        /** Node size fallback (in image pixels) when a render produced no readable image. Mirrors the layout builder. */
+        private val FALLBACK_IMAGE_DIMENSION = 540 to 360
 
         val BACKGROUND_PRESETS = listOf(
             Color(0xFF3C3F41.toInt()),  // dark gray (default, matches IntelliJ Dark)
@@ -107,7 +114,7 @@ class GraphViewModel {
         if (projectPath != null) loadViews(projectPath)
         scope.launch {
             val startedAtNanos = System.nanoTime()
-            val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = .5f)
+            val layoutGraph = buildLayoutGraph(appGraph, projectPath, scale = LAYOUT_SCALE)
             layoutGraphState.value = layoutGraph
             displayLayoutGraphState.value = layoutGraph
             selectedStateByNodeId.value = layoutGraph.nodes.values.associate { node ->
@@ -120,7 +127,7 @@ class GraphViewModel {
 
     fun silentRefreshLayout(appGraph: AppGraph, projectPath: String) {
         scope.launch {
-            val layout = buildLayoutGraph(appGraph, projectPath, scale = .5f)
+            val layout = buildLayoutGraph(appGraph, projectPath, scale = LAYOUT_SCALE)
             layoutGraphState.value = layout
             if (activeViewId.value == null) {
                 displayLayoutGraphState.value = layout
@@ -144,16 +151,34 @@ class GraphViewModel {
 
     /**
      * Replaces a single node's image-state list in place (both the full and the displayed layout),
-     * preserving every node position so the canvas does not jump. Clamps the selected state to the
-     * new range and bumps the image revision so the currently shown image reloads from disk. Used
-     * after a targeted node re-render that may have added or removed states.
+     * preserving each node's center so the canvas does not jump. Re-derives the node's width/height
+     * from the freshly rendered image: a re-render can change the image dimensions, and nodes are
+     * sized as imageDimension * [LAYOUT_SCALE]. Without this the new image is stretched (FillBounds)
+     * into the node's old box, so a resized preview kept rendering at the old size. Clamps the
+     * selected state to the new range and bumps the image revision so the shown image reloads from
+     * disk. Used after a targeted node re-render that may have added, removed, or resized states.
      */
     fun updateNodeImages(nodeId: String, imagePaths: List<String>) {
+        val existing = layoutGraphState.value?.nodes?.get(nodeId)
+            ?: displayLayoutGraphState.value?.nodes?.get(nodeId)
+        val clampedState = (existing?.selectedState ?: 0)
+            .coerceIn(0, (imagePaths.size - 1).coerceAtLeast(0))
+
+        // Size from the same image the layout builder would pick: the selected (clamped) state.
+        val sizingPath = imagePaths.getOrNull(clampedState) ?: imagePaths.firstOrNull()
+        val (imageWidth, imageHeight) = sizingPath?.let { getImageDimension(it) } ?: FALLBACK_IMAGE_DIMENSION
+        val width = imageWidth * LAYOUT_SCALE
+        val height = imageHeight * LAYOUT_SCALE
+
         fun updateGraph(graph: LayoutGraph): LayoutGraph {
             val node = graph.nodes[nodeId] ?: return graph
-            val clampedState = node.selectedState.coerceIn(0, (imagePaths.size - 1).coerceAtLeast(0))
             return graph.copy(
-                nodes = graph.nodes + (nodeId to node.copy(imagePaths = imagePaths, selectedState = clampedState))
+                nodes = graph.nodes + (nodeId to node.copy(
+                    imagePaths = imagePaths,
+                    selectedState = clampedState,
+                    width = width,
+                    height = height,
+                ))
             )
         }
         layoutGraphState.value = layoutGraphState.value?.let { updateGraph(it) }
@@ -214,7 +239,7 @@ class GraphViewModel {
             scope.launch {
                 val filteredAppGraph = appGraph.filterToView(view.nodeIds)
                 val filteredLayout =
-                    buildLayoutGraph(filteredAppGraph, currentProjectPath, scale = .5f)
+                    buildLayoutGraph(filteredAppGraph, currentProjectPath, scale = LAYOUT_SCALE)
                 displayLayoutGraphState.value = filteredLayout
                 centerOnEntryNode(filteredLayout)
             }
