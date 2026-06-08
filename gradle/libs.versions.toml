@@ -1,14 +1,12 @@
 [versions]
 androidx-lifecycle = "2.9.6"
 ksp = "2.3.2"
-composeHotReload = "1.0.0"
 composeMultiplatform = "1.11.0-beta03"
 intellijPlatform = "2.10.5"
 junit = "4.13.2"
 kermit = "2.0.4"
 google-cloud-storage = "2.58.1"
 kotlin = "2.3.0"
-kotlinx-datetime = "0.7.1"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.7.1"
 ktor = "2.3.12"
@@ -24,12 +22,9 @@ compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.re
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
-compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
-compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 logging-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
-kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 ktor-server-core = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
 ktor-server-netty = { module = "io.ktor:ktor-server-netty-jvm", version.ref = "ktor" }
@@ -40,7 +35,6 @@ google-cloud-storage = { module = "com.google.cloud:google-cloud-storage", versi
 ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 
 [plugins]
-composeHotReload = { id = "org.jetbrains.compose.hot-reload", version.ref = "composeHotReload" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

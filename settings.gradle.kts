@@ -35,7 +35,6 @@ plugins {
 
 include(":graph-annotations")
 include(":graph-processor")
-include(":composeApp")
 include(":graph-renderer")
 include(":graph-ui")
 include(":idea-plugin")

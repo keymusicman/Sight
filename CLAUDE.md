@@ -5,9 +5,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run desktop app
-./gradlew :composeApp:run
-
 # Run web server (http://localhost:8080)
 ./gradlew :web-server:run
 
@@ -22,21 +19,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Run tests for a specific module
 ./gradlew :graph-renderer:test
-./gradlew :composeApp:jvmTest
+./gradlew :graph-processor:test
 
 # Build IntelliJ plugin
 ./gradlew :idea-plugin:buildPlugin
+
+# Generate graph fragment from sample Android project
+cd sample-android && ./gradlew :app:kspDebugKotlin
 ```
 
 ## Module Architecture
 
-The project is a 5-module Kotlin Multiplatform (KMP) monorepo. All modules target JVM only.
+The project is a multi-module Kotlin monorepo. All modules target JVM only.
 
 ```
-graph-renderer  →  graph-ui  →  composeApp (desktop)
-     ↓                              ↓
- web-server               idea-plugin (IntelliJ plugin)
+graph-annotations  ←  (consumer Android project, annotates @Composable screens)
+graph-processor    ←  (KSP processor, generates app-graph-fragment.json)
+                                    ↓
+                         app-graph-fragment.json
+                                    ↓
+graph-renderer  →  graph-ui  →  idea-plugin (IntelliJ plugin)
+     ↓
+ web-server
 ```
+
+### graph-annotations
+Pure JVM library. Defines the three source-retention annotations consumer Android projects apply to their screens:
+- `@AppFlowGraph` — marks the graph entry object; declares the entry subgraph
+- `@AppFlowScreen` — marks a `@Preview` composable as a screen node (subgraph, id, isRoot)
+- `@AppFlowTransition` — declares a navigation edge (from/to screen+subgraph, trigger)
+
+### graph-processor
+KSP symbol processor. Scans for `@AppFlowGraph`, `@AppFlowScreen`, `@AppFlowTransition` and writes `build/graph/app-graph-fragment.json`. Consumer projects pass `projectRoot` and `moduleName` as KSP options.
 
 ### graph-renderer
 Pure JVM library — no UI dependencies. Owns:
@@ -50,9 +64,6 @@ Output: `LayoutGraph` — immutable, render-ready graph with absolute node posit
 ### graph-ui
 Compose Multiplatform visualization component. Renders `LayoutGraph` to interactive Compose Canvas with pan/zoom, hover highlighting, and per-node image state carousel. Main entry: `GraphVisualizer.kt` + `GraphViewModel.kt`.
 
-### composeApp
-Desktop application: split-view (sidebar controls + canvas). Adds export features (PNG, draw.io XML, ZIP for web upload) on top of `graph-ui`. Entry point: `jvmMain/main.kt`.
-
 ### web-server
 Ktor HTTP server on port 8080. Accepts ZIP uploads (`app-graph.json` + `screenshots/`), builds layout, stores on Google Cloud Storage, and serves a browser UI. GCS bucket set via `GCS_BUCKET` env var.
 
@@ -62,6 +73,9 @@ IntelliJ IDEA plugin (targets 2025.1+). Registers a tool window, scans Gradle mo
 **Composable rendering**: see [`idea-plugin/COMPOSABLE_RENDERING.md`](idea-plugin/COMPOSABLE_RENDERING.md) for the rules governing how `ComposableRenderer` renders `@Composable` functions via Layoutlib. These rules are hard constraints derived from debugging — violating them causes blank images, inflate failures, or `ClassNotFoundException`.
 
 **Debugging the subprocess renderer**: see [`idea-plugin/LOCAL_REPRO.md`](idea-plugin/LOCAL_REPRO.md) for the local repro harness (`idea-plugin/local-repro/run.sh`) that drives the deployed `render-worker` shadow jar from a shell (~3 s/render, no IDE) — the fast loop for render-path changes (fonts, system UI, sizing, blank renders).
+
+### sample-android
+Standalone Gradle project (`sample-android/`). Demonstrates annotation usage — 4 screens across 3 subgraphs, 3 preview states each. Uses `includeBuild("..")` composite build to depend on `:graph-annotations` and `:graph-processor` directly from source.
 
 ## Key Architectural Decisions
 
@@ -75,11 +89,12 @@ IntelliJ IDEA plugin (targets 2025.1+). Registers a tool window, scans Gradle mo
 
 | File | Purpose |
 |------|---------|
+| `graph-annotations/src/main/kotlin/.../AppGraph.kt` | `@AppFlowGraph`, `@AppFlowScreen`, `@AppFlowTransition` annotations |
+| `graph-processor/src/main/kotlin/.../GraphSymbolProcessor.kt` | KSP processor — scans annotations, writes fragment JSON |
 | `graph-renderer/src/main/kotlin/.../model/NavGraph.kt` | Serializable data models (AppGraph v2.0) |
 | `graph-renderer/src/main/kotlin/.../model/LayoutGraphBuilder.kt` | Layout algorithm |
 | `graph-ui/src/jvmMain/kotlin/.../ui/GraphVisualizer.kt` | Main Compose canvas component |
 | `graph-ui/src/jvmMain/kotlin/.../viewmodel/GraphViewModel.kt` | Graph state management |
-| `composeApp/src/jvmMain/kotlin/.../App.kt` | Desktop app root composable |
 | `web-server/src/main/kotlin/.../web/WebServer.kt` | Ktor routes + upload handling |
 | `idea-plugin/src/main/kotlin/.../FlowToolWindowFactory.kt` | IntelliJ tool window entry point |
 | `gradle/libs.versions.toml` | Version catalog for all dependencies |
@@ -87,8 +102,9 @@ IntelliJ IDEA plugin (targets 2025.1+). Registers a tool window, scans Gradle mo
 ## Dependency Versions
 
 - Kotlin: 2.3.0
-- Compose Multiplatform: 1.10.0
+- Compose Multiplatform: 1.11.0-beta03
 - Ktor: 2.3.12
 - IntelliJ Platform plugin: 2.10.5
 - kotlinx-serialization: 1.7.1
 - kotlinx-coroutines: 1.10.2
+- KSP: 2.3.2
