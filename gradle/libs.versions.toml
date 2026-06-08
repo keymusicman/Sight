@@ -1,5 +1,6 @@
 [versions]
 androidx-lifecycle = "2.9.6"
+ksp = "2.3.2"
 composeHotReload = "1.0.0"
 composeMultiplatform = "1.11.0-beta03"
 intellijPlatform = "2.10.5"
@@ -36,6 +37,7 @@ ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negoti
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json-jvm", version.ref = "ktor" }
 ktor-server-cors = { module = "io.ktor:ktor-server-cors-jvm", version.ref = "ktor" }
 google-cloud-storage = { module = "com.google.cloud:google-cloud-storage", version.ref = "google-cloud-storage" }
+ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 
 [plugins]
 composeHotReload = { id = "org.jetbrains.compose.hot-reload", version.ref = "composeHotReload" }
@@ -45,3 +47,4 @@ kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 intellijPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "intellijPlatform" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

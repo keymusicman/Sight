@@ -1,6 +1,3 @@
-rootProject.name = "AppFlower"
-enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
-
 pluginManagement {
     repositories {
         google {
@@ -16,7 +13,7 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google {
             mavenContent {
@@ -29,16 +26,8 @@ dependencyResolutionManagement {
     }
 }
 
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
+// Expose :graph-annotations and :graph-processor from the AppFlower root build
+includeBuild("..")
 
-include(":graph-annotations")
-include(":graph-processor")
-include(":composeApp")
-include(":graph-renderer")
-include(":graph-ui")
-include(":idea-plugin")
-include(":web-server")
-include(":ipc")
-include(":render-worker")
+rootProject.name = "sample-android"
+include(":app")
