@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
-group = "com.keymusicman.sight"
+group = "io.github.keymusicman.sight"
 version = "0.0.1-SNAPSHOT"
 
 repositories {
@@ -40,7 +40,7 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "AI-251"
+            sinceBuild = "251"
         }
         changeNotes = """
             Initial version
@@ -72,7 +72,7 @@ val generateOtelConfig by tasks.registering {
         dir.mkdirs()
         dir.resolve("OtelConfig.kt").writeText(
             """
-            package com.keymusicman.sight.plugin
+            package io.github.keymusicman.sight.plugin
             internal object OtelConfig {
                 const val OTEL_ENABLED     = ${otelEndpoint != null}
                 const val OTLP_ENDPOINT    = "${otelEndpoint ?: ""}"

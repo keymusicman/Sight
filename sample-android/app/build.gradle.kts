@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.keymusicman.sample"
+    namespace = "io.github.keymusicman.sample"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.keymusicman.sample"
+        applicationId = "io.github.keymusicman.sample"
         minSdk = 28
         targetSdk = 36
         versionCode = 1

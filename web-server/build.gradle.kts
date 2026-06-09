@@ -4,7 +4,7 @@ plugins {
     application
 }
 
-group = "com.keymusicman.sight"
+group = "io.github.keymusicman.sight"
 version = "1.0.0"
 
 kotlin {
@@ -12,7 +12,7 @@ kotlin {
 }
 
 application {
-    mainClass = "com.keymusicman.sight.web.WebServerKt"
+    mainClass = "io.github.keymusicman.sight.web.WebServerKt"
 }
 
 dependencies {

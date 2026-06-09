@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
-group = "com.keymusicman.sight"
+group = "io.github.keymusicman.sight"
 version = "1.0.0"
 
 kotlin {

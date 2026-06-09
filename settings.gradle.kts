@@ -1,4 +1,13 @@
 rootProject.name = "Sight"
+
+// Inject local.properties into Gradle project properties so providers.gradleProperty() resolves them
+file("local.properties").takeIf { it.exists() }?.also { f ->
+    val props = java.util.Properties()
+    f.inputStream().use(props::load)
+    props.forEach { key, value ->
+        gradle.startParameter.projectProperties[key.toString()] = value.toString()
+    }
+}
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

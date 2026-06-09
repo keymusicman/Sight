@@ -1,14 +1,14 @@
 <!-- Plugin Configuration File: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <!-- Unique identifier of the plugin. It should be FQN, cannot be changed between the plugin versions. -->
-    <id>com.keymusicman.sight.SightPlugin</id>
+    <id>io.github.keymusicman.sight.SightPlugin</id>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
-    <name>SightPlugin</name>
+    <name>Sight</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor url="https://github.com/keymusicman">keymusicman</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
@@ -25,22 +25,22 @@
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <applicationListeners>
-        <listener class="com.keymusicman.sight.plugin.PluginUnloadListener"
+        <listener class="io.github.keymusicman.sight.plugin.PluginUnloadListener"
                   topic="com.intellij.ide.plugins.DynamicPluginListener"/>
     </applicationListeners>
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="Flow Preview"
-                    factoryClass="com.keymusicman.sight.plugin.FlowToolWindowFactory"
+                    factoryClass="io.github.keymusicman.sight.plugin.FlowToolWindowFactory"
                     anchor="bottom"
                     icon="AllIcons.Toolwindows.ToolWindowPalette"
                     canCloseContents="true"/>
-        <projectService serviceImplementation="com.keymusicman.sight.plugin.PreviewConfigService"/>
-        <applicationService serviceImplementation="com.keymusicman.sight.plugin.PluginSettingsService"/>
-        <applicationService serviceImplementation="com.keymusicman.sight.plugin.TelemetryService"/>
+        <projectService serviceImplementation="io.github.keymusicman.sight.plugin.PreviewConfigService"/>
+        <applicationService serviceImplementation="io.github.keymusicman.sight.plugin.PluginSettingsService"/>
+        <applicationService serviceImplementation="io.github.keymusicman.sight.plugin.TelemetryService"/>
         <applicationConfigurable parentId="tools"
-                                 instance="com.keymusicman.sight.plugin.PluginSettingsConfigurable"
-                                 id="com.keymusicman.sight.settings"
+                                 instance="io.github.keymusicman.sight.plugin.PluginSettingsConfigurable"
+                                 id="io.github.keymusicman.sight.settings"
                                  displayName="Sight"/>
     </extensions>
 </idea-plugin>

@@ -59,7 +59,7 @@ dependencies {
 
 tasks.jar {
     manifest {
-        attributes["Main-Class"] = "com.keymusicman.sight.worker.RenderWorkerMainKt"
+        attributes["Main-Class"] = "io.github.keymusicman.sight.worker.RenderWorkerMainKt"
     }
 }
 
@@ -68,6 +68,6 @@ tasks.shadowJar {
     archiveClassifier.set("all")
     mergeServiceFiles()
     manifest {
-        attributes["Main-Class"] = "com.keymusicman.sight.worker.RenderWorkerMainKt"
+        attributes["Main-Class"] = "io.github.keymusicman.sight.worker.RenderWorkerMainKt"
     }
 }

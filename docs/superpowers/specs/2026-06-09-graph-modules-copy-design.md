@@ -9,7 +9,7 @@ Bring the KSP annotation library from the private Android repo into Sight so it 
 ## Scope
 
 - Copy `:graph-annotations` and `:graph-processor` into Sight as first-class subprojects.
-- Renames: package to `com.keymusicman.sight`. Annotation class names (`SightGraph`, `SightScreen`, `SightTransition`) unchanged (Sight rename is a separate step).
+- Renames: package to `io.github.keymusicman.sight`. Annotation class names (`SightGraph`, `SightScreen`, `SightTransition`) unchanged (Sight rename is a separate step).
 - Add `sample-android/` as a standalone nested Gradle project with a minimal Android app.
 - No changes to existing Sight modules.
 
@@ -23,7 +23,7 @@ Two new subprojects added at root level in `settings.gradle.kts`:
 ```
 
 Both modules:
-- `group = "com.keymusicman"`
+- `group = "io.github.keymusicman"`
 - `version = "0.1.0"`
 
 `gradle/libs.versions.toml` additions:
@@ -33,7 +33,7 @@ Both modules:
 
 ## graph-annotations source
 
-Package `com.keymusicman.sight`. Three files copied verbatim except for package declaration:
+Package `io.github.keymusicman.sight`. Three files copied verbatim except for package declaration:
 
 - `AppGraph.kt` — `@SightGraph(name, entrySubgraph, dropUnconnected)`
 - `SightScreen.kt` — `@SightScreen(subgraph, id, isRoot)`, source retention, targets FUNCTION, repeatable
@@ -41,9 +41,9 @@ Package `com.keymusicman.sight`. Three files copied verbatim except for package 
 
 ## graph-processor source
 
-Package `com.keymusicman.sight.processor`. Files copied verbatim except:
+Package `io.github.keymusicman.sight.processor`. Files copied verbatim except:
 - Package declarations updated
-- Annotation FQNs in `getSymbolsWithAnnotation(...)` calls updated to `com.keymusicman.sight.*`
+- Annotation FQNs in `getSymbolsWithAnnotation(...)` calls updated to `io.github.keymusicman.sight.*`
 - `META-INF/services/` provider registration file updated to new FQN
 
 Existing unit test (`FragmentJsonTest`) copied unchanged (tests `buildFragmentJson` directly, no FQN strings).
@@ -56,14 +56,14 @@ Standalone Gradle project at `sample-android/`. Has its own `settings.gradle.kts
 
 `sample-android/settings.gradle.kts`:
 ```kotlin
-includeBuild("..")  // exposes com.keymusicman:graph-annotations, com.keymusicman:graph-processor
+includeBuild("..")  // exposes io.github.keymusicman:graph-annotations, io.github.keymusicman:graph-processor
 include(":app")
 ```
 
 `sample-android/app/build.gradle.kts` dependencies:
 ```kotlin
-implementation("com.keymusicman:graph-annotations")
-ksp("com.keymusicman:graph-processor")
+implementation("io.github.keymusicman:graph-annotations")
+ksp("io.github.keymusicman:graph-processor")
 ```
 
 KSP options:
