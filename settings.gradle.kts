@@ -5,7 +5,7 @@ file("local.properties").takeIf { it.exists() }?.also { f ->
     val props = java.util.Properties()
     f.inputStream().use(props::load)
     props.forEach { key, value ->
-        gradle.startParameter.projectProperties[key.toString()] = value.toString()
+        System.setProperty("org.gradle.project.${key}", value.toString())
     }
 }
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
@@ -43,7 +43,10 @@ plugins {
 }
 
 include(":graph-annotations")
+project(":graph-annotations").projectDir = file("android/graph-annotations")
+
 include(":graph-processor")
+project(":graph-processor").projectDir = file("android/graph-processor")
 include(":graph-renderer")
 include(":graph-ui")
 include(":idea-plugin")
