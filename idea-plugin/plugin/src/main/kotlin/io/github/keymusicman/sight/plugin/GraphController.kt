@@ -291,6 +291,6 @@ class GraphController(
     override fun dispose() { disposed = true }
 
     companion object {
-        val TAB_KEY: Key<GraphTabPanel> = Key.create("appflower.graphTab")
+        val TAB_KEY: Key<GraphTabPanel> = Key.create("sight.graphTab")
     }
 }

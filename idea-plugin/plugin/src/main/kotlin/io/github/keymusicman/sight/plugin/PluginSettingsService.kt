@@ -7,7 +7,7 @@ import com.intellij.openapi.components.Storage
 
 @State(
     name = "SightPluginSettings",
-    storages = [Storage("appflower-plugin-settings.xml")]
+    storages = [Storage("sight-plugin-settings.xml")]
 )
 class PluginSettingsService : PersistentStateComponent<PluginSettingsService.State> {
 

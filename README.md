@@ -13,7 +13,7 @@ flowchart LR
         json["app-graph.json\nbuild/graph/"]
     end
 
-    subgraph appflower["Sight (idea-plugin)"]
+    subgraph sight["Sight (idea-plugin)"]
         trigger["exportGraph\nGradle task"]
         renderer["ComposableRenderer\n(Layoutlib)"]
         pngs["build/appflower-previews/\n*.png"]

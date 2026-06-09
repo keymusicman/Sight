@@ -262,7 +262,7 @@ class GraphViewModel {
     }
 
     private fun viewsFile(projectPath: String) =
-        java.io.File(projectPath, ".appflower/views.json")
+        java.io.File(projectPath, ".sight/views.json")
 
     private fun saveViews() {
         val path = currentProjectPath ?: return

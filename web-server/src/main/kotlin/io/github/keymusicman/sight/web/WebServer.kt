@@ -63,7 +63,7 @@ fun Application.module() {
         }
 
         post("/api/upload-graph") {
-            val tempDir = Files.createTempDirectory("appflower-upload-")
+            val tempDir = Files.createTempDirectory("sight-upload-")
             var graphName: String? = null
             var archiveSeen = false
             var extractionSummary: ZipExtractionSummary? = null
@@ -221,7 +221,7 @@ fun Application.module() {
                 return@get
             }
 
-            val tempDir = Files.createTempDirectory("appflower-layout-backfill-")
+            val tempDir = Files.createTempDirectory("sight-layout-backfill-")
             try {
                 val downloaded = runCatching { storage.downloadGraphToDirectory(graphId, tempDir) }.getOrElse { e ->
                     call.respond(

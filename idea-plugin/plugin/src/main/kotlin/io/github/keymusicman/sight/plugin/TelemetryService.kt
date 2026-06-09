@@ -60,7 +60,7 @@ class TelemetryService : Disposable {
                 )
                 .setResource(
                     Resource.create(
-                        Attributes.of(AttributeKey.stringKey("service.name"), "appflower-plugin")
+                        Attributes.of(AttributeKey.stringKey("service.name"), "sight-plugin")
                     )
                 )
                 .build()
@@ -70,9 +70,9 @@ class TelemetryService : Disposable {
                 .build()
             sdk = sdkInstance
 
-            val meter = sdkInstance.getMeter("appflower")
+            val meter = sdkInstance.getMeter("sight")
 
-            phaseHistogram = meter.histogramBuilder("appflower.render.phase.ms")
+            phaseHistogram = meter.histogramBuilder("sight.render.phase.ms")
                 .setDescription("Per-render phase duration in milliseconds")
                 .setUnit("ms")
                 .setExplicitBucketBoundariesAdvice(
@@ -80,27 +80,27 @@ class TelemetryService : Disposable {
                 )
                 .build()
 
-            renderCounter = meter.counterBuilder("appflower.render.count")
+            renderCounter = meter.counterBuilder("sight.render.count")
                 .setDescription("Total render invocations by outcome")
                 .build()
 
-            heapUsedGauge = meter.gaugeBuilder("appflower.jvm.heap.used.bytes")
+            heapUsedGauge = meter.gaugeBuilder("sight.jvm.heap.used.bytes")
                 .ofLongs()
                 .setDescription("JVM heap used at last render")
                 .setUnit("bytes")
                 .buildWithCallback { obs -> obs.record(lastHeapUsed.get()) }
 
-            heapDeltaGauge = meter.gaugeBuilder("appflower.jvm.heap.delta.bytes")
+            heapDeltaGauge = meter.gaugeBuilder("sight.jvm.heap.delta.bytes")
                 .ofLongs()
                 .setDescription("JVM heap delta (after minus before) at last render")
                 .setUnit("bytes")
                 .buildWithCallback { obs -> obs.record(lastHeapDelta.get()) }
 
-            gcCountCounter = meter.counterBuilder("appflower.gc.collection.count")
+            gcCountCounter = meter.counterBuilder("sight.gc.collection.count")
                 .setDescription("GC collections triggered during renders")
                 .build()
 
-            gcTimeCounter = meter.counterBuilder("appflower.gc.collection.ms")
+            gcTimeCounter = meter.counterBuilder("sight.gc.collection.ms")
                 .setDescription("GC collection time during renders")
                 .setUnit("ms")
                 .build()

@@ -11,9 +11,9 @@ dependencies {
 
     // Layoutlib + supporting APIs are bundled with Android Studio and are provided
     // at runtime via the classpath the plugin assembles. We compile against them.
-    // Path may differ per OS; gradle property `appflower.androidStudioPath` can override.
+    // Path may differ per OS; gradle property `sight.androidStudioPath` can override.
     val asRoot = file(
-        providers.gradleProperty("appflower.androidStudioPath")
+        providers.gradleProperty("sight.androidStudioPath")
             .getOrElse("/Applications/Android Studio.app")
     )
     val designToolsLib = file("$asRoot/Contents/plugins/design-tools/lib")

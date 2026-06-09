@@ -7,7 +7,7 @@ import com.intellij.openapi.project.Project
 
 @State(
     name = "SightPreviewConfig",
-    storages = [Storage("appflower-preview-config.xml")]
+    storages = [Storage("sight-preview-config.xml")]
 )
 class PreviewConfigService : PersistentStateComponent<PreviewConfigService.State> {
 
