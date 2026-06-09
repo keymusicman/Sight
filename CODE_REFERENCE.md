@@ -1,4 +1,4 @@
-# AppFlower — Pipeline Reference
+# Sight — Pipeline Reference
 
 ## Pipeline Overview
 
@@ -6,12 +6,12 @@
 flowchart LR
     subgraph android["Android project"]
         preview["@Preview @Composable\nfunctions"]
-        annot["@AppFlowScreen\n@AppFlowTransition\nannotations"]
+        annot["@SightScreen\n@SightTransition\nannotations"]
         ksp["KSP processor\n(GraphSymbolProcessor)"]
         json["app-graph.json\nbuild/graph/"]
     end
 
-    subgraph appflower["AppFlower (idea-plugin)"]
+    subgraph appflower["Sight (idea-plugin)"]
         trigger["exportGraph\nGradle task"]
         renderer["ComposableRenderer\n(Layoutlib)"]
         pngs["build/appflower-previews/\n*.png"]
@@ -47,12 +47,12 @@ flowchart LR
 
 | Component | Location | Role |
 |-----------|----------|------|
-| `@AppFlowScreen` | `graph-annotations` library | Marks a `@Preview` function as a graph node |
-| `@AppFlowTransition` | `graph-annotations` library | Declares an edge to/from another screen or subgraph |
+| `@SightScreen` | `graph-annotations` library | Marks a `@Preview` function as a graph node |
+| `@SightTransition` | `graph-annotations` library | Declares an edge to/from another screen or subgraph |
 | `GraphSymbolProcessor` | `core/graph-processor` | KSP processor — resolves symbols, writes `app-graph.json` |
 | `exportGraph` task | `build-logic/GraphExportPlugin` | Triggers KSP, produces the JSON artifact |
 
-### AppFlower side
+### Sight side
 
 | Component | Module | Role |
 |-----------|--------|------|
@@ -69,7 +69,7 @@ flowchart LR
 
 ```kotlin
 @Retention(SOURCE) @Target(FUNCTION)
-annotation class AppFlowScreen(
+annotation class SightScreen(
     val subgraph: String,       // subgraph key this screen belongs to
     val id: String = "",        // within-subgraph ID; defaults to function simple name
     val isRoot: Boolean = false
@@ -77,7 +77,7 @@ annotation class AppFlowScreen(
 
 @Retention(SOURCE) @Target(FUNCTION)
 @Repeatable
-annotation class AppFlowTransition(
+annotation class SightTransition(
     val toScreen: String = "",      // ID of destination screen in same subgraph
     val toSubgraph: String = "",    // key of destination subgraph (cross-module)
     val fromScreen: String = "",    // ID of source screen in same subgraph
@@ -90,8 +90,8 @@ Usage — within a feature module:
 ```kotlin
 // feature-startup/.../StartupScreen.kt
 @Preview
-@AppFlowScreen(subgraph = "onboarding", isRoot = true)
-@AppFlowTransition(toScreen = "login", trigger = "continue")
+@SightScreen(subgraph = "onboarding", isRoot = true)
+@SightTransition(toScreen = "login", trigger = "continue")
 @Composable
 fun StartupPreview() = StartupScreen(StartupState.Default)
 ```
@@ -101,9 +101,9 @@ Usage — cross-module glue in the app module (which depends on all features):
 ```kotlin
 // app/.../MainScreen.kt
 @Preview
-@AppFlowScreen(subgraph = "main", isRoot = true)
-@AppFlowTransition(toSubgraph = "onboarding", trigger = "auth_required")
-@AppFlowTransition(toSubgraph = "send",       trigger = "send_tap")
+@SightScreen(subgraph = "main", isRoot = true)
+@SightTransition(toSubgraph = "onboarding", trigger = "auth_required")
+@SightTransition(toSubgraph = "send",       trigger = "send_tap")
 @Composable
 fun MainPreview() = MainScreen(...)
 ```

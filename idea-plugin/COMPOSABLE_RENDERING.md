@@ -572,7 +572,7 @@ in-process API.
 `PluginSettingsService.State.useSubprocessRenderer` (default `false` during
 rollout — opt-in). When `false`, `RendererRouter` calls
 `ComposableRenderer.render()` (in-process). When `true`, it calls
-`SubprocessRenderer.render()`. Toggle is exposed in Preferences → AppFlower.
+`SubprocessRenderer.render()`. Toggle is exposed in Preferences → Sight.
 
 ## Known limitations
 

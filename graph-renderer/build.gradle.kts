@@ -3,7 +3,7 @@ plugins {
     kotlin("plugin.serialization") version libs.versions.kotlin.get()
 }
 
-group = "com.keymusicman.appflower"
+group = "com.keymusicman.sight"
 version = "1.0.0"
 
 kotlin {

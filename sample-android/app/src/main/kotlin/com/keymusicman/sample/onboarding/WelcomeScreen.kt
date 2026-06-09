@@ -15,8 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.keymusicman.graph.AppFlowScreen
-import com.keymusicman.graph.AppFlowTransition
+import com.keymusicman.sight.SightScreen
+import com.keymusicman.sight.SightTransition
 
 @Composable
 fun WelcomeScreen(onGetStarted: () -> Unit = {}) {
@@ -33,8 +33,8 @@ fun WelcomeScreen(onGetStarted: () -> Unit = {}) {
     }
 }
 
-@AppFlowScreen(subgraph = "onboarding", id = "Welcome", isRoot = true)
-@AppFlowTransition(toSubgraph = "onboarding", toScreen = "Login", trigger = "cta_tap")
+@SightScreen(subgraph = "onboarding", id = "Welcome", isRoot = true)
+@SightTransition(toSubgraph = "onboarding", toScreen = "Login", trigger = "cta_tap")
 @Preview(name = "Default", showBackground = true)
 @Composable
 private fun WelcomePreview() {

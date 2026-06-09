@@ -45,12 +45,12 @@ graph-renderer  →  graph-ui  →  idea-plugin (IntelliJ plugin)
 
 ### graph-annotations
 Pure JVM library. Defines the three source-retention annotations consumer Android projects apply to their screens:
-- `@AppFlowGraph` — marks the graph entry object; declares the entry subgraph
-- `@AppFlowScreen` — marks a `@Preview` composable as a screen node (subgraph, id, isRoot)
-- `@AppFlowTransition` — declares a navigation edge (from/to screen+subgraph, trigger)
+- `@SightGraph` — marks the graph entry object; declares the entry subgraph
+- `@SightScreen` — marks a `@Preview` composable as a screen node (subgraph, id, isRoot)
+- `@SightTransition` — declares a navigation edge (from/to screen+subgraph, trigger)
 
 ### graph-processor
-KSP symbol processor. Scans for `@AppFlowGraph`, `@AppFlowScreen`, `@AppFlowTransition` and writes `build/graph/app-graph-fragment.json`. Consumer projects pass `projectRoot` and `moduleName` as KSP options.
+KSP symbol processor. Scans for `@SightGraph`, `@SightScreen`, `@SightTransition` and writes `build/graph/app-graph-fragment.json`. Consumer projects pass `projectRoot` and `moduleName` as KSP options.
 
 ### graph-renderer
 Pure JVM library — no UI dependencies. Owns:
@@ -89,7 +89,7 @@ Standalone Gradle project (`sample-android/`). Demonstrates annotation usage —
 
 | File | Purpose |
 |------|---------|
-| `graph-annotations/src/main/kotlin/.../AppGraph.kt` | `@AppFlowGraph`, `@AppFlowScreen`, `@AppFlowTransition` annotations |
+| `graph-annotations/src/main/kotlin/.../AppGraph.kt` | `@SightGraph`, `@SightScreen`, `@SightTransition` annotations |
 | `graph-processor/src/main/kotlin/.../GraphSymbolProcessor.kt` | KSP processor — scans annotations, writes fragment JSON |
 | `graph-renderer/src/main/kotlin/.../model/NavGraph.kt` | Serializable data models (AppGraph v2.0) |
 | `graph-renderer/src/main/kotlin/.../model/LayoutGraphBuilder.kt` | Layout algorithm |

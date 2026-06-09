@@ -18,7 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.keymusicman.graph.AppFlowScreen
+import com.keymusicman.sight.SightScreen
 
 @Composable
 fun LoginScreen(
@@ -49,7 +49,7 @@ fun LoginScreen(
     }
 }
 
-@AppFlowScreen(subgraph = "onboarding", id = "Login")
+@SightScreen(subgraph = "onboarding", id = "Login")
 @Preview(name = "Default", showBackground = true)
 @Composable
 private fun LoginPreview() {

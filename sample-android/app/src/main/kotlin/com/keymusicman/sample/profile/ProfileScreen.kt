@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.keymusicman.graph.AppFlowScreen
+import com.keymusicman.sight.SightScreen
 
 @Composable
 fun ProfileScreen(
@@ -49,7 +49,7 @@ fun ProfileScreen(
     }
 }
 
-@AppFlowScreen(subgraph = "profile", id = "Profile")
+@SightScreen(subgraph = "profile", id = "Profile")
 @Preview(name = "Default", showBackground = true)
 @Composable
 private fun ProfilePreview() {

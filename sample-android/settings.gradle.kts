@@ -26,7 +26,7 @@ dependencyResolutionManagement {
     }
 }
 
-// Expose :graph-annotations and :graph-processor from the AppFlower root build
+// Expose :graph-annotations and :graph-processor from the Sight root build
 includeBuild("..")
 
 rootProject.name = "sample-android"

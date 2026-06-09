@@ -4,14 +4,14 @@ Date: 2026-06-09
 
 ## Goal
 
-Bring the KSP annotation library from the private Android repo into AppFlower so it lives alongside the visualizer that consumes its output. Add a minimal sample Android project that demonstrates annotation usage and generates a real `app-graph-fragment.json`.
+Bring the KSP annotation library from the private Android repo into Sight so it lives alongside the visualizer that consumes its output. Add a minimal sample Android project that demonstrates annotation usage and generates a real `app-graph-fragment.json`.
 
 ## Scope
 
-- Copy `:graph-annotations` and `:graph-processor` into AppFlower as first-class subprojects.
-- Renames: package to `com.keymusicman.graph`. Annotation class names (`AppFlowGraph`, `AppFlowScreen`, `AppFlowTransition`) unchanged (Sight rename is a separate step).
+- Copy `:graph-annotations` and `:graph-processor` into Sight as first-class subprojects.
+- Renames: package to `com.keymusicman.sight`. Annotation class names (`SightGraph`, `SightScreen`, `SightTransition`) unchanged (Sight rename is a separate step).
 - Add `sample-android/` as a standalone nested Gradle project with a minimal Android app.
-- No changes to existing AppFlower modules.
+- No changes to existing Sight modules.
 
 ## Module placement
 
@@ -33,24 +33,24 @@ Both modules:
 
 ## graph-annotations source
 
-Package `com.keymusicman.graph`. Three files copied verbatim except for package declaration:
+Package `com.keymusicman.sight`. Three files copied verbatim except for package declaration:
 
-- `AppGraph.kt` — `@AppFlowGraph(name, entrySubgraph, dropUnconnected)`
-- `AppFlowScreen.kt` — `@AppFlowScreen(subgraph, id, isRoot)`, source retention, targets FUNCTION, repeatable
-- `AppFlowTransition.kt` — `@AppFlowTransition(toScreen, toSubgraph, fromScreen, fromSubgraph, trigger)`, source retention, targets FUNCTION + CLASS, repeatable
+- `AppGraph.kt` — `@SightGraph(name, entrySubgraph, dropUnconnected)`
+- `SightScreen.kt` — `@SightScreen(subgraph, id, isRoot)`, source retention, targets FUNCTION, repeatable
+- `SightTransition.kt` — `@SightTransition(toScreen, toSubgraph, fromScreen, fromSubgraph, trigger)`, source retention, targets FUNCTION + CLASS, repeatable
 
 ## graph-processor source
 
-Package `com.keymusicman.graph.processor`. Files copied verbatim except:
+Package `com.keymusicman.sight.processor`. Files copied verbatim except:
 - Package declarations updated
-- Annotation FQNs in `getSymbolsWithAnnotation(...)` calls updated to `com.keymusicman.graph.*`
+- Annotation FQNs in `getSymbolsWithAnnotation(...)` calls updated to `com.keymusicman.sight.*`
 - `META-INF/services/` provider registration file updated to new FQN
 
 Existing unit test (`FragmentJsonTest`) copied unchanged (tests `buildFragmentJson` directly, no FQN strings).
 
 ## sample-android project
 
-Standalone Gradle project at `sample-android/`. Has its own `settings.gradle.kts`, `build.gradle.kts`, and `gradle/libs.versions.toml`. Not included in AppFlower's root `settings.gradle.kts`.
+Standalone Gradle project at `sample-android/`. Has its own `settings.gradle.kts`, `build.gradle.kts`, and `gradle/libs.versions.toml`. Not included in Sight's root `settings.gradle.kts`.
 
 ### Composite build wiring
 
@@ -80,7 +80,7 @@ Running `./gradlew :app:kspDebugKotlin` from `sample-android/` writes `sample-an
 
 Minimal Android app — no real navigation, no uikit dependencies. A stub `MainActivity` with empty `setContent {}`.
 
-Screens are `@Preview`-only composables annotated with `@AppFlowScreen` + `@AppFlowTransition`. Each screen has 2–3 `@Preview` annotations covering distinct states (e.g. default, loading, error).
+Screens are `@Preview`-only composables annotated with `@SightScreen` + `@SightTransition`. Each screen has 2–3 `@Preview` annotations covering distinct states (e.g. default, loading, error).
 
 Subgraphs and screens:
 
@@ -91,12 +91,12 @@ Subgraphs and screens:
 | main        | Home          | true   | → profile/Profile (avatar_tap) |
 | profile     | Profile       | false  | ← (entered from main) |
 
-`AppGraph.kt` declares `@AppFlowGraph(entrySubgraph = "onboarding")` on an object, with any cross-subgraph wiring not expressible on the screen function itself.
+`AppGraph.kt` declares `@SightGraph(entrySubgraph = "onboarding")` on an object, with any cross-subgraph wiring not expressible on the screen function itself.
 
 ### sample-android gradle versions
 
 - AGP: 8.10.1 (latest stable)
-- Kotlin: 2.3.0 (matches AppFlower root)
+- Kotlin: 2.3.0 (matches Sight root)
 - KSP: 2.3.2 (matches graph-processor dependency)
 - Compose BOM: latest stable at time of implementation
 - `minSdk = 26`, `targetSdk = 35`, `compileSdk = 35`

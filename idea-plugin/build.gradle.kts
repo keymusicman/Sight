@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
-group = "com.keymusicman.appflowerplugin"
+group = "com.keymusicman.sight"
 version = "1.0.76-SNAPSHOT"
 
 repositories {
@@ -68,7 +68,7 @@ val generateOtelConfig by tasks.registering {
         dir.mkdirs()
         dir.resolve("OtelConfig.kt").writeText(
             """
-            package com.keymusicman.appflowerplugin.appflowerplugin
+            package com.keymusicman.sight.plugin
             internal object OtelConfig {
                 const val OTEL_ENABLED     = ${otelEndpoint != null}
                 const val OTLP_ENDPOINT    = "${otelEndpoint ?: ""}"
@@ -100,6 +100,6 @@ tasks {
 
     buildPlugin {
         dependsOn(copyWorkerFatJar)
-        archiveFileName.set("AppFlower.zip")
+        archiveFileName.set("Sight.zip")
     }
 }

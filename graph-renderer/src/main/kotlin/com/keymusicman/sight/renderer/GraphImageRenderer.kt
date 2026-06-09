@@ -1,0 +1,101 @@
+package com.keymusicman.sight.renderer
+
+import com.keymusicman.sight.model.AppGraph
+import com.keymusicman.sight.model.LayoutGraph
+import com.keymusicman.sight.model.buildLayoutGraph
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.awt.BasicStroke
+import java.awt.Color
+import java.awt.RenderingHints
+import java.awt.geom.CubicCurve2D
+import java.awt.geom.Line2D
+import java.awt.image.BufferedImage
+import java.io.File
+import javax.imageio.ImageIO
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
+
+/**
+ * Renders the full navigation graph to a [BufferedImage] using Java2D.
+ * No Compose or Skia dependency — works in both Desktop and IntelliJ plugin contexts.
+ * Internally flattens AppGraph and computes layout on Dispatchers.Default.
+ */
+suspend fun renderGraphToImage(appGraph: AppGraph, projectPath: String? = null): BufferedImage? =
+    withContext(Dispatchers.Default) {
+        renderLayoutGraph(buildLayoutGraph(appGraph, projectPath))
+    }
+
+/**
+ * Renders a pre-built [LayoutGraph] to a [BufferedImage]. Non-suspending — call from
+ * a background thread or inside a coroutine. Returns null if the graph has no nodes.
+ */
+fun renderLayoutGraph(layoutGraph: LayoutGraph): BufferedImage? {
+    if (layoutGraph.nodes.isEmpty()) return null
+
+    val loadedImages: Map<String, BufferedImage?> = layoutGraph.nodes.mapNotNull { (id, ln) ->
+        val selectedPath = ln.imagePaths.getOrNull(ln.selectedState) ?: ln.imagePaths.firstOrNull()
+        id to selectedPath?.let { loadBufferedImage(it) }
+    }.toMap()
+
+    val padding = 200f
+    val canvasWidth = (layoutGraph.nodes.values.maxOf { it.x + it.width / 2f } + padding)
+        .roundToInt().coerceAtLeast(1)
+    val canvasHeight = (layoutGraph.nodes.values.maxOf { it.y + it.height / 2f } + padding)
+        .roundToInt().coerceAtLeast(1)
+
+    val canvas = BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_INT_ARGB)
+    val g = canvas.createGraphics().apply {
+        setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+        color = Color(0x9e9e9e)
+        fillRect(0, 0, canvasWidth, canvasHeight)
+    }
+
+    g.color = Color(0x88, 0x88, 0x88, 0x66)
+    g.stroke = BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+    layoutGraph.edges.forEach { edge ->
+        val pts = edge.points
+        if (pts.size >= 4) {
+            g.draw(CubicCurve2D.Float(
+                pts[0].x, pts[0].y,
+                pts[1].x, pts[1].y,
+                pts[2].x, pts[2].y,
+                pts[3].x, pts[3].y
+            ))
+            val last = pts.last()
+            val prev = pts[pts.size - 2]
+            val angle = atan2(last.y - prev.y, last.x - prev.x)
+            val arrowSize = 9f
+            g.draw(Line2D.Float(last.x, last.y,
+                last.x - arrowSize * cos(angle - Math.PI / 6).toFloat(),
+                last.y - arrowSize * sin(angle - Math.PI / 6).toFloat()))
+            g.draw(Line2D.Float(last.x, last.y,
+                last.x - arrowSize * cos(angle + Math.PI / 6).toFloat(),
+                last.y - arrowSize * sin(angle + Math.PI / 6).toFloat()))
+        } else if (pts.size >= 2) {
+            for (i in 0 until pts.size - 1) {
+                g.draw(Line2D.Float(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y))
+            }
+        }
+    }
+
+    layoutGraph.nodes.values.forEach { ln ->
+        val img = loadedImages[ln.id] ?: return@forEach
+        val dstX = (ln.x - ln.width / 2f).roundToInt()
+        val dstY = (ln.y - ln.height / 2f).roundToInt()
+        g.drawImage(img, dstX, dstY, ln.width.roundToInt(), ln.height.roundToInt(), null)
+    }
+
+    g.dispose()
+    return canvas
+}
+
+private fun loadBufferedImage(path: String): BufferedImage? = try {
+    val file = File(path)
+    if (file.exists()) ImageIO.read(file) else null
+} catch (_: Exception) {
+    null
+}

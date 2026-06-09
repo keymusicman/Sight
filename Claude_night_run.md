@@ -49,7 +49,7 @@ layoutlib finally hard-fails).
   (also stops incremental skip from reading stale higher indices as valid). Unit-tested.
 
 **Caveat:** the worker behavior couldn't be reproduced in this session (needs a real Android
-module via the local-repro harness — the AppFlower repo has no preview-provider screens). The fix
+module via the local-repro harness — the Sight repo has no preview-provider screens). The fix
 is derived from the existing in-process design and is strictly safe (it can only *stop* an
 over-render). Worth a quick run-verify on the real project: render `AuthorizeBottomSheetGlobalPreview`
 and confirm 7 files, not 14.
@@ -125,7 +125,7 @@ the in-process path. Compiles.
 
 **Caveats / needs your eyes:**
 1. Couldn't run-verify (needs a dark-themed composable from the real app module + pixel check; the
-   AppFlower repo has none). Please render `SettingsContentPreview` with the UI-mode config set to
+   Sight repo has none). Please render `SettingsContentPreview` with the UI-mode config set to
    **Dark** and confirm it's now dark.
 2. This only helps when the **global** config is Dark. If the symptom is that *this one* preview
    should be dark while others are light (i.e. it relies on its own `@Preview(uiMode=NIGHT_YES)`),

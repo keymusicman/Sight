@@ -6,7 +6,7 @@ Visualize your Android app's navigation graph from annotations on your `@Preview
 
 | Module | Description |
 |--------|-------------|
-| `graph-annotations` | `@AppFlowGraph`, `@AppFlowScreen`, `@AppFlowTransition` — apply these in your Android project |
+| `graph-annotations` | `@SightGraph`, `@SightScreen`, `@SightTransition` — apply these in your Android project |
 | `graph-processor` | KSP processor that reads the annotations and writes `build/graph/app-graph-fragment.json` |
 | `graph-renderer` | Layout algorithm + data models. Pure JVM, no UI dependency |
 | `graph-ui` | Interactive Compose canvas — pan/zoom, hover highlighting, screenshot carousel |
