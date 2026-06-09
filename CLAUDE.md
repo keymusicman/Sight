@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew :idea-plugin:buildPlugin
 
 # Generate graph fragment from sample Android project
-cd sample-android && ./gradlew :app:kspDebugKotlin
+cd samples/android && ./gradlew :app:kspDebugKotlin
 ```
 
 ## Module Architecture
@@ -70,12 +70,12 @@ Ktor HTTP server on port 8080. Accepts ZIP uploads (`app-graph.json` + `screensh
 ### idea-plugin
 IntelliJ IDEA plugin (targets 2025.1+). Registers a tool window, scans Gradle modules for the `exportGraph` task, and embeds the `graph-ui` Compose component using IntelliJ's bundled Compose UI.
 
-**Composable rendering**: see [`idea-plugin/COMPOSABLE_RENDERING.md`](idea-plugin/COMPOSABLE_RENDERING.md) for the rules governing how `ComposableRenderer` renders `@Composable` functions via Layoutlib. These rules are hard constraints derived from debugging — violating them causes blank images, inflate failures, or `ClassNotFoundException`.
+**Composable rendering**: see [`idea-plugin/plugin/COMPOSABLE_RENDERING.md`](idea-plugin/plugin/COMPOSABLE_RENDERING.md) for the rules governing how `ComposableRenderer` renders `@Composable` functions via Layoutlib. These rules are hard constraints derived from debugging — violating them causes blank images, inflate failures, or `ClassNotFoundException`.
 
-**Debugging the subprocess renderer**: see [`idea-plugin/LOCAL_REPRO.md`](idea-plugin/LOCAL_REPRO.md) for the local repro harness (`idea-plugin/local-repro/run.sh`) that drives the deployed `render-worker` shadow jar from a shell (~3 s/render, no IDE) — the fast loop for render-path changes (fonts, system UI, sizing, blank renders).
+**Debugging the subprocess renderer**: see [`idea-plugin/plugin/LOCAL_REPRO.md`](idea-plugin/plugin/LOCAL_REPRO.md) for the local repro harness (`idea-plugin/plugin/local-repro/run.sh`) that drives the deployed `render-worker` shadow jar from a shell (~3 s/render, no IDE) — the fast loop for render-path changes (fonts, system UI, sizing, blank renders).
 
-### sample-android
-Standalone Gradle project (`sample-android/`). Demonstrates annotation usage — 4 screens across 3 subgraphs, 3 preview states each. Uses `includeBuild("..")` composite build to depend on `:graph-annotations` and `:graph-processor` directly from source.
+### samples/android
+Standalone Gradle project (`samples/android/`). Demonstrates annotation usage — 4 screens across 3 subgraphs, 3 preview states each. Uses `includeBuild("../..") ` composite build to depend on `:graph-annotations` and `:graph-processor` directly from source.
 
 ## Key Architectural Decisions
 
@@ -89,14 +89,14 @@ Standalone Gradle project (`sample-android/`). Demonstrates annotation usage —
 
 | File | Purpose |
 |------|---------|
-| `graph-annotations/src/main/kotlin/.../AppGraph.kt` | `@SightGraph`, `@SightScreen`, `@SightTransition` annotations |
-| `graph-processor/src/main/kotlin/.../GraphSymbolProcessor.kt` | KSP processor — scans annotations, writes fragment JSON |
-| `graph-renderer/src/main/kotlin/.../model/NavGraph.kt` | Serializable data models (AppGraph v2.0) |
-| `graph-renderer/src/main/kotlin/.../model/LayoutGraphBuilder.kt` | Layout algorithm |
-| `graph-ui/src/jvmMain/kotlin/.../ui/GraphVisualizer.kt` | Main Compose canvas component |
-| `graph-ui/src/jvmMain/kotlin/.../viewmodel/GraphViewModel.kt` | Graph state management |
+| `android/graph-annotations/src/main/kotlin/.../AppGraph.kt` | `@SightGraph`, `@SightScreen`, `@SightTransition` annotations |
+| `android/graph-processor/src/main/kotlin/.../GraphSymbolProcessor.kt` | KSP processor — scans annotations, writes fragment JSON |
+| `shared/graph-renderer/src/main/kotlin/.../model/NavGraph.kt` | Serializable data models (AppGraph v2.0) |
+| `shared/graph-renderer/src/main/kotlin/.../model/LayoutGraphBuilder.kt` | Layout algorithm |
+| `shared/graph-ui/src/jvmMain/kotlin/.../ui/GraphVisualizer.kt` | Main Compose canvas component |
+| `shared/graph-ui/src/jvmMain/kotlin/.../viewmodel/GraphViewModel.kt` | Graph state management |
 | `web-server/src/main/kotlin/.../web/WebServer.kt` | Ktor routes + upload handling |
-| `idea-plugin/src/main/kotlin/.../FlowToolWindowFactory.kt` | IntelliJ tool window entry point |
+| `idea-plugin/plugin/src/main/kotlin/.../FlowToolWindowFactory.kt` | IntelliJ tool window entry point |
 | `gradle/libs.versions.toml` | Version catalog for all dependencies |
 
 ## Dependency Versions
