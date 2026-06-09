@@ -53,6 +53,12 @@ project(":graph-renderer").projectDir = file("shared/graph-renderer")
 include(":graph-ui")
 project(":graph-ui").projectDir = file("shared/graph-ui")
 include(":idea-plugin")
+project(":idea-plugin").projectDir = file("idea-plugin/plugin")
+
 include(":web-server")
+
 include(":ipc")
+project(":ipc").projectDir = file("idea-plugin/ipc")
+
 include(":render-worker")
+project(":render-worker").projectDir = file("idea-plugin/render-worker")
