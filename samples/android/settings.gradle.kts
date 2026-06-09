@@ -27,7 +27,12 @@ dependencyResolutionManagement {
 }
 
 // Expose :graph-annotations and :graph-processor from the Sight root build
-includeBuild("..")
+includeBuild("../..") {
+    dependencySubstitution {
+        substitute(module("io.github.keymusicman:sight-annotations")).using(project(":graph-annotations"))
+        substitute(module("io.github.keymusicman:sight-processor")).using(project(":graph-processor"))
+    }
+}
 
 rootProject.name = "sample-android"
 include(":app")
