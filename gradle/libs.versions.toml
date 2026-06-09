@@ -1,4 +1,5 @@
 [versions]
+mavenPublish = "0.32.0"
 androidx-lifecycle = "2.9.6"
 ksp = "2.3.2"
 composeMultiplatform = "1.11.0-beta03"
@@ -42,3 +43,4 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 intellijPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "intellijPlatform" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+mavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublish" }

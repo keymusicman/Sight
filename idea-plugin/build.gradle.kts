@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.keymusicman.sight"
-version = "1.0.76-SNAPSHOT"
+version = "0.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -45,6 +45,10 @@ intellijPlatform {
         changeNotes = """
             Initial version
         """.trimIndent()
+    }
+    publishing {
+        token = providers.gradleProperty("jetbrainsMarketplaceToken")
+            .orElse(providers.environmentVariable("JETBRAINS_MARKETPLACE_TOKEN").orElse(""))
     }
 }
 

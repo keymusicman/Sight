@@ -32,8 +32,8 @@ ksp {
 }
 
 dependencies {
-    implementation("com.keymusicman:graph-annotations")
-    ksp("com.keymusicman:graph-processor")
+    implementation("io.github.keymusicman:sight-annotations")
+    ksp("io.github.keymusicman:sight-processor")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
