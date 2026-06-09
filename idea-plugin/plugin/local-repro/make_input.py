@@ -6,14 +6,14 @@ Edit the `render_req` block below to change which composable / device / flags ar
 See idea-plugin/LOCAL_REPRO.md.
 
 Env:
-  AF_REPRO_WORK     work dir for init.json / req.json / out.png (default: /tmp/af-repro)
-  AF_WORKER_INIT    captured WorkerInit dump (default: /tmp/af-worker-init.txt)
-  AF_SHOW_SYSTEM_UI override showSystemUi (1/true/yes -> True) without editing this file
+  SIGHT_REPRO_WORK     work dir for init.json / req.json / out.png (default: /tmp/sight-repro)
+  SIGHT_WORKER_INIT    captured WorkerInit dump (default: /tmp/sight-worker-init.txt)
+  SIGHT_SHOW_SYSTEM_UI override showSystemUi (1/true/yes -> True) without editing this file
 """
 import json, os
 
-WORK = os.environ.get("AF_REPRO_WORK", "/tmp/af-repro")
-INIT_DUMP = os.environ.get("AF_WORKER_INIT", "/tmp/af-worker-init.txt")
+WORK = os.environ.get("SIGHT_REPRO_WORK", "/tmp/sight-repro")
+INIT_DUMP = os.environ.get("SIGHT_WORKER_INIT", "/tmp/sight-worker-init.txt")
 os.makedirs(WORK, exist_ok=True)
 
 # Dump format (see LOCAL_REPRO.md "Refreshing inputs"):
@@ -66,7 +66,7 @@ render_req = {
     "nightMode": False,
     "fontScale": 1.0,
     "locale": "",
-    "showSystemUi": os.environ.get("AF_SHOW_SYSTEM_UI", "").lower() in ("1", "true", "yes"),
+    "showSystemUi": os.environ.get("SIGHT_SHOW_SYSTEM_UI", "").lower() in ("1", "true", "yes"),
 }
 
 with open(os.path.join(WORK, "init.json"), "w") as f:

@@ -468,7 +468,7 @@ private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "bmp")
 private fun findPreviewImages(composableFqn: String, modulePath: String?): List<String> {
     if (modulePath.isNullOrBlank() || composableFqn.isBlank()) return emptyList()
     val safeName = composableFqn.replace(Regex("[^A-Za-z0-9._-]"), "_")
-    val previewDir = File(modulePath, "build/appflower-previews")
+    val previewDir = File(modulePath, "build/sight-previews")
     if (!previewDir.isDirectory) return emptyList()
     val indexed = previewDir.listFiles { f ->
         val dot = f.name.lastIndexOf('.')

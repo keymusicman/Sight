@@ -3,18 +3,18 @@
 # No IDE, no plugin restart — ~3 s/render. See idea-plugin/LOCAL_REPRO.md.
 #
 # Usage:   run.sh [worker-jar]
-# Env:     APPFLOWER_STUDIO  Android Studio install (default: /Applications/Android Studio Preview.app)
-#          AF_REPRO_WORK     scratch dir for generated IPC + output (default: /tmp/af-repro)
-#          AF_WORKER_INIT    captured WorkerInit dump (default: /tmp/af-worker-init.txt)
+# Env:     SIGHT_STUDIO      Android Studio install (default: /Applications/Android Studio Preview.app)
+#          SIGHT_REPRO_WORK  scratch dir for generated IPC + output (default: /tmp/sight-repro)
+#          SIGHT_WORKER_INIT captured WorkerInit dump (default: /tmp/sight-worker-init.txt)
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-AS="${APPFLOWER_STUDIO:-/Applications/Android Studio Preview.app}/Contents"
+AS="${SIGHT_STUDIO:-/Applications/Android Studio Preview.app}/Contents"
 JAVA="$AS/jbr/Contents/Home/bin/java"
 WORKER_JAR="${1:-$REPO_ROOT/render-worker/build/libs/render-worker-all.jar}"
-WORK="${AF_REPRO_WORK:-/tmp/af-repro}"
+WORK="${SIGHT_REPRO_WORK:-/tmp/sight-repro}"
 mkdir -p "$WORK"
 
 CP="$AS/plugins/design-tools/lib/layoutlib.jar"
@@ -29,7 +29,7 @@ CP="$CP:$AS/lib/intellij.libraries.fastutil.jar"
 CP="$CP:$AS/plugins/android/lib/kxml2-2.3.0.jar"
 CP="$CP:$WORKER_JAR"
 
-AF_REPRO_WORK="$WORK" python3 "$SCRIPT_DIR/make_input.py"
+SIGHT_REPRO_WORK="$WORK" python3 "$SCRIPT_DIR/make_input.py"
 
 rm -f "$WORK/out.png"
 { cat "$WORK/init.json"; echo; cat "$WORK/req.json"; echo; } | \
@@ -42,7 +42,7 @@ rm -f "$WORK/out.png"
   --add-opens java.desktop/sun.font=ALL-UNNAMED \
   --add-opens java.desktop/sun.java2d=ALL-UNNAMED \
   -cp "$CP" \
-  com.keymusicman.appflowerplugin.renderworker.worker.RenderWorkerMainKt \
+  io.github.keymusicman.sight.worker.RenderWorkerMainKt \
   2> "$WORK/stderr.log"
 
 echo "=== done; RenderResponse JSON on stdout above; stderr in $WORK/stderr.log ==="

@@ -16,7 +16,7 @@ flowchart LR
     subgraph sight["Sight (idea-plugin)"]
         trigger["exportGraph\nGradle task"]
         renderer["ComposableRenderer\n(Layoutlib)"]
-        pngs["build/appflower-previews/\n*.png"]
+        pngs["build/sight-previews/\n*.png"]
         layout["LayoutGraphBuilder"]
         ui["graph-ui\nCompose canvas"]
         zip["ZIP archive"]

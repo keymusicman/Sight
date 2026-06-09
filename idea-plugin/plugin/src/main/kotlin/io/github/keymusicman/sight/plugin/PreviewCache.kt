@@ -5,7 +5,7 @@ import java.io.File
 object PreviewCache {
 
     private const val SENTINEL_FILENAME = ".render-config"
-    private const val PREVIEW_DIR = "build/appflower-previews"
+    private const val PREVIEW_DIR = "build/sight-previews"
 
     fun outDir(modulePath: String): File = File(modulePath, PREVIEW_DIR)
 

@@ -9,7 +9,7 @@ It speaks the worker's real IPC: newline-delimited JSON on stdin (`WorkerInit` t
 traces, `DIAG-*` prints) on stderr.
 
 The scripts are committed in **`idea-plugin/local-repro/`**. Generated IPC + output go to a
-scratch work dir (`/tmp/af-repro` by default; override with `AF_REPRO_WORK`), which is *not*
+scratch work dir (`/tmp/sight-repro` by default; override with `SIGHT_REPRO_WORK`), which is *not*
 committed.
 
 ## Files
@@ -21,14 +21,14 @@ Committed (in `idea-plugin/local-repro/`):
 | `run.sh` | Assembles the classpath, runs `make_input.py`, pipes `init.json`+`req.json` into `RenderWorkerMainKt`, writes `out.png` + `stderr.log` into the work dir. |
 | `make_input.py` | Parses the captured WorkerInit dump → `init.json` (`WorkerInit`) + `req.json` (`RenderRequest`). Edit the `render_req` block to change composable / device / flags. |
 
-Generated (in the work dir, default `/tmp/af-repro/`):
+Generated (in the work dir, default `/tmp/sight-repro/`):
 
 | File | Role |
 |------|------|
 | `init.json`, `req.json` | Generated IPC messages. |
 | `out.png`, `stderr.log` | Render output + worker stderr from the last run. |
 
-Input (captured once, default `/tmp/af-worker-init.txt`, override with `AF_WORKER_INIT`):
+Input (captured once, default `/tmp/sight-worker-init.txt`, override with `SIGHT_WORKER_INIT`):
 the worker's per-project inputs (Studio root, user classpath, res dirs, R.jars) — see
 "Refreshing inputs".
 
@@ -43,13 +43,13 @@ the worker's per-project inputs (Studio root, user classpath, res dirs, R.jars) 
 #    or against a specific jar:
 ./idea-plugin/local-repro/run.sh /path/to/render-worker-all.jar
 
-# 3. Inspect (work dir defaults to /tmp/af-repro):
-open /tmp/af-repro/out.png
-grep -iE "DIAG|error|exception" /tmp/af-repro/stderr.log
+# 3. Inspect (work dir defaults to /tmp/sight-repro):
+open /tmp/sight-repro/out.png
+grep -iE "DIAG|error|exception" /tmp/sight-repro/stderr.log
 ```
 
-Overridable via env: `APPFLOWER_STUDIO` (Studio install), `AF_REPRO_WORK` (work dir),
-`AF_WORKER_INIT` (captured input dump), `AF_SHOW_SYSTEM_UI` (set `1`/`true` to render with the
+Overridable via env: `SIGHT_STUDIO` (Studio install), `SIGHT_REPRO_WORK` (work dir),
+`SIGHT_WORKER_INIT` (captured input dump), `SIGHT_SHOW_SYSTEM_UI` (set `1`/`true` to render with the
 status + navigation bars without editing `make_input.py`).
 
 To change what's rendered, edit the `render_req` dict in `make_input.py`:
@@ -59,7 +59,7 @@ To change what's rendered, edit the `render_req` dict in `make_input.py`:
 - `widthPx`/`heightPx`/`density`: device pixels (pixel_5 = `1080×2340 @ 440`).
 - `showSystemUi`, `nightMode`, `fontScale`, `locale`: per-render config.
 
-## Refreshing inputs (`/tmp/af-worker-init.txt`)
+## Refreshing inputs (`/tmp/sight-worker-init.txt`)
 
 The classpath / res dirs / R.jars are resolved per-project inside the IDE, so they must be
 captured from a **real** plugin run. The file format `make_input.py` expects:

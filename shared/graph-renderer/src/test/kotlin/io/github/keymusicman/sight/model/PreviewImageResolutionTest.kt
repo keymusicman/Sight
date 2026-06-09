@@ -24,8 +24,8 @@ class PreviewImageResolutionTest {
     fun resolvesEachScreenFromItsOwnModule() = runTest {
         val modA = newDir("modA")
         val modB = newDir("modB")
-        writePng(File(modA, "build/appflower-previews"), "P.A.png")
-        writePng(File(modB, "build/appflower-previews"), "P.B.png")
+        writePng(File(modA, "build/sight-previews"), "P.A.png")
+        writePng(File(modB, "build/sight-previews"), "P.B.png")
 
         val appGraph = AppGraph(
             metadata = GraphMetadata(version = "4.0", generated_at = ""),
