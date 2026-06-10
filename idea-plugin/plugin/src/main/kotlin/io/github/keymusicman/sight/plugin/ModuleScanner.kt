@@ -16,7 +16,7 @@ data class GradleModuleInfo(
 object ModuleScanner {
 
     /**
-     * Uses the Gradle Tooling API to find all subprojects that expose an `exportGraph`
+     * Uses the Gradle Tooling API to find all subprojects that expose an `sight`
      * task, regardless of how the task was registered (direct, convention plugin, etc.).
      * Reuses the existing Gradle daemon if one is running; starts one otherwise.
      */
@@ -33,7 +33,7 @@ object ModuleScanner {
                     .connect()
                     .use { connection ->
                         val rootProject = connection.getModel(GradleProject::class.java)
-                        collectModulesWithTask(rootProject, "exportGraph", rootPath)
+                        collectModulesWithTask(rootProject, "sight", rootPath)
                     }
             } catch (_: Exception) {
                 emptyList()

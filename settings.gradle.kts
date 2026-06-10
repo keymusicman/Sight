@@ -47,6 +47,9 @@ project(":graph-annotations").projectDir = file("android/graph-annotations")
 
 include(":graph-processor")
 project(":graph-processor").projectDir = file("android/graph-processor")
+
+include(":sight-gradle-plugin")
+project(":sight-gradle-plugin").projectDir = file("android/sight-gradle-plugin")
 include(":graph-renderer")
 project(":graph-renderer").projectDir = file("shared/graph-renderer")
 

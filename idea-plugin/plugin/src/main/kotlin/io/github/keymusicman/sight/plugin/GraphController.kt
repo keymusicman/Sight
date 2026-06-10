@@ -91,7 +91,7 @@ class GraphController(
         projectRoots.forEach { root ->
             val settings = ExternalSystemTaskExecutionSettings().apply {
                 externalProjectPath = root
-                taskNames = listOf("exportGraph", "compileDebugKotlin")
+                taskNames = listOf("sight")
                 externalSystemIdString = GradleConstants.SYSTEM_ID.id
             }
             ExternalSystemUtil.runTask(

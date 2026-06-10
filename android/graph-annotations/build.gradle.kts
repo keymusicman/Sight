@@ -10,7 +10,9 @@ version = "0.1.0"
 
 mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
-    signAllPublications()
+    if (!project.hasProperty("skipSigning")) {
+        signAllPublications()
+    }
     coordinates("io.github.keymusicman", "sight-annotations", "0.1.0")
     pom {
         name = "Sight Annotations"

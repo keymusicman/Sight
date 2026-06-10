@@ -1,6 +1,7 @@
 import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
+    `java-gradle-plugin`
     kotlin("jvm")
     alias(libs.plugins.mavenPublish)
 }
@@ -9,8 +10,16 @@ group = "io.github.keymusicman"
 version = "0.1.0"
 
 dependencies {
-    implementation(libs.ksp.api)
-    testImplementation(kotlin("test"))
+    compileOnly(libs.ksp.gradlePlugin)
+}
+
+gradlePlugin {
+    plugins {
+        create("sight") {
+            id = "io.github.keymusicman.sight"
+            implementationClass = "io.github.keymusicman.sight.gradle.SightPlugin"
+        }
+    }
 }
 
 mavenPublishing {
@@ -18,10 +27,10 @@ mavenPublishing {
     if (!project.hasProperty("skipSigning")) {
         signAllPublications()
     }
-    coordinates("io.github.keymusicman", "sight-processor", "0.1.0")
+    coordinates("io.github.keymusicman", "sight-gradle-plugin", "0.1.0")
     pom {
-        name = "Sight Processor"
-        description = "KSP annotation processor for Sight — Android navigation graph visualization"
+        name = "Sight Gradle Plugin"
+        description = "Gradle plugin for Sight — applies KSP, wires sight-annotations and sight-processor, and registers the exportGraph task"
         url = "https://github.com/keymusicman/Sight"
         licenses {
             license {
