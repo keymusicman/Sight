@@ -54,6 +54,13 @@ intellijPlatform {
         token = providers.gradleProperty("jetbrainsMarketplaceToken")
             .orElse(providers.environmentVariable("JETBRAINS_MARKETPLACE_TOKEN").orElse(""))
     }
+    pluginVerification {
+        ides {
+            // Plugin is Android-Studio-only (depends on com.intellij.modules.androidstudio),
+            // so verify against AS — not the IntelliJ IDEA builds recommended() would pick.
+            ide(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.AndroidStudio, "2025.1.4.8")
+        }
+    }
 }
 
 kotlin {
