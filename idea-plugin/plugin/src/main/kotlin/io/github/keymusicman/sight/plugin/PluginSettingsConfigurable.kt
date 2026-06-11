@@ -17,8 +17,6 @@ class PluginSettingsConfigurable : Configurable {
     private lateinit var formatCombo: JComboBox<OutputFormat>
     private lateinit var qualitySlider: JSlider
     private lateinit var qualityLabel: JLabel
-    private lateinit var incrementalBox: JCheckBox
-    private lateinit var telemetryBox: JCheckBox
     private lateinit var subprocessBox: JCheckBox
 
     override fun getDisplayName(): String = "Sight"
@@ -27,8 +25,6 @@ class PluginSettingsConfigurable : Configurable {
         formatCombo = JComboBox(OutputFormat.entries.toTypedArray())
         qualitySlider = JSlider(1, 100, 85)
         qualityLabel = JLabel("85")
-        incrementalBox = JCheckBox("Skip re-rendering composables whose source hasn't changed")
-        telemetryBox = JCheckBox("Send render telemetry (OpenTelemetry → Grafana Cloud)")
         subprocessBox = JCheckBox("Render previews in isolated subprocess (experimental — avoids the Layoutlib native memory leak)")
 
         val qualityChangeListener = ChangeListener {
@@ -43,9 +39,7 @@ class PluginSettingsConfigurable : Configurable {
             border = BorderFactory.createEmptyBorder(8, 0, 8, 0)
             add(row("Output format:", formatCombo))
             add(row("JPEG quality:", qualitySlider, qualityLabel))
-            add(row(incrementalBox))
             add(row(subprocessBox))
-            if (OtelConfig.OTEL_ENABLED) add(row(telemetryBox))
         }
 
         reset()
@@ -56,22 +50,14 @@ class PluginSettingsConfigurable : Configurable {
         val s = PluginSettingsService.getInstance().getState()
         return formatCombo.selectedItem != s.outputFormat ||
             qualitySlider.value != s.jpegQuality ||
-            incrementalBox.isSelected != s.incrementalRendering ||
-            subprocessBox.isSelected != s.useSubprocessRenderer ||
-            (OtelConfig.OTEL_ENABLED && telemetryBox.isSelected != s.telemetryEnabled)
+            subprocessBox.isSelected != s.useSubprocessRenderer
     }
 
     override fun apply() {
         val s = PluginSettingsService.getInstance().getState()
         s.outputFormat = formatCombo.selectedItem as OutputFormat
         s.jpegQuality = qualitySlider.value
-        s.incrementalRendering = incrementalBox.isSelected
         s.useSubprocessRenderer = subprocessBox.isSelected
-        if (OtelConfig.OTEL_ENABLED) {
-            val wasEnabled = s.telemetryEnabled
-            s.telemetryEnabled = telemetryBox.isSelected
-            if (wasEnabled != s.telemetryEnabled) TelemetryService.getInstance().reinitialize()
-        }
     }
 
     override fun reset() {
@@ -79,9 +65,7 @@ class PluginSettingsConfigurable : Configurable {
         formatCombo.selectedItem = s.outputFormat
         qualitySlider.value = s.jpegQuality
         qualityLabel.text = s.jpegQuality.toString()
-        incrementalBox.isSelected = s.incrementalRendering
         subprocessBox.isSelected = s.useSubprocessRenderer
-        if (OtelConfig.OTEL_ENABLED) telemetryBox.isSelected = s.telemetryEnabled
         syncQualityEnabled()
     }
 

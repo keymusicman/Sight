@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        mavenLocal() // resolves the published sight-gradle-plugin 0.1.0 (switch to Maven Central after release)
+//        mavenLocal()
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -16,7 +16,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
-        mavenLocal() // resolves sight-annotations / sight-processor 0.1.0 (switch to Maven Central after release)
+//        mavenLocal()
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")

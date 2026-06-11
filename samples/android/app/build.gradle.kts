@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp) // kept so the Sight plugin can apply KSP from the build classpath
-    id("io.github.keymusicman.sight") version "0.1.0"
+    id("io.github.keymusicman.sight") version "0.0.1"
 }
 
 android {
@@ -14,7 +14,7 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.0.1"
     }
 
     buildFeatures {

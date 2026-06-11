@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.keymusicman"
-version = "0.1.0"
+version = "0.0.1"
 
 kotlin {
     jvmToolchain(17) // keep consumable on JDK 17 (Android/AGP baseline)
@@ -31,7 +31,7 @@ mavenPublishing {
     if (!project.hasProperty("skipSigning")) {
         signAllPublications()
     }
-    coordinates("io.github.keymusicman", "sight-gradle-plugin", "0.1.0")
+    coordinates("io.github.keymusicman", "sight-gradle-plugin", "0.0.1")
     pom {
         name = "Sight Gradle Plugin"
         description = "Gradle plugin for Sight — applies KSP, wires sight-annotations and sight-processor, and registers the exportGraph task"

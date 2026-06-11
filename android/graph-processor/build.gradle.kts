@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.keymusicman"
-version = "0.1.0"
+version = "0.0.1"
 
 kotlin {
     jvmToolchain(17) // keep consumable on JDK 17 (Android/AGP baseline)
@@ -22,7 +22,7 @@ mavenPublishing {
     if (!project.hasProperty("skipSigning")) {
         signAllPublications()
     }
-    coordinates("io.github.keymusicman", "sight-processor", "0.1.0")
+    coordinates("io.github.keymusicman", "sight-processor", "0.0.1")
     pom {
         name = "Sight Processor"
         description = "KSP annotation processor for Sight — Android navigation graph visualization"

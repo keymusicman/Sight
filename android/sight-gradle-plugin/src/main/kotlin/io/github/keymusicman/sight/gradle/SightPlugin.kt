@@ -30,6 +30,6 @@ class SightPlugin : Plugin<Project> {
     }
 
     companion object {
-        const val VERSION = "0.1.0"
+        const val VERSION = "0.0.1"
     }
 }
