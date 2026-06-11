@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "io.github.keymusicman.sight"
-version = "0.0.1-SNAPSHOT"
+version = "0.1.0"
 
 repositories {
     mavenCentral()
@@ -43,7 +43,11 @@ intellijPlatform {
             sinceBuild = "251"
         }
         changeNotes = """
-            Initial version
+            <ul>
+              <li>Initial release.</li>
+              <li>Navigation-flow tool window generated from <code>@SightScreen</code> / <code>@SightTransition</code> annotations.</li>
+              <li>Interactive pan/zoom canvas with Layoutlib-rendered screen previews and a per-screen state carousel.</li>
+            </ul>
         """.trimIndent()
     }
     publishing {

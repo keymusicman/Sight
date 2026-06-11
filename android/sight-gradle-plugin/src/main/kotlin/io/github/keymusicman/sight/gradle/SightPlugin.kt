@@ -13,7 +13,12 @@ class SightPlugin : Plugin<Project> {
         target.dependencies.add("ksp", "io.github.keymusicman:sight-processor:$VERSION")
 
         target.extensions.configure(KspExtension::class.java) { ksp ->
-            ksp.arg("projectRoot", target.rootDir.absolutePath)
+            // Module's own directory — NOT rootDir. The processor writes the fragment to
+            // "$projectRoot/build/graph/" and emits screen `location` paths relative to it,
+            // and the IDE plugin reads each module's own build/graph/ and resolves `location`
+            // against the module dir. Using rootDir here makes sibling modules overwrite one
+            // shared fragment and breaks both fragment discovery and source navigation.
+            ksp.arg("projectRoot", target.projectDir.absolutePath)
             ksp.arg("moduleName", target.path)
         }
 

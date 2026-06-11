@@ -1,17 +1,17 @@
 <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="iris" x1="14" y1="14" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4F7CFF"/><stop offset="1" stop-color="#8B5CF6"/>
+      <stop stop-color="#5B86FF"/><stop offset="1" stop-color="#9B71FF"/>
     </linearGradient>
   </defs>
   <!-- eye outline -->
-  <path d="M5 20 C12 8.5 28 8.5 35 20 C28 31.5 12 31.5 5 20 Z" fill="none" stroke="#334155" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M5 20 C12 8.5 28 8.5 35 20 C28 31.5 12 31.5 5 20 Z" fill="none" stroke="#CED6E0" stroke-width="2.5" stroke-linejoin="round"/>
   <!-- iris + pupil -->
   <circle cx="20" cy="20" r="6.5" fill="url(#iris)"/>
   <circle cx="20" cy="20" r="2.5" fill="#0F172A"/>
-  <circle cx="22.3" cy="17.7" r="1.1" fill="#FFFFFF" opacity="0.9"/>
-  <!-- graph nodes at the two  corners of the eye -->
-  <g fill="#334155">
+  <circle cx="22.3" cy="17.7" r="1.1" fill="#FFFFFF" opacity="0.95"/>
+  <!-- graph nodes at the two corners of the eye -->
+  <g fill="#CED6E0">
     <circle cx="5" cy="20" r="2"/>
     <circle cx="35" cy="20" r="2"/>
   </g>

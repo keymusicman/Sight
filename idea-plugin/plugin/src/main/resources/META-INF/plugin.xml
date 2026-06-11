@@ -12,7 +12,20 @@
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
-    <description>Build and view application screens as flow</description>
+    <description><![CDATA[
+        <p><b>Sight</b> turns your Jetpack Compose <code>@Preview</code> screens into an interactive
+        navigation-flow graph, right inside the IDE.</p>
+        <p>Annotate screens with <code>@SightScreen</code> and declare navigation with
+        <code>@SightTransition</code>; the Sight Gradle plugin's KSP processor builds the graph, and
+        this tool window renders it:</p>
+        <ul>
+          <li>Interactive canvas with pan, zoom and hover highlighting</li>
+          <li>Real screen previews rendered via Layoutlib, with a per-screen state carousel</li>
+          <li>Automatic layout of subgraphs, transitions and entry points</li>
+        </ul>
+        <p>See your whole app's flow at a glance, straight from the previews you already write.
+        Requires the Sight Gradle plugin (<code>io.github.keymusicman.sight</code>). Apache-2.0.</p>
+    ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
@@ -30,10 +43,10 @@
     </applicationListeners>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="Flow Preview"
+        <toolWindow id="Sight"
                     factoryClass="io.github.keymusicman.sight.plugin.FlowToolWindowFactory"
                     anchor="bottom"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"
+                    icon="/icons/sightToolWindow.svg"
                     canCloseContents="true"/>
         <projectService serviceImplementation="io.github.keymusicman.sight.plugin.PreviewConfigService"/>
         <applicationService serviceImplementation="io.github.keymusicman.sight.plugin.PluginSettingsService"/>
