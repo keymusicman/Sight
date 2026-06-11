@@ -8,6 +8,10 @@ plugins {
 group = "io.github.keymusicman"
 version = "0.1.0"
 
+kotlin {
+    jvmToolchain(17) // keep consumable on JDK 17 (Android/AGP baseline)
+}
+
 dependencies {
     implementation(libs.ksp.api)
     testImplementation(kotlin("test"))

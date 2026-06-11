@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        mavenLocal() // resolves the published sight-gradle-plugin 0.1.0 (switch to Maven Central after release)
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -15,6 +16,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        mavenLocal() // resolves sight-annotations / sight-processor 0.1.0 (switch to Maven Central after release)
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -23,14 +25,6 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-    }
-}
-
-// Expose :graph-annotations and :graph-processor from the Sight root build
-includeBuild("../..") {
-    dependencySubstitution {
-        substitute(module("io.github.keymusicman:sight-annotations")).using(project(":graph-annotations"))
-        substitute(module("io.github.keymusicman:sight-processor")).using(project(":graph-processor"))
     }
 }
 

@@ -1,7 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
+    alias(libs.plugins.ksp) // kept so the Sight plugin can apply KSP from the build classpath
+    id("io.github.keymusicman.sight") version "0.1.0"
 }
 
 android {
@@ -26,15 +27,9 @@ android {
     }
 }
 
-ksp {
-    arg("projectRoot", rootDir.absolutePath)
-    arg("moduleName", ":app")
-}
-
 dependencies {
-    implementation("io.github.keymusicman:sight-annotations")
-    ksp("io.github.keymusicman:sight-processor")
-
+    // sight-annotations (compileOnly) + sight-processor (ksp) and the projectRoot/moduleName
+    // KSP args are added automatically by the io.github.keymusicman.sight plugin.
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.ui)

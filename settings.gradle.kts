@@ -1,11 +1,16 @@
 rootProject.name = "Sight"
 
-// Inject local.properties into Gradle project properties so providers.gradleProperty() resolves them
-file("local.properties").takeIf { it.exists() }?.also { f ->
-    val props = java.util.Properties()
-    f.inputStream().use(props::load)
-    props.forEach { key, value ->
-        System.setProperty("org.gradle.project.${key}", value.toString())
+// Inject local.properties into each project as extra properties so findProperty()/hasProperty()
+// (used by the signing plugin and vanniktech maven-publish) resolve them.
+// NOTE: this must run via gradle.beforeProject, NOT by mutating system/startParameter properties in
+// the settings body — Gradle snapshots all project-property sources before the settings script runs,
+// so anything set here at settings-eval time never becomes a project property.
+val localProps = java.util.Properties().apply {
+    file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+gradle.beforeProject {
+    localProps.forEach { key, value ->
+        extensions.extraProperties.set(key.toString(), value.toString())
     }
 }
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
