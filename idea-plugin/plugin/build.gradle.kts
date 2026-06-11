@@ -78,6 +78,12 @@ val generateOtelConfig by tasks.registering {
         }
         val otelEndpoint = props["OTEL_GC_ENDPOINT"] as String?
         val otelToken    = props["OTEL_GC_TOKEN"] as String?
+        // Telemetry is OFF by default. It is embedded only when a developer explicitly opts in with
+        // `OTEL_ENABLED=true` in local.properties AND supplies an endpoint + token. This keeps release
+        // builds safe: an endpoint/token left in local.properties never leaks into a published artifact
+        // unless telemetry is deliberately turned on.
+        val otelEnabled = (props["OTEL_ENABLED"] as String?)?.trim()?.toBooleanStrictOrNull() == true &&
+            !otelEndpoint.isNullOrBlank() && !otelToken.isNullOrBlank()
 
         val dir = outDir.get().asFile
         dir.mkdirs()
@@ -85,9 +91,9 @@ val generateOtelConfig by tasks.registering {
             """
             package io.github.keymusicman.sight.plugin
             internal object OtelConfig {
-                const val OTEL_ENABLED     = ${otelEndpoint != null}
-                const val OTLP_ENDPOINT    = "${otelEndpoint ?: ""}"
-                const val OTLP_AUTH_HEADER = "${otelToken?.trim('"')?.substringAfter("=") ?: ""}"
+                const val OTEL_ENABLED     = $otelEnabled
+                const val OTLP_ENDPOINT    = "${if (otelEnabled) otelEndpoint else ""}"
+                const val OTLP_AUTH_HEADER = "${if (otelEnabled) otelToken?.trim('"')?.substringAfter("=") else ""}"
             }
             """.trimIndent()
         )
