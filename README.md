@@ -15,49 +15,8 @@ Sight turns the previews on your screens into a live, navigable map of your app:
 state, and the transitions between them — rendered with the real Layoutlib pipeline inside an
 Android Studio tool window, exportable as images.
 
-<!-- 📸 Drop a screenshot or GIF of the tool window here once you have one:
-     ![Sight tool window](docs/assets/sight-tool-window.png) -->
+<img align="top" width="600" alt="Plugin panel" src="https://github.com/user-attachments/assets/9031c96d-e14b-47b7-aca2-df7f706f2fe8" /> <img align="top" width="300" alt="Device config" src="https://github.com/user-attachments/assets/46d1c6ab-2e20-4362-a070-adb4fd5e6618" />
 
-## How it works
-
-```mermaid
-flowchart LR
-    subgraph android["Android project"]
-        preview["@Preview @Composable\nfunctions"]
-        annot["@SightScreen\n@SightTransition\nannotations"]
-        ksp["KSP processor\n(GraphSymbolProcessor)"]
-        json["app-graph.json\nbuild/graph/"]
-    end
-
-    subgraph sight["Sight (idea-plugin)"]
-        trigger["exportGraph\nGradle task"]
-        renderer["ComposableRenderer\n(Layoutlib)"]
-        pngs["build/sight-previews/\n*.png"]
-        layout["LayoutGraphBuilder"]
-        ui["graph-ui\nCompose canvas"]
-        zip["ZIP archive"]
-    end
-
-    subgraph web["web-server + GCS"]
-        upload["POST /api/upload-graph"]
-        gcs["gs://your-gcs-bucket/\napp-graph/{id}/"]
-        viewer["browser viewer"]
-    end
-
-    preview --> annot
-    annot --> ksp
-    ksp -->|"writes directly"| json
-    trigger -->|"runs KSP"| json
-    json --> renderer
-    renderer --> pngs
-    pngs --> layout
-    layout --> ui
-    pngs --> zip
-    json --> zip
-    zip --> upload
-    upload --> gcs
-    gcs --> viewer
-```
 
 ## Install
 
