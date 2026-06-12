@@ -13,7 +13,7 @@
 
 Sight turns the previews on your screens into a live, navigable map of your app: every screen, every
 state, and the transitions between them — rendered with the real Layoutlib pipeline inside an
-Android Studio tool window, exportable as images, or shareable through a web viewer.
+Android Studio tool window, exportable as images.
 
 <!-- 📸 Drop a screenshot or GIF of the tool window here once you have one:
      ![Sight tool window](docs/assets/sight-tool-window.png) -->
@@ -139,25 +139,16 @@ cd samples/android
 
 ## Modules
 
-| Module | Description |
-|--------|-------------|
-| `android/graph-annotations` | `@SightGraph`, `@SightScreen`, `@SightTransition` — apply these in your Android project |
-| `android/graph-processor` | KSP processor that reads the annotations and writes `build/graph/app-graph-fragment.json` |
+| Module | Description                                                                                                           |
+|--------|-----------------------------------------------------------------------------------------------------------------------|
+| `android/graph-annotations` | `@SightGraph`, `@SightScreen`, `@SightTransition` — apply these in your Android project                               |
+| `android/graph-processor` | KSP processor that reads the annotations and writes `build/graph/app-graph-fragment.json`                             |
 | `android/sight-gradle-plugin` | Gradle plugin (`io.github.keymusicman.sight`) — applies KSP, wires the annotations/processor, registers `exportGraph` |
-| `shared/graph-renderer` | Layout algorithm + data models. Pure JVM, no UI dependency |
-| `shared/graph-ui` | Interactive Compose canvas — pan/zoom, hover highlighting, screenshot carousel |
-| `idea-plugin/plugin` | IntelliJ/Android Studio tool window |
-| `web-server` | Ktor server + browser UI for sharing/CI |
-| `samples/android` | Minimal Android showcase (standalone Gradle project) |
-
-## Web server
-
-```shell
-./gradlew :web-server:run
-# → http://localhost:8080
-```
-
-See [web-server/README.md](web-server/README.md) for Docker and Google Cloud deployment.
+| `shared/graph-renderer` | Layout algorithm + data models. Pure JVM, no UI dependency                                                            |
+| `shared/graph-ui` | Interactive Compose canvas — pan/zoom, hover highlighting, screenshot carousel                                        |
+| `idea-plugin/plugin` | IntelliJ/Android Studio tool window                                                                                   |
+| `web-server` | Ktor server + browser UI for sharing/CI. Not ready to use                                                             |
+| `samples/android` | Minimal Android showcase (standalone Gradle project)                                                                  |
 
 ## Roadmap
 

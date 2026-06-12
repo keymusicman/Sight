@@ -24,6 +24,7 @@ permissions:
 jobs:
   publish-maven-central:
     name: Publish libraries to Maven Central
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
